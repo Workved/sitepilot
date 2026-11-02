@@ -20,10 +20,15 @@ before any custom template exists.
 
 from __future__ import annotations
 
+import logging
+
 import httpx
 
 from app.config import settings
 from app.services.message_dispatch import ProviderSendResult
+from app.services.message_templates import is_placeholder_template
+
+logger = logging.getLogger(__name__)
 
 GRAPH_API_BASE = "https://graph.facebook.com"
 
@@ -35,6 +40,8 @@ class MetaCloudApiAdapter:
     overridden per-instance, e.g. for a one-off script run against a
     different test number without touching `.env`.
     """
+
+    provider_name = "meta"
 
     def __init__(
         self,
@@ -55,6 +62,16 @@ class MetaCloudApiAdapter:
                 ok=False,
                 failure_code="missing_phone",
                 failure_reason="Recipient has no phone number on file.",
+            )
+        if not template or is_placeholder_template(template):
+            logger.warning(
+                "WhatsApp template %r is an unapproved TBD placeholder; blocking Graph API send.",
+                template,
+            )
+            return ProviderSendResult(
+                ok=False,
+                failure_code="template_unapproved",
+                failure_reason=f"WhatsApp template '{template}' is a TBD placeholder and is not yet approved in Meta Business Manager.",
             )
         if not self.access_token or not self.phone_number_id:
             return ProviderSendResult(
@@ -104,54 +121,3 @@ class MetaCloudApiAdapter:
             "template": template_body,
         }
 
-
-def send_diagnostic_text_reply(recipient_phone: str, body: str) -> ProviderSendResult:
-    """TEMPORARY, diagnostic-only: sends one plain free-text WhatsApp
-    message, not a template. Requested by management to prove the
-    webhook receive -> reply loop end-to-end before any real workflow is
-    built on top of it - NOT part of the template/outbox system
-    (`message_templates.py`, `MetaCloudApiAdapter.send` above), and not
-    called from anywhere but the inbound webhook route's own diagnostic
-    reply. Free-form text is only accepted by the Cloud API within the
-    24h customer-service window an inbound message opens, which is
-    exactly the context this is called from - delete this function and
-    its one call site once the test is done and replaced by real,
-    workflow-specific replies.
-    """
-    if not settings.whatsapp_access_token or not settings.whatsapp_phone_number_id:
-        return ProviderSendResult(
-            ok=False, failure_code="not_configured",
-            failure_reason="WhatsApp access token / phone number id not set.",
-        )
-
-    url = f"{GRAPH_API_BASE}/{settings.whatsapp_api_version}/{settings.whatsapp_phone_number_id}/messages"
-    request_body = {
-        "messaging_product": "whatsapp",
-        "to": recipient_phone,
-        "type": "text",
-        "text": {"body": body},
-    }
-
-    try:
-        response = httpx.post(
-            url,
-            json=request_body,
-            headers={"Authorization": f"Bearer {settings.whatsapp_access_token}"},
-            timeout=15.0,
-        )
-    except httpx.HTTPError as exc:
-        return ProviderSendResult(ok=False, failure_code="network_error", failure_reason=str(exc))
-
-    data = response.json() if response.content else {}
-
-    if response.status_code >= 400:
-        error = data.get("error", {})
-        return ProviderSendResult(
-            ok=False,
-            failure_code=str(error.get("code", response.status_code)),
-            failure_reason=error.get("message") or f"HTTP {response.status_code}",
-        )
-
-    messages = data.get("messages") or []
-    provider_message_id = messages[0].get("id") if messages else None
-    return ProviderSendResult(ok=True, provider_message_id=provider_message_id)

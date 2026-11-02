@@ -123,7 +123,7 @@ def summary(actor: User = Depends(require_roles(*ADMIN_ROLES)), db: Session = De
     recipient_rows = db.execute(select(BroadcastRecipient.delivery_status)).scalars().all()
     total_recipients = len(recipient_rows)
     delivered = sum(1 for status in recipient_rows if status == "sent")
-    resolved = sum(1 for status in recipient_rows if status in ("sent", "skipped_no_contact"))
+    resolved = sum(1 for status in recipient_rows if status in ("sent", "skipped_no_contact", "failed"))
     success_rate = round(delivered / resolved * 100) if resolved else 0
 
     return SummaryOut(

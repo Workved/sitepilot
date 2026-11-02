@@ -42,6 +42,16 @@ class TemplateSpec:
     language: str
     variable_order: tuple[str, ...]
 
+    @property
+    def is_placeholder(self) -> bool:
+        return is_placeholder_template(self.meta_template_name)
+
+
+def is_placeholder_template(template_name: str | None) -> bool:
+    """Returns True when `template_name` is an unapproved `TBD_` placeholder
+    identifier awaiting Meta Business Manager creation/approval."""
+    return bool(template_name and template_name.startswith("TBD_"))
+
 
 DEFAULT_TEMPLATE = TemplateSpec("generic_notification", "en", ())
 
@@ -303,6 +313,10 @@ TEMPLATE_REGISTRY: dict[str, TemplateSpec] = {
         # Admin via `message_dispatch.py`'s `_ADMIN_CC_PROJECT_EVENTS`.
         "weekly_project_summary", "en", ("project_id", "report_snapshot_id"),
     ),
+    # ---- broadcast events (Milestone 1 Phase 2) --------------------------
+    "broadcast.message_dispatched": TemplateSpec(
+        "project_broadcast_announcement", "en", ("project_name", "title", "message_body"),
+    ),
 }
 
 
@@ -323,12 +337,42 @@ def render_components(spec: TemplateSpec, payload: dict) -> list[dict]:
     `components` list `MetaCloudApiAdapter._build_body` already reads off
     `payload["components"]`, but nothing has ever populated until now).
 
-    A spec with no `variable_order` (e.g. `DEFAULT_TEMPLATE`) still returns
-    one body component with an empty `parameters` list, matching the shape
-    Meta expects for a template with no placeholders."""
+    A spec with no `variable_order` (e.g. `DEFAULT_TEMPLATE`) returns no
+    components at all - Meta rejects a body component with an empty
+    `parameters` list for a template that has no placeholders.
+
+    Meta also rejects an empty-string parameter, so an optional field that
+    is missing or blank (a `reason` on a normal status change, `remarks` on
+    an approval) is sent as `EMPTY_PARAMETER_TEXT` instead."""
+    if not spec.variable_order:
+        return []
     return [
         {
             "type": "body",
-            "parameters": [{"type": "text", "text": str(payload.get(key, ""))} for key in spec.variable_order],
+            "parameters": [{"type": "text", "text": _parameter_text(payload.get(key))} for key in spec.variable_order],
         }
     ]
+
+
+EMPTY_PARAMETER_TEXT = "-"
+
+
+def _parameter_text(value: object) -> str:
+    text = "" if value is None else str(value).strip()
+    return text or EMPTY_PARAMETER_TEXT
+
+
+def audit_template_registry() -> list[dict]:
+    """Returns a structured audit inventory of every entry in
+    `TEMPLATE_REGISTRY`, categorizing each template as `'configured'` or
+    `'placeholder_tbd'`."""
+    inventory: list[dict] = []
+    for event_type, spec in TEMPLATE_REGISTRY.items():
+        inventory.append({
+            "event_type": event_type,
+            "meta_template_name": spec.meta_template_name,
+            "language": spec.language,
+            "variable_order": spec.variable_order,
+            "status": "placeholder_tbd" if spec.is_placeholder else "configured",
+        })
+    return inventory

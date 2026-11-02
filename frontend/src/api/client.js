@@ -41,7 +41,11 @@ async function request(path, options, allowRefresh) {
   catch { data = { message: text }; }
 
   if (!response.ok) {
-    const message = data?.detail || data?.message || "Something went wrong";
+    // FastAPI request-validation errors arrive as a list of {msg, ...}.
+    const detail = Array.isArray(data?.detail)
+      ? data.detail.map(item => String(item?.msg || "").replace(/^Value error, /, "")).filter(Boolean).join(" ")
+      : data?.detail;
+    const message = detail || data?.message || "Something went wrong";
     if (response.status === 401 && authFailure !== "preserve") {
       await supabase.auth.signOut({ scope: "local" }).catch(() => {});
       window.dispatchEvent(new CustomEvent("siteops:session-expired", {

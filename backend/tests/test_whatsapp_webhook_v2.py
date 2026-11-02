@@ -28,24 +28,33 @@ import hmac
 import json
 import unittest
 import uuid
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, select
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.config import settings
 from app.database import get_db
-from app.execution_models import GateEvidenceSession, InboundMessage
+from app.execution_models import GateEvidenceSession, InboundMessage, MessageDelivery, OutboxEvent
 from app.models import EmployeeProfile, User, UserRole
 from app.routes.whatsapp_webhook_v2 import (
     _extract_errors,
     _extract_media_metadata,
+    _extract_statuses,
     router as whatsapp_webhook_router,
 )
 from app.vendor_models import V2VendorContact
+
+
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(_type, _compiler, **_kw):
+    return "JSON"
 
 WEBHOOK_SECRET = "test-webhook-secret"
 EMPLOYEE_ID = uuid.UUID("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1")
@@ -120,7 +129,7 @@ class WebhookMediaAndErrorsApiTests(unittest.TestCase):
 
         for table in (
             User.__table__, EmployeeProfile.__table__, V2VendorContact.__table__, InboundMessage.__table__,
-            GateEvidenceSession.__table__,
+            GateEvidenceSession.__table__, OutboxEvent.__table__, MessageDelivery.__table__,
         ):
             table.create(self.engine)
 
@@ -152,9 +161,12 @@ class WebhookMediaAndErrorsApiTests(unittest.TestCase):
                 role=UserRole.supervisor, active=True, phone=EMPLOYEE_PHONE,
             ))
             session.flush()
-            session.add(EmployeeProfile(
+            profile = EmployeeProfile(
                 user_id=EMPLOYEE_ID, employee_code="EMP-001", designation="Supervisor", availability="available",
-            ))
+            )
+            session.add(profile)
+            session.flush()
+            self.employee_profile_id = profile.id
 
     def tearDown(self):
         self.client.close()
@@ -265,6 +277,204 @@ class WebhookMediaAndErrorsApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         mock_service_cls.assert_not_called()
         self.assertEqual(self.inbound_rows(), [])
+
+    # ---- Milestone 1 Phase 1: WhatsApp status callback processing ----------
+
+    def _seed_delivery(self, provider_message_id: str, status: str = "sent") -> uuid.UUID:
+        with self.Session.begin() as session:
+            ev = OutboxEvent(
+                event_type="task.status_changed",
+                aggregate_type="task",
+                aggregate_id=uuid.uuid4(),
+                payload={"target_status": "ready"},
+                idempotency_key=f"status-test:{uuid.uuid4()}",
+                status="dispatched",
+            )
+            session.add(ev)
+            session.flush()
+            delivery = MessageDelivery(
+                outbox_event_id=ev.id,
+                recipient_employee_id=self.employee_profile_id,
+                recipient_vendor_contact_id=None,
+                recipient_phone=EMPLOYEE_PHONE,
+                template="task_status_update",
+                channel="whatsapp",
+                provider="meta",
+                provider_message_id=provider_message_id,
+                status=status,
+                attempt_count=1,
+            )
+            session.add(delivery)
+            session.flush()
+            return delivery.id
+
+    def _get_delivery(self, delivery_id: uuid.UUID) -> MessageDelivery:
+        with self.Session() as session:
+            return session.get(MessageDelivery, delivery_id)
+
+    def _status_envelope(self, *statuses: dict) -> dict:
+        return {
+            "object": "whatsapp_business_account",
+            "entry": [{
+                "id": "waba-1",
+                "changes": [{
+                    "field": "messages",
+                    "value": {
+                        "messaging_product": "whatsapp",
+                        "metadata": {"phone_number_id": "phone-1"},
+                        "statuses": list(statuses),
+                    },
+                }],
+            }],
+        }
+
+    def test_extract_statuses_parses_nested_statuses_and_tolerates_malformed_input(self):
+        self.assertEqual(_extract_statuses({}), [])
+        self.assertEqual(_extract_statuses({"entry": "invalid"}), [])
+        envelope = self._status_envelope({"id": "wamid.1", "status": "delivered"})
+        self.assertEqual(_extract_statuses(envelope), [{"id": "wamid.1", "status": "delivered"}])
+
+    def test_status_callback_rejects_invalid_or_missing_signature(self):
+        delivery_id = self._seed_delivery("wamid.sig-test", status="sent")
+        envelope = self._status_envelope({"id": "wamid.sig-test", "status": "delivered", "timestamp": "1700000100"})
+        raw_body = json.dumps(envelope).encode("utf-8")
+
+        missing_sig = self.client.post(
+            "/api/v2/whatsapp/inbound", content=raw_body, headers={"Content-Type": "application/json"},
+        )
+        self.assertEqual(missing_sig.status_code, 401)
+
+        bad_sig = self.client.post(
+            "/api/v2/whatsapp/inbound",
+            content=raw_body,
+            headers={"Content-Type": "application/json", "X-Hub-Signature-256": "sha256=deadbeef"},
+        )
+        self.assertEqual(bad_sig.status_code, 401)
+        self.assertEqual(self._get_delivery(delivery_id).status, "sent")
+
+    def test_sent_delivered_and_read_callbacks_advance_status_and_record_timestamps(self):
+        delivery_id = self._seed_delivery("wamid.lifecycle-1", status="sending")
+
+        # 1. sent callback
+        r1 = self.post_signed(self._status_envelope({
+            "id": "wamid.lifecycle-1", "status": "sent", "timestamp": "1700000010",
+        }))
+        self.assertEqual(r1.status_code, 200)
+        d1 = self._get_delivery(delivery_id)
+        self.assertEqual(d1.status, "sent")
+        self.assertIsNone(d1.delivered_at)
+        self.assertIsNone(d1.read_at)
+
+        # 2. delivered callback
+        r2 = self.post_signed(self._status_envelope({
+            "id": "wamid.lifecycle-1", "status": "delivered", "timestamp": "1700000020",
+        }))
+        self.assertEqual(r2.status_code, 200)
+        d2 = self._get_delivery(delivery_id)
+        self.assertEqual(d2.status, "delivered")
+        self.assertIsNotNone(d2.delivered_at)
+        self.assertEqual(int(d2.delivered_at.replace(tzinfo=timezone.utc).timestamp()), 1700000020)
+        self.assertIsNone(d2.read_at)
+
+        # 3. read callback
+        r3 = self.post_signed(self._status_envelope({
+            "id": "wamid.lifecycle-1", "status": "read", "timestamp": "1700000030",
+        }))
+        self.assertEqual(r3.status_code, 200)
+        d3 = self._get_delivery(delivery_id)
+        self.assertEqual(d3.status, "read")
+        self.assertIsNotNone(d3.delivered_at)
+        self.assertIsNotNone(d3.read_at)
+        self.assertEqual(int(d3.read_at.replace(tzinfo=timezone.utc).timestamp()), 1700000030)
+
+    def test_failed_status_callback_records_failure_code_reason_timestamp_and_error_details(self):
+        delivery_id = self._seed_delivery("wamid.fail-1", status="sent")
+        error_obj = {
+            "code": 131047,
+            "title": "Re-engagement message",
+            "error_data": {"details": "More than 24 hours have passed since the customer last replied"},
+        }
+        response = self.post_signed(self._status_envelope({
+            "id": "wamid.fail-1",
+            "status": "failed",
+            "timestamp": "1700000050",
+            "errors": [error_obj],
+        }))
+        self.assertEqual(response.status_code, 200)
+        delivery = self._get_delivery(delivery_id)
+        self.assertEqual(delivery.status, "failed")
+        self.assertEqual(delivery.failure_code, "131047")
+        self.assertIn("Re-engagement message", delivery.failure_reason)
+        self.assertIn("More than 24 hours", delivery.failure_reason)
+        self.assertIsNotNone(delivery.failed_at)
+        self.assertEqual(delivery.error_details, error_obj)
+
+    def test_duplicate_status_callbacks_are_idempotent(self):
+        delivery_id = self._seed_delivery("wamid.dup-1", status="sent")
+        payload = self._status_envelope({
+            "id": "wamid.dup-1", "status": "delivered", "timestamp": "1700000100",
+        })
+        self.assertEqual(self.post_signed(payload).status_code, 200)
+        first_delivered_at = self._get_delivery(delivery_id).delivered_at
+
+        # Second identical callback with a later timestamp must not overwrite delivered_at or error
+        payload_dup = self._status_envelope({
+            "id": "wamid.dup-1", "status": "delivered", "timestamp": "1700000999",
+        })
+        self.assertEqual(self.post_signed(payload_dup).status_code, 200)
+        delivery = self._get_delivery(delivery_id)
+        self.assertEqual(delivery.status, "delivered")
+        self.assertEqual(delivery.delivered_at, first_delivered_at)
+
+    def test_out_of_order_callbacks_never_move_status_backward(self):
+        delivery_id = self._seed_delivery("wamid.ooo-1", status="sent")
+
+        # 'read' arrives first
+        self.post_signed(self._status_envelope({
+            "id": "wamid.ooo-1", "status": "read", "timestamp": "1700000200",
+        }))
+        self.assertEqual(self._get_delivery(delivery_id).status, "read")
+
+        # Out-of-order 'delivered' arrives after 'read': status stays 'read', delivered_at is backfilled
+        self.post_signed(self._status_envelope({
+            "id": "wamid.ooo-1", "status": "delivered", "timestamp": "1700000150",
+        }))
+        after_delivered = self._get_delivery(delivery_id)
+        self.assertEqual(after_delivered.status, "read")
+        self.assertIsNotNone(after_delivered.delivered_at)
+
+        # Out-of-order 'sent' arrives after 'read' and 'delivered': status stays 'read'
+        self.post_signed(self._status_envelope({
+            "id": "wamid.ooo-1", "status": "sent", "timestamp": "1700000100",
+        }))
+        self.assertEqual(self._get_delivery(delivery_id).status, "read")
+
+        # Out-of-order 'failed' after 'read' must not revert a read message
+        self.post_signed(self._status_envelope({
+            "id": "wamid.ooo-1", "status": "failed", "timestamp": "1700000250",
+        }))
+        self.assertEqual(self._get_delivery(delivery_id).status, "read")
+
+        # Also verify 'delivered' never reverts to 'sent'
+        delivery2_id = self._seed_delivery("wamid.ooo-2", status="delivered")
+        self.post_signed(self._status_envelope({
+            "id": "wamid.ooo-2", "status": "sent", "timestamp": "1700000100",
+        }))
+        self.assertEqual(self._get_delivery(delivery2_id).status, "delivered")
+
+    def test_unknown_provider_message_id_logs_safely_without_exposing_sensitive_data(self):
+        secret_phone = "919876543210"
+        with self.assertLogs("app.routes.whatsapp_webhook_v2", level="WARNING") as captured:
+            response = self.post_signed(self._status_envelope({
+                "id": "wamid.unknown-xyz",
+                "status": "delivered",
+                "timestamp": "1700000300",
+                "recipient_id": secret_phone,
+            }))
+        self.assertEqual(response.status_code, 200)
+        joined_logs = "\n".join(captured.output)
+        self.assertIn("wamid.unknown-xyz", joined_logs)
+        self.assertNotIn(secret_phone, joined_logs)
 
 
 if __name__ == "__main__":

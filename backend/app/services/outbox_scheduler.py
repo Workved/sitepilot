@@ -92,6 +92,14 @@ def start_dispatcher(app) -> bool:
     if not settings.outbox_dispatch_enabled:
         logger.info("Outbox dispatcher is disabled by configuration; events will accumulate.")
         return False
+    if not (settings.whatsapp_access_token and settings.whatsapp_phone_number_id):
+        # The sandbox adapter marks every delivery 'sent' without contacting
+        # Meta, so without this a missing credential looks like a healthy
+        # system in the UI.
+        logger.warning(
+            "WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID not set: WhatsApp messages are NOT being "
+            "sent - the sandbox adapter only records them as sent."
+        )
     task = asyncio.create_task(dispatch_loop(settings.outbox_dispatch_interval_seconds))
     setattr(app.state, TASK_ATTRIBUTE, task)
     return True

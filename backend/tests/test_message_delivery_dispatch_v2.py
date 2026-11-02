@@ -509,10 +509,14 @@ class MessageDeliveryDispatchTests(unittest.TestCase):
             ]}],
         )
 
-    def test_render_components_missing_payload_key_renders_as_empty_string(self):
-        spec = TemplateSpec("sample_template", "en", ("missing_key",))
-        components = render_components(spec, {})
-        self.assertEqual(components, [{"type": "body", "parameters": [{"type": "text", "text": ""}]}])
+    def test_render_components_missing_or_blank_payload_value_renders_as_dash(self):
+        # Meta rejects empty-string template parameters.
+        spec = TemplateSpec("sample_template", "en", ("missing_key", "none_key", "blank_key"))
+        components = render_components(spec, {"none_key": None, "blank_key": "  "})
+        self.assertEqual(components, [{"type": "body", "parameters": [{"type": "text", "text": "-"}] * 3}])
+
+    def test_render_components_template_without_placeholders_sends_no_components(self):
+        self.assertEqual(render_components(TemplateSpec("sample_template", "en", ()), {"x": 1}), [])
 
     # ---- WhatsApp gate workflow plan (U14): new event-type registry entries
 
@@ -786,7 +790,7 @@ class MessageDeliveryDispatchTests(unittest.TestCase):
 
     def test_newly_reachable_recipient_is_not_starved_by_repeatedly_failing_retries(self):
         # 50 older events whose deliveries keep failing for a non-address
-        # reason and have already been retried hundreds of times.
+        # reason and have already been retried several times.
         stuck_ids = self._make_failing_events(50)
 
         # A newer event whose recipient (the Supervisor) had no phone and has
@@ -808,7 +812,7 @@ class MessageDeliveryDispatchTests(unittest.TestCase):
                 select(MessageDelivery).where(MessageDelivery.outbox_event_id.in_(stuck_ids))
             ):
                 delivery.failure_code = "network_error"
-                delivery.attempt_count = 500
+                delivery.attempt_count = 3
             session.commit()
 
         with self.Session() as session:
@@ -816,6 +820,45 @@ class MessageDeliveryDispatchTests(unittest.TestCase):
 
         self.assertEqual(len(selected), 50)
         self.assertEqual(selected[0], newer_id)  # fewest attempts first, despite being newest
+
+    def _fail_deliveries(self, event_ids, *, failure_code: str, attempt_count: int) -> None:
+        with self.Session() as session:
+            for delivery in session.scalars(
+                select(MessageDelivery).where(MessageDelivery.outbox_event_id.in_(event_ids))
+            ):
+                delivery.failure_code = failure_code
+                delivery.attempt_count = attempt_count
+            session.commit()
+
+    def test_delivery_is_not_retried_after_max_attempts(self):
+        stuck_ids = self._make_failing_events(2)
+        self._set_phone(PM_ID, "9000000021")
+        self._fail_deliveries(stuck_ids, failure_code="network_error", attempt_count=message_dispatch_module._MAX_DELIVERY_ATTEMPTS)
+
+        with self.Session() as session:
+            self.assertEqual(MessageDispatchService(session)._select_events(limit=50), [])
+            MessageDispatchService(session).process_pending(limit=50)
+        for event_id in stuck_ids:
+            [delivery] = self._deliveries_for(event_id)
+            self.assertEqual((delivery.status, delivery.attempt_count), ("failed", message_dispatch_module._MAX_DELIVERY_ATTEMPTS))
+
+    def test_template_rejection_is_never_retried(self):
+        stuck_ids = self._make_failing_events(2)
+        self._set_phone(PM_ID, "9000000021")
+        for code in ("template_unapproved", "132001"):
+            self._fail_deliveries(stuck_ids, failure_code=code, attempt_count=1)
+            with self.Session() as session:
+                self.assertEqual(MessageDispatchService(session)._select_events(limit=50), [], code)
+
+    def test_transient_failure_below_the_cap_is_still_retried(self):
+        stuck_ids = self._make_failing_events(1)
+        self._set_phone(PM_ID, "9000000021")
+        self._fail_deliveries(stuck_ids, failure_code="network_error", attempt_count=1)
+
+        with self.Session() as session:
+            MessageDispatchService(session).process_pending(limit=50)
+        [delivery] = self._deliveries_for(stuck_ids[0])
+        self.assertEqual((delivery.status, delivery.attempt_count, delivery.provider), ("sent", 2, "sandbox"))
 
     def test_retrying_one_recipient_does_not_reattempt_a_still_unreachable_one(self):
         self._set_phone(PM_ID, None)
@@ -1622,6 +1665,91 @@ class MessageDeliveryDispatchTests(unittest.TestCase):
         sent_text = post.call_args.kwargs["json"]["text"]
         self.assertIn("<b>Task Ready</b>", sent_text)
         self.assertEqual(post.call_args.kwargs["json"]["parse_mode"], "HTML")
+
+    # ---- Milestone 1 Phase 3 & Phase 4: inactive-user leakage & TBD template guards ----
+
+    def test_project_aggregate_events_exclude_deactivated_users_and_ended_memberships(self):
+        # Deactivate PM (stale membership: ends_at is still None) and end Internal Employee membership
+        with self.Session.begin() as session:
+            session.get(User, PM_ID).active = False
+            membership = session.scalar(select(V2ProjectMembership).where(
+                V2ProjectMembership.project_id == self.project_id,
+                V2ProjectMembership.employee_id == self.internal_employee_employee_id,
+            ))
+            membership.ends_at = datetime.now(timezone.utc)
+
+        # 1. All-members project event (`project.activated`) only reaches active Supervisor
+        with self.Session() as session:
+            ev1 = self._create_event(
+                session, event_type="project.activated", aggregate_type="project",
+                aggregate_id=self.project_id, payload={"project_id": str(self.project_id), "project_name": "P1"},
+            )
+            # 2. PM/Supervisor project event (`project.role_change_requested`) only reaches active Supervisor
+            ev2 = self._create_event(
+                session, event_type="project.role_change_requested", aggregate_type="project",
+                aggregate_id=self.project_id, payload={"project_id": str(self.project_id)},
+            )
+            # 3. Admin CC project event (`report.weekly_summary_generated`) reaches active Supervisor + active Admin
+            ev3 = self._create_event(
+                session, event_type="report.weekly_summary_generated", aggregate_type="project",
+                aggregate_id=self.project_id, payload={"project_id": str(self.project_id)},
+            )
+            session.commit()
+
+        with self.Session() as session:
+            MessageDispatchService(session).process_pending()
+
+        self.assertEqual(self._recipient_ids(self._deliveries_for(ev1)), {self.supervisor_employee_id})
+        self.assertEqual(self._recipient_ids(self._deliveries_for(ev2)), {self.supervisor_employee_id})
+        self.assertEqual(
+            self._recipient_ids(self._deliveries_for(ev3)),
+            {self.supervisor_employee_id, self.admin_employee_id},
+        )
+
+    def test_deactivated_admin_and_deactivated_gate_assignee_do_not_receive_gate_events(self):
+        approval_id = self._make_gate_approval(assigned_to_user_id=INTERNAL_EMPLOYEE_ID)
+        with self.Session.begin() as session:
+            session.get(User, INTERNAL_EMPLOYEE_ID).active = False
+
+        with self.Session() as session:
+            ev_id = self._create_event(
+                session, event_type="project_external_approval.assigned", aggregate_type="project_external_approval",
+                aggregate_id=approval_id,
+                payload={"approval_id": str(approval_id), "assigned_to_user_id": str(INTERNAL_EMPLOYEE_ID)},
+            )
+            session.commit()
+
+        with self.Session() as session:
+            MessageDispatchService(session).process_pending()
+
+        # Only active Admin receives the notification; deactivated gate assignee is excluded
+        self.assertEqual(self._recipient_ids(self._deliveries_for(ev_id)), {self.admin_employee_id})
+
+    def test_meta_cloud_api_adapter_blocks_unapproved_tbd_placeholder_templates_cleanly(self):
+        from unittest.mock import patch
+
+        from app.services.whatsapp_provider import MetaCloudApiAdapter
+
+        adapter = MetaCloudApiAdapter(access_token="token-1", phone_number_id="phone-1")
+        with patch("app.services.whatsapp_provider.httpx.post") as mock_post:
+            result = adapter.send("+919000000010", "TBD_project_activated", {"language_code": "en", "components": []})
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.failure_code, "template_unapproved")
+        self.assertIn("TBD_project_activated", result.failure_reason)
+        mock_post.assert_not_called()
+
+    def test_audit_template_registry_classifies_configured_and_tbd_templates(self):
+        from app.services.message_templates import TEMPLATE_REGISTRY, audit_template_registry
+
+        inventory = audit_template_registry()
+        self.assertEqual(len(inventory), len(TEMPLATE_REGISTRY))
+        tbd_entries = [item for item in inventory if item["status"] == "placeholder_tbd"]
+        configured_entries = [item for item in inventory if item["status"] == "configured"]
+        self.assertEqual(len(tbd_entries), 16)
+        self.assertEqual(len(configured_entries), len(TEMPLATE_REGISTRY) - 16)
+        for item in tbd_entries:
+            self.assertTrue(item["meta_template_name"].startswith("TBD_"))
 
 
 if __name__ == "__main__":

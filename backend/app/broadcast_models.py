@@ -25,7 +25,7 @@ from app.project_models import V2_SCHEMA
 RECIPIENT_GROUPS = ("project_manager", "site_supervisor", "internal_employee", "vendor", "vendor_contact")
 SEND_MODES = ("now", "scheduled")
 BROADCAST_STATUSES = ("scheduled", "sent", "partially_failed", "failed")
-DELIVERY_STATUSES = ("pending", "sent", "skipped_no_contact")
+DELIVERY_STATUSES = ("pending", "sent", "skipped_no_contact", "failed")
 
 
 class Broadcast(Base):
@@ -66,7 +66,10 @@ class BroadcastRecipient(Base):
             "recipient_type in ('project_manager', 'site_supervisor', 'internal_employee', 'vendor', 'vendor_contact')",
             name="ck_v2_broadcast_recipients_type",
         ),
-        CheckConstraint("delivery_status in ('pending', 'sent', 'skipped_no_contact')", name="ck_v2_broadcast_recipients_delivery_status"),
+        CheckConstraint(
+            "delivery_status in ('pending', 'sent', 'skipped_no_contact', 'failed')",
+            name="ck_v2_broadcast_recipients_delivery_status",
+        ),
         Index("ix_v2_broadcast_recipients_broadcast", "broadcast_id"),
         {"schema": V2_SCHEMA},
     )

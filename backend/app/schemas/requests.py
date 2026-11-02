@@ -1,9 +1,24 @@
 from datetime import date
+import re
 import uuid
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.models import UserRole
+
+
+def normalize_phone(value: str | None) -> str | None:
+    """Vendor phone/WhatsApp numbers in E.164 (`+919876543210`) - the form
+    WhatsApp sends to and inbound replies are matched against. Spaces,
+    dashes, dots and brackets are stripped; a leading `00` becomes `+`."""
+    if value is None or not value.strip():
+        return None
+    phone = re.sub(r"[\s\-().]", "", value.strip())
+    if phone.startswith("00"):
+        phone = "+" + phone[2:]
+    if not re.fullmatch(r"\+[1-9]\d{7,14}", phone):
+        raise ValueError("Use an international mobile number with country code, such as +919876543210.")
+    return phone
 
 
 
@@ -57,6 +72,19 @@ class VendorIn(BaseModel):
     whatsapp: str | None = None
     notes: str | None = None
 
+    @field_validator("phone")
+    @classmethod
+    def _normalize_phone(cls, value: str) -> str:
+        phone = normalize_phone(value)
+        if phone is None:
+            raise ValueError("Phone number is required.")
+        return phone
+
+    @field_validator("whatsapp")
+    @classmethod
+    def _normalize_whatsapp(cls, value: str | None) -> str | None:
+        return normalize_phone(value)
+
 
 class VendorContactIn(BaseModel):
     vendor_id: uuid.UUID
@@ -65,6 +93,19 @@ class VendorContactIn(BaseModel):
     phone: str
     whatsapp: str | None = None
     is_primary: bool = False
+
+    @field_validator("phone")
+    @classmethod
+    def _normalize_phone(cls, value: str) -> str:
+        phone = normalize_phone(value)
+        if phone is None:
+            raise ValueError("Phone number is required.")
+        return phone
+
+    @field_validator("whatsapp")
+    @classmethod
+    def _normalize_whatsapp(cls, value: str | None) -> str | None:
+        return normalize_phone(value)
 
 
 class VendorCategoryIn(BaseModel):

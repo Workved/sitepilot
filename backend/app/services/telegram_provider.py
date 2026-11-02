@@ -41,6 +41,8 @@ class TelegramProviderAdapter:
     overridden per-instance, mirroring `MetaCloudApiAdapter`'s pattern.
     """
 
+    provider_name = "telegram"
+
     def __init__(
         self,
         *,

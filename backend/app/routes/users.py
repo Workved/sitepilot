@@ -151,14 +151,9 @@ def invite_user(payload: UserInviteIn, actor: User = Depends(require_roles(UserR
             employee_code=employee_code.upper(),
             designation=designation,
             department=(payload.department or "").strip() or None,
-            # New users default to Telegram, per the current messaging
-            # rollout - WhatsApp production is still blocked externally,
-            # and Telegram needs no business verification. This only sets
-            # the PREFERRED channel; it does nothing until the person
-            # actually connects via the Telegram connect-code flow, so
-            # they show "Messaging Not Ready" (see serializers.py) until
-            # then rather than being silently undeliverable.
-            active_channel="telegram",
+            # WhatsApp is the primary channel. An Admin can still move a
+            # person to Telegram via the channel toggle once they connect.
+            active_channel="whatsapp",
         ))
         add_event(db, user, actor, "ACCOUNT_INVITED", "Pre-registered for Google sign-in; awaiting first login.", to_role=payload.role)
         OutboxService(db).emit(
@@ -179,6 +174,16 @@ def invite_user(payload: UserInviteIn, actor: User = Depends(require_roles(UserR
 def update_my_profile(payload: MyProfileUpdateIn, actor: User = Depends(require_roles(*tuple(UserRole))), db: Session = Depends(get_db)):
     actor.name = clean_required(payload.name, "Full name")
     actor.phone = clean_phone(payload.phone)
+    if actor.role == UserRole.super_admin and not db.scalar(select(EmployeeProfile).where(EmployeeProfile.user_id == actor.id)):
+        # The bootstrap Super Admin is seeded without a profile, and every
+        # notification/inbound-reply lookup joins through EmployeeProfile -
+        # without one their phone is never used for WhatsApp.
+        db.add(EmployeeProfile(
+            user_id=actor.id,
+            employee_code=f"SUPERADMIN-{actor.id.hex[:8].upper()}",
+            designation="Super Admin",
+            active_channel="whatsapp",
+        ))
     if actor.supabase_user_id:
         try:
             admin_update_user(str(actor.supabase_user_id), {"user_metadata": {"name": actor.name, "siteops_role": actor.role.value}})

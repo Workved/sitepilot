@@ -89,8 +89,10 @@ as the plan's verification test scenario expects.
 
 Not every failed delivery is retried every pass, though: a failure caused by
 the recipient having no address on their channel (`missing_chat_id`,
-`missing_phone`) is only retried once they are reachable again, and retries
-run fewest-attempts first - see `_select_events`.
+`missing_phone`) is only retried once they are reachable again, a template
+rejection (`_PERMANENT_FAILURE_CODES`) is never retried, nothing is retried
+more than `_MAX_DELIVERY_ATTEMPTS` times, and retries run fewest-attempts
+first - see `_select_events`.
 """
 
 from __future__ import annotations
@@ -140,6 +142,28 @@ _SUCCEEDED_STATUSES = ("sent", "delivered", "read")
 # until that changes, so they are only retried once the recipient is
 # reachable again - see `_select_events`.
 _UNREACHABLE_FAILURE_CODES = ("missing_chat_id", "missing_phone", "recipient_offboarded")
+
+# Failures that resending the same message can never fix: a `TBD_`
+# placeholder template, or Meta rejecting the template itself (missing /
+# unapproved template, wrong parameter count or format). They need a fix in
+# Meta Business Manager or the code, not another attempt every 30 seconds.
+_PERMANENT_FAILURE_CODES = (
+    "template_unapproved",
+    "100",     # invalid parameter
+    "131008",  # required parameter missing
+    "131009",  # parameter value invalid
+    "132000",  # parameter count mismatch
+    "132001",  # template does not exist (name or language)
+    "132005",  # translated text too long
+    "132007",  # template format policy violation
+    "132012",  # parameter format mismatch
+    "132015",  # template paused
+    "132016",  # template disabled
+)
+
+# Any other failure (network errors, Meta 5xx, rate limits) is retried on
+# later passes, but only this many times in total per delivery.
+_MAX_DELIVERY_ATTEMPTS = 5
 
 # Phase 1b (locked decision #1): Class A approval decisions are the one
 # task-event class where Admin becomes a CC recipient - visibility only,
@@ -317,6 +341,8 @@ class SandboxProviderAdapter:
     phone is falsy, which is this unit's only controllable way to exercise
     the failure path without real network mocking."""
 
+    provider_name = "sandbox"
+
     def send(self, recipient_phone: str, template: str, payload: dict) -> ProviderSendResult:
         if not recipient_phone:
             return ProviderSendResult(
@@ -369,6 +395,7 @@ class MessageDispatchService:
                 V2ProjectMembership.project_id == project_id,
                 V2ProjectMembership.project_role.in_(_ACCOUNTABLE_ROLES),
                 V2ProjectMembership.ends_at.is_(None),
+                User.active.is_(True),
             )
         ).all()
         # Every active PM/Supervisor member is resolved to a Recipient
@@ -384,13 +411,14 @@ class MessageDispatchService:
     def _resolve_all_project_members(self, project_id: uuid.UUID) -> list[Recipient]:
         """U1: every active project member regardless of `project_role` -
         follows `_resolve_pm_supervisor_recipients`'s exact shape, but with
-        no `project_role` filter (only `ends_at IS NULL`), so its result is
-        a strict superset of what a plain `_resolve_pm_supervisor_recipients`
-        call for the same project would return. Used for the handful of
-        `project`-aggregate event types (`_ALL_MEMBERS_PROJECT_EVENTS`)
-        whose audience is "every project member", not just PM/Supervisor -
-        see `_resolve_recipients`'s `project` branch for why this replaces
-        rather than adds to that call for those event types."""
+        no `project_role` filter (only `ends_at IS NULL` and `User.active`),
+        so its result is a strict superset of what a plain
+        `_resolve_pm_supervisor_recipients` call for the same project would
+        return. Used for the handful of `project`-aggregate event types
+        (`_ALL_MEMBERS_PROJECT_EVENTS`) whose audience is "every project
+        member", not just PM/Supervisor - see `_resolve_recipients`'s
+        `project` branch for why this replaces rather than adds to that call
+        for those event types."""
         rows = self.db.execute(
             select(V2ProjectMembership.employee_id, User.phone)
             .join(EmployeeProfile, EmployeeProfile.id == V2ProjectMembership.employee_id)
@@ -398,6 +426,7 @@ class MessageDispatchService:
             .where(
                 V2ProjectMembership.project_id == project_id,
                 V2ProjectMembership.ends_at.is_(None),
+                User.active.is_(True),
             )
         ).all()
         # Same resolve-then-fail-visibly discipline as
@@ -549,7 +578,7 @@ class MessageDispatchService:
         if employee is None:
             return []
         user = self.db.get(User, approval.assigned_to_user_id)
-        if user is None:
+        if user is None or not user.active:
             return []
         return [Recipient(employee_id=employee.id, vendor_contact_id=None, phone=user.phone or "")]
 
@@ -562,6 +591,7 @@ class MessageDispatchService:
                 V2ProjectMembership.project_id == project_id,
                 V2ProjectMembership.project_role.in_(roles),
                 V2ProjectMembership.ends_at.is_(None),
+                User.active.is_(True),
             )
         ).all()
         return [Recipient(employee_id=employee_id, vendor_contact_id=None, phone=phone or "") for employee_id, phone in rows]
@@ -597,7 +627,11 @@ class MessageDispatchService:
             select(EmployeeProfile.id, User.phone)
             .join(User, User.id == EmployeeProfile.user_id)
             .join(TaskSupportAssignment, TaskSupportAssignment.employee_id == EmployeeProfile.id)
-            .where(TaskSupportAssignment.task_id == task.id, TaskSupportAssignment.status == "active")
+            .where(
+                TaskSupportAssignment.task_id == task.id,
+                TaskSupportAssignment.status == "active",
+                User.active.is_(True),
+            )
         ).all()
         return [
             Recipient(employee_id=employee_id, vendor_contact_id=None, phone=phone or "")
@@ -693,21 +727,21 @@ class MessageDispatchService:
         if employee is None:
             return []
         user = self.db.get(User, employee.user_id)
-        if user is None:
+        if user is None or not user.active:
             return []
         return [Recipient(employee_id=employee.id, vendor_contact_id=None, phone=user.phone or "")]
 
     def _resolve_user_id_recipient(self, user_id_raw: object) -> list[Recipient]:
         """Resolves one `User.id` (as stored in an event payload) to that
         user's employee `Recipient`. `[]` when the id is missing or has no
-        `EmployeeProfile`/`User` - same skip-not-fail precedent as
+        active `EmployeeProfile`/`User` - same skip-not-fail precedent as
         `_resolve_user_recipient`."""
         if not user_id_raw:
             return []
         user_id = uuid.UUID(str(user_id_raw))
         employee = self.db.scalar(select(EmployeeProfile).where(EmployeeProfile.user_id == user_id))
         user = self.db.get(User, user_id)
-        if employee is None or user is None:
+        if employee is None or user is None or not user.active:
             return []
         return [Recipient(employee_id=employee.id, vendor_contact_id=None, phone=user.phone or "")]
 
@@ -844,8 +878,10 @@ class MessageDispatchService:
                         recipients.append(vendor_recipient)
             else:
                 recipients.extend(self._resolve_pm_supervisor_recipients(event.aggregate_id))
+            recipients = self._only_active_project_members(event.aggregate_id, recipients)
             if event.event_type in _ADMIN_CC_PROJECT_EVENTS:
                 recipients.extend(self._resolve_admin_recipients())
+            recipients = _unique_recipients(recipients)
         elif event.aggregate_type == "project_external_approval":
             approval = self.db.get(ProjectExternalApproval, event.aggregate_id)
             if approval is None:
@@ -981,6 +1017,12 @@ class MessageDispatchService:
         # resolve-fresh-on-every-attempt discipline `recipient_phone` below
         # already follows.
         channel = self._resolve_recipient_channel(recipient)
+        if delivery.status == "failed" and (
+            delivery.failure_code in _PERMANENT_FAILURE_CODES or delivery.attempt_count >= _MAX_DELIVERY_ATTEMPTS
+        ):
+            # Given up on: this event was re-selected for another recipient's
+            # retry - see `_select_events`.
+            return
         if delivery.status == "failed" and delivery.failure_code in _UNREACHABLE_FAILURE_CODES:
             address = self._resolve_telegram_chat_id(recipient) if channel == "telegram" else recipient.phone
             if not address:
@@ -1024,6 +1066,7 @@ class MessageDispatchService:
             send_target = recipient.phone
 
         adapter = self._adapters.get(channel, self.adapter)
+        delivery.provider = getattr(adapter, "provider_name", "sandbox")
         result = adapter.send(recipient_phone=send_target, template=template, payload=send_payload)
         if result.ok:
             delivery.status = "sent"
@@ -1112,7 +1155,8 @@ class MessageDispatchService:
         A failure for an unreachable recipient (`_UNREACHABLE_FAILURE_CODES`)
         is only retryable once that recipient is reachable again (e.g. they
         linked Telegram), so it neither retries every pass forever nor takes
-        batch space. Retries are ordered by their fewest attempts, then
+        batch space. A permanent failure (`_PERMANENT_FAILURE_CODES`) or a
+        delivery that already used `_MAX_DELIVERY_ATTEMPTS` is never retried. Retries are ordered by their fewest attempts, then
         oldest, so deliveries that keep failing for other reasons (hundreds
         of attempts) never crowd out a recipient who just became reachable
         or failed once."""
@@ -1134,6 +1178,11 @@ class MessageDispatchService:
             )
             .where(
                 MessageDelivery.status == "failed",
+                MessageDelivery.attempt_count < _MAX_DELIVERY_ATTEMPTS,
+                or_(
+                    MessageDelivery.failure_code.is_(None),
+                    MessageDelivery.failure_code.not_in(_PERMANENT_FAILURE_CODES),
+                ),
                 or_(
                     MessageDelivery.failure_code.is_(None),
                     MessageDelivery.failure_code.not_in(_UNREACHABLE_FAILURE_CODES),
