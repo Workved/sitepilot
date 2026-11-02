@@ -6,12 +6,12 @@
     "directories":  {
                         "doc":  "docs"
                     },
-    "scripts":  {
-                    "local:start":  "powershell -ExecutionPolicy Bypass -File tools/start-local.ps1",
-                    "local:stop":  "powershell -ExecutionPolicy Bypass -File tools/stop-local.ps1",
-                    "local:status":  "powershell -ExecutionPolicy Bypass -File tools/status-local.ps1",
-                    "test":  "echo \"Error: no test specified\" \u0026\u0026 exit 1"
-                },
+    "scripts": {
+        "local:start": "node -e \"const { spawnSync } = require('child_process'); const isWin = process.platform === 'win32'; process.exit(spawnSync(isWin ? 'powershell' : 'bash', isWin ? ['-ExecutionPolicy', 'Bypass', '-File', 'tools/start-local.ps1'] : ['tools/start-local.sh'], { stdio: 'inherit' }).status || 0);\"",
+        "local:stop": "node -e \"const { spawnSync } = require('child_process'); const isWin = process.platform === 'win32'; process.exit(spawnSync(isWin ? 'powershell' : 'bash', isWin ? ['-ExecutionPolicy', 'Bypass', '-File', 'tools/stop-local.ps1'] : ['tools/stop-local.sh'], { stdio: 'inherit' }).status || 0);\"",
+        "local:status": "node -e \"const { spawnSync } = require('child_process'); const isWin = process.platform === 'win32'; process.exit(spawnSync(isWin ? 'powershell' : 'bash', isWin ? ['-ExecutionPolicy', 'Bypass', '-File', 'tools/status-local.ps1'] : ['tools/status-local.sh'], { stdio: 'inherit' }).status || 0);\"",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
     "repository":  {
                        "type":  "git",
                        "url":  "git+https://github.com/603cws/workved-siteops.git"
