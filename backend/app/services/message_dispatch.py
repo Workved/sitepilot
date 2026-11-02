@@ -121,6 +121,7 @@ from app.services.message_templates import TemplateSpec, render_components, reso
 from app.services.task_approval import TaskApprovalService
 from app.services.task_lifecycle import latest_submitter_user_id
 from app.services.telegram_render import render_telegram
+from app.services.whatsapp_template_fields import template_fields
 from app.vendor_models import ProjectVendor, TaskVendorAssignment, V2VendorContact
 
 logger = logging.getLogger(__name__)
@@ -1061,7 +1062,7 @@ class MessageDispatchService:
             # payload is the durable record of what happened; `components`
             # is dispatch-time rendering derived from it, not part of that
             # record.
-            components = render_components(spec, event.payload or {})
+            components = render_components(spec, template_fields(self.db, event.payload or {}))
             send_payload = {**(event.payload or {}), "components": components, "language_code": spec.language}
             send_target = recipient.phone
 

@@ -10,17 +10,17 @@ Owner: **You** = Meta/Render/Supabase/GitHub dashboards, **Code** = changes in t
 
 Done when: fixes are committed and all backend + frontend tests pass.
 
-## Checkpoint 2 - Design the starter templates (Code)
+## Checkpoint 2 - Design the starter templates (Code) - DONE
 
-- [ ] Pick the 6-8 most important notifications to launch with.
-- [ ] Change those messages to send readable fields (task code, task name, project name, status, due date) instead of internal IDs.
-- [ ] Write the exact Meta template spec for each: name, category (Utility), language (English `en`), body text with `{{1}}`, `{{2}}` ...
+- [x] Pick the 6-8 most important notifications to launch with. 8 chosen: status change, approval decision, blocker, delay, vendor assigned, overdue, external approval assigned, broadcast.
+- [x] Change those messages to send readable fields (task code, task name, project name, status, due date) instead of internal IDs. Done in `backend/app/services/whatsapp_template_fields.py`.
+- [x] Write the exact Meta template spec for each: name, category (Utility), language (English `en`), body text with `{{1}}`, `{{2}}` ... See `WHATSAPP_TEMPLATES.md`.
 
 Done when: a template spec list exists and the code sends exactly those fields, with tests.
 
 ## Checkpoint 3 - Create templates in the Meta test account (You)
 
-- [ ] Create each starter template in WhatsApp Manager -> Message templates, language **English** (not English US).
+- [ ] Create each starter template from `WHATSAPP_TEMPLATES.md` in WhatsApp Manager -> Message templates, language **English** (not English US).
 - [ ] Wait for status **Active/Approved**.
 - [ ] Add your test phone numbers (max 5) under API Setup -> "To".
 

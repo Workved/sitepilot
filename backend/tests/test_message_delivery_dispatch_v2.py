@@ -23,6 +23,7 @@ from app.models import EmployeeProfile, User, UserRole
 from app.project_models import V2AuditEvent, V2Project, V2ProjectExternalGate, V2ProjectMembership
 from app.services.message_dispatch import MessageDispatchService
 from app.services.message_templates import DEFAULT_TEMPLATE, TemplateSpec, render_components, resolve
+from app.services.whatsapp_template_fields import template_fields
 from app.template_models import V2Template, V2TemplateVersion
 from app.vendor_models import ProjectVendor, TaskVendorAssignment, V2Vendor, V2VendorContact
 
@@ -561,23 +562,83 @@ class MessageDeliveryDispatchTests(unittest.TestCase):
                 components = render_components(spec, payload)
                 self.assertEqual(len(components[0]["parameters"]), len(spec.variable_order))
 
-    def test_widened_gate_assignment_spec_renders_five_body_parameters(self):
+    def test_gate_assignment_renders_readable_fields_and_reply_code(self):
         spec = resolve("project_external_approval.assigned")
+        approval_id = uuid.UUID("a1b2c3d4-0000-0000-0000-000000000000")
         payload = {
-            "approval_id": "a1", "assigned_to_user_id": "u1",
+            "approval_id": str(approval_id), "assigned_to_user_id": "u1",
             "gate_name": "Fire NOC", "project_name": "Futurex", "due_date": "2026-12-25",
         }
 
-        components = render_components(spec, payload)
+        with self.Session() as session:
+            components = render_components(spec, template_fields(session, payload))
 
-        parameters = components[0]["parameters"]
-        self.assertEqual(len(parameters), 5)
-        rendered_text = [p["text"] for p in parameters]
-        self.assertIn("Fire NOC", rendered_text)
-        self.assertIn("Futurex", rendered_text)
-        self.assertIn("2026-12-25", rendered_text)
+        self.assertEqual(
+            [p["text"] for p in components[0]["parameters"]],
+            ["Fire NOC", "Futurex", "25 Dec 2026", "A1B2C3D4"],
+        )
 
-    def test_widened_gate_reassignment_spec_also_renders_five_body_parameters(self):
+    def test_task_events_render_task_code_and_project_name_not_ids(self):
+        payload = {
+            "task_id": str(self.task_id), "project_id": str(self.project_id),
+            "before_status": "ready", "target_status": "in_progress", "reason": None,
+        }
+        with self.Session() as session:
+            components = render_components(resolve("task.status_changed"), template_fields(session, payload))
+
+        self.assertEqual(
+            [p["text"] for p in components[0]["parameters"]],
+            ["Test Project", "T001 - Task 1", "Ready", "In progress", "-"],
+        )
+
+    def test_vendor_assignment_renders_the_accept_reply_code(self):
+        assignment_id = uuid.uuid4()
+        payload = {
+            "task_id": str(self.task_id), "project_id": str(self.project_id),
+            "assignment_id": str(assignment_id), "vendor_id": str(self.vendor_id),
+        }
+        with self.Session() as session:
+            components = render_components(resolve("task.vendor_assigned"), template_fields(session, payload))
+
+        self.assertEqual(
+            [p["text"] for p in components[0]["parameters"]],
+            ["T001 - Task 1", "Test Project", assignment_id.hex[:8].upper()],
+        )
+
+    def test_dispatch_sends_readable_fields_to_the_whatsapp_adapter(self):
+        sent: list[dict] = []
+
+        class _CapturingAdapter:
+            def send(self, recipient_phone, template, payload):
+                sent.append(payload)
+                return message_dispatch_module.ProviderSendResult(ok=True, provider_message_id=f"wamid-{len(sent)}")
+
+        with self.Session() as session:
+            self._create_event(
+                session, event_type="task.blocker_created", aggregate_type="task", aggregate_id=self.task_id,
+                payload={
+                    "task_id": str(self.task_id), "project_id": str(self.project_id),
+                    "type": "material_shortage", "description": "Tiles not\ndelivered",
+                },
+                key="test:readable-blocker",
+            )
+            session.commit()
+        with self.Session() as session:
+            MessageDispatchService(session, adapter=_CapturingAdapter()).process_pending()
+
+        self.assertTrue(sent)
+        for payload in sent:
+            self.assertEqual(
+                [p["text"] for p in payload["components"][0]["parameters"]],
+                ["T001 - Task 1", "Test Project", "Material shortage", "Tiles not delivered"],
+            )
+
+    def test_parameter_text_collapses_new_lines_and_long_spaces(self):
+        spec = TemplateSpec("sample_template", "en", ("body",))
+        components = render_components(spec, {"body": "Line one\n\tLine     two"})
+        self.assertEqual(components[0]["parameters"][0]["text"], "Line one Line two")
+
+    def test_gate_reassignment_spec_still_renders_five_body_parameters(self):
         spec = resolve("project_external_approval.reassigned")
         payload = {
             "approval_id": "a1", "assigned_to_user_id": "u2",
