@@ -18,18 +18,18 @@ Done when: fixes are committed and all backend + frontend tests pass.
 
 Done when: a template spec list exists and the code sends exactly those fields, with tests.
 
-## Checkpoint 3 - Create templates in the Meta test account (You)
+## Checkpoint 3 - Create templates in the Meta test account (You) - DONE
 
-- [ ] Create each starter template from `WHATSAPP_TEMPLATES.md` in WhatsApp Manager -> Message templates, language **English** (not English US).
-- [ ] Wait for status **Active/Approved**.
-- [ ] Add your test phone numbers (max 5) under API Setup -> "To".
+- [x] Create each starter template from `WHATSAPP_TEMPLATES.md` in WhatsApp Manager -> Message templates, language **English** (not English US). Created via `tools/create_whatsapp_templates.py`.
+- [x] Wait for status **Active/Approved**. All 8 approved; Meta moved `project_broadcast_announcement` to Marketing.
+- [x] Add your test phone numbers (max 5) under API Setup -> "To".
 
 Done when: every starter template shows Active and test numbers are verified.
 
 ## Checkpoint 4 - End-to-end test locally (You + Code)
 
-- [ ] Put your Meta test credentials in the local `.env` (`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`).
-- [ ] Run the connectivity script (`hello_world`) to a test number.
+- [x] Put your Meta test credentials in the local `.env` (`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`). Temporary 24h token for now; permanent System User token awaiting second-admin approval in Business Settings -> Requests.
+- [x] Run the connectivity script (`hello_world`) to a test number. Also sent `task_status_update` directly - accepted by Meta.
 - [ ] Trigger each starter notification in the local app and confirm it arrives on the phone.
 
 Done when: every starter notification arrives on a test phone from the local app.
