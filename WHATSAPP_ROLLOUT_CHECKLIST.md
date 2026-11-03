@@ -28,7 +28,7 @@ Done when: every starter template shows Active and test numbers are verified.
 
 ## Checkpoint 4 - End-to-end test locally (You + Code) - DONE (status change)
 
-- [x] Put your Meta test credentials in the local `.env` (`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`). Temporary 24h token for now; permanent System User token awaiting second-admin approval in Business Settings -> Requests.
+- [x] Put your Meta test credentials in the local `.env` (`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`). Permanent System User token (`siteops_whatsapp_bot`, app SiteOps Bot Integration, never expires) in place; verified it sends and sees all 8 templates.
 - [x] Run the connectivity script (`hello_world`) to a test number. Also sent `task_status_update` directly - accepted by Meta.
 - [x] Trigger a notification from the local app: task status changes arrive on the phone instantly.
 - [ ] Trigger the other starter notifications (blocker, delay, approval, vendor, broadcast) - deferred to the template redesign (v2 templates with header, line breaks and buttons).
