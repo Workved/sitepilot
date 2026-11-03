@@ -26,17 +26,18 @@ Done when: a template spec list exists and the code sends exactly those fields, 
 
 Done when: every starter template shows Active and test numbers are verified.
 
-## Checkpoint 4 - End-to-end test locally (You + Code)
+## Checkpoint 4 - End-to-end test locally (You + Code) - DONE (status change)
 
 - [x] Put your Meta test credentials in the local `.env` (`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`). Temporary 24h token for now; permanent System User token awaiting second-admin approval in Business Settings -> Requests.
 - [x] Run the connectivity script (`hello_world`) to a test number. Also sent `task_status_update` directly - accepted by Meta.
-- [ ] Trigger each starter notification in the local app and confirm it arrives on the phone.
+- [x] Trigger a notification from the local app: task status changes arrive on the phone instantly.
+- [ ] Trigger the other starter notifications (blocker, delay, approval, vendor, broadcast) - deferred to the template redesign (v2 templates with header, line breaks and buttons).
 
 Done when: every starter notification arrives on a test phone from the local app.
 
 ## Checkpoint 5 - Take ownership of the infrastructure (You)
 
-- [ ] GitHub: confirm push access to `Workved/sitepilot`, or create your own repo and push.
+- [ ] GitHub: confirm push access to `Workved/sitepilot`, or create your own repo and push. The repo is **public**; a scan of all 346 commits found no committed tokens or `.env`, but consider making it private.
 - [ ] Supabase: get owner access to the project (or a transferred project).
 - [ ] Rotate the secrets shared by the previous developer.
 - [ ] Take a database backup.
