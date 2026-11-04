@@ -252,7 +252,7 @@ otp_expiry = 3600
 
 [auth.email.template.recovery]
 subject = "Set your Workved SiteOps password"
-content_path = "./supabase/templates/recovery.html"
+# content_path = "./supabase/templates/recovery.html"
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true

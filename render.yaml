@@ -37,7 +37,7 @@ services:
         sync: false
       - key: WHATSAPP_API_VERSION
         value: v21.0
-      - key: WHATSAPP_WEBHOOK_SECRET
+      - key: WHATSAPP_WEBHOOK_SECRET 
         sync: false
       - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
         sync: false
