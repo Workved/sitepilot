@@ -23,11 +23,13 @@ def normalize_phone(value: str | None) -> str | None:
 
 
 class UserInviteIn(BaseModel):
-    """Pre-registers a roster entry with no password and no Supabase identity yet.
+    """Pre-registers a roster entry.
 
-    The account activates itself on the person's first Google sign-in
-    (see app.auth.current_user's email-match fallback), which links this
-    row to the Supabase identity Google creates at that point.
+    Without a password there is no Supabase identity yet: the account
+    activates itself on the person's first Google sign-in (see
+    app.auth.current_user's email-match fallback). With one, the Supabase
+    email/password identity is created right away, so they can also sign in
+    with the email and password the Admin gives them.
     """
     name: str
     email: str
@@ -36,6 +38,11 @@ class UserInviteIn(BaseModel):
     employee_code: str | None = None
     designation: str | None = None
     department: str | None = None
+    password: str | None = None
+
+
+class UserPasswordIn(BaseModel):
+    password: str
 
 
 class UserUpdateIn(BaseModel):

@@ -82,6 +82,16 @@ function App() {
     }
   }
 
+  async function loginWithPassword(email, password) {
+    setError("");
+    try {
+      const session = await authApi.signInWithPassword(email, password);
+      await loadPortalIdentity(session);
+    } catch (caught) {
+      setError(caught.message);
+    }
+  }
+
   async function loginAsDev(email) {
     setError("");
     try {
@@ -100,7 +110,7 @@ function App() {
   }
 
   if (loading && !user) return <main className="grid min-h-screen place-items-center bg-slate-950 text-sm font-bold text-blue-100">Opening secure workspace…</main>;
-  if (!user) return <LoginPage onGoogle={loginWithGoogle} error={error} devLoginEnabled={devLoginEnabled} onDevLogin={loginAsDev}/>;
+  if (!user) return <LoginPage onGoogle={loginWithGoogle} onPassword={loginWithPassword} error={error} devLoginEnabled={devLoginEnabled} onDevLogin={loginAsDev}/>;
   return <Dashboard initialUser={user} onLogout={logout}/>;
 }
 

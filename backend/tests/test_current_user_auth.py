@@ -32,8 +32,15 @@ class _NaiveUtcNow(datetime):
         return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def identity(sub: str | uuid.UUID = SUPABASE_ID, email: str | None = "user@example.com") -> dict:
-    payload = {"id": str(sub)}
+def identity(
+    sub: str | uuid.UUID = SUPABASE_ID,
+    email: str | None = "user@example.com",
+    provider: str = "google",
+    siteops_user_id: uuid.UUID | None = None,
+) -> dict:
+    payload = {"id": str(sub), "app_metadata": {"provider": provider, "providers": [provider]}}
+    if siteops_user_id is not None:
+        payload["app_metadata"]["siteops_user_id"] = str(siteops_user_id)
     if email is not None:
         payload["email"] = email
     return payload
@@ -216,6 +223,52 @@ class CurrentUserAuthTests(unittest.TestCase):
         mock_verify.return_value = identity(sub=SUPABASE_ID, email=None)
         response = self._call()
         self.assertEqual(response.status_code, 403)
+
+    @patch("app.auth.local_dev_login_available", return_value=False)
+    @patch("app.auth.verify_access_token")
+    def test_a_self_registered_email_identity_cannot_claim_a_preregistered_row(self, mock_verify, _dev):
+        # With email/password sign-in on, anyone can register a Supabase
+        # identity for any address - a bare email match must not hand them
+        # the roster row an Admin pre-registered for someone else.
+        user_id = self._seed_user(id=PREREGISTERED_ID, supabase_user_id=None, email="new.hire@example.com")
+        mock_verify.return_value = identity(sub=SUPABASE_ID, email="new.hire@example.com", provider="email")
+
+        response = self._call()
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIsNone(self._get_user(user_id).supabase_user_id)
+
+    @patch("app.auth.local_dev_login_available", return_value=False)
+    @patch("app.auth.verify_access_token")
+    def test_an_admin_created_password_identity_links_to_its_own_row(self, mock_verify, _dev):
+        user_id = self._seed_user(id=PREREGISTERED_ID, supabase_user_id=None, email="new.hire@example.com")
+        mock_verify.return_value = identity(
+            sub=SUPABASE_ID, email="new.hire@example.com", provider="email", siteops_user_id=PREREGISTERED_ID,
+        )
+
+        response = self._call()
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self._get_user(user_id).supabase_user_id, SUPABASE_ID)
+
+    @patch("app.auth.local_dev_login_available", return_value=False)
+    @patch("app.auth.verify_access_token")
+    def test_a_password_identity_tagged_for_another_row_does_not_link(self, mock_verify, _dev):
+        self._seed_user(id=PREREGISTERED_ID, supabase_user_id=None, email="new.hire@example.com")
+        mock_verify.return_value = identity(
+            sub=SUPABASE_ID, email="new.hire@example.com", provider="email", siteops_user_id=uuid.uuid4(),
+        )
+
+        self.assertEqual(self._call().status_code, 403)
+
+    @patch("app.auth.local_dev_login_available", return_value=True)
+    @patch("app.auth.verify_access_token")
+    def test_local_dev_login_identities_still_link_against_a_local_stack(self, mock_verify, _dev):
+        user_id = self._seed_user(id=PREREGISTERED_ID, supabase_user_id=None, email="new.hire@example.com")
+        mock_verify.return_value = identity(sub=SUPABASE_ID, email="new.hire@example.com", provider="email")
+
+        self.assertEqual(self._call().status_code, 200)
+        self.assertEqual(self._get_user(user_id).supabase_user_id, SUPABASE_ID)
 
     # -- active / inactive gate ----------------------------------------------
 

@@ -1,5 +1,6 @@
 import { CheckCircle2, FlaskConical, ShieldCheck } from "lucide-react";
 import { useState } from "react";
+import { Button, Field, Input } from "../../components/ui";
 
 function BrandPanel() {
   return <aside className="relative overflow-hidden bg-[#071a33] p-7 text-white sm:p-10 lg:p-12">
@@ -83,10 +84,34 @@ function DevLoginPanel({ onDevLogin }) {
   </div>;
 }
 
-export function LoginPage({ onGoogle, error, message, devLoginEnabled = false, onDevLogin }) {
-  return <AuthShell eyebrow="Welcome back" title="Sign in to SiteOps" subtitle="One click with the Google account your administrator registered for you.">
+function PasswordForm({ onPassword }) {
+  const [busy, setBusy] = useState(false);
+  async function submit(event) {
+    event.preventDefault();
+    const { email, password } = Object.fromEntries(new FormData(event.currentTarget));
+    if (!email.trim() || !password) return;
+    setBusy(true);
+    try {
+      await onPassword(email.trim(), password);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <form onSubmit={submit} className="grid gap-3">
+    <Field label="Email" htmlFor="login-email"><Input id="login-email" name="email" type="email" autoComplete="username" placeholder="name@company.com" required/></Field>
+    <Field label="Password" htmlFor="login-password"><Input id="login-password" name="password" type="password" autoComplete="current-password" required/></Field>
+    <Button type="submit" loading={busy} className="min-h-13 rounded-2xl">Sign in</Button>
+  </form>;
+}
+
+export function LoginPage({ onGoogle, onPassword, error, message, devLoginEnabled = false, onDevLogin }) {
+  return <AuthShell eyebrow="Welcome back" title="Sign in to SiteOps" subtitle="Use the Google account or the email and password your administrator set up for you.">
     <div className="mt-8 grid gap-5">
       <GoogleButton onClick={onGoogle}/>
+      {onPassword && <>
+        <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-[.16em] text-slate-400"><span className="h-px flex-1 bg-slate-200"/>or<span className="h-px flex-1 bg-slate-200"/></div>
+        <PasswordForm onPassword={onPassword}/>
+      </>}
       <Notice error={error} message={message}/>
       <p className="text-center text-xs leading-5 text-slate-400">New here? Ask your Admin or Super Admin to add you in User Management - you'll be able to sign in the moment they do.</p>
       {devLoginEnabled && <DevLoginPanel onDevLogin={onDevLogin}/>}

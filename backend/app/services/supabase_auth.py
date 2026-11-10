@@ -71,13 +71,27 @@ def verify_access_token(token: str) -> dict[str, Any]:
     return identity
 
 
-def admin_create_user(*, email: str, password: str, metadata: dict[str, Any]) -> dict[str, Any]:
-    result = _request("/admin/users", method="POST", admin=True, payload={
+def local_dev_login_available() -> bool:
+    """Whether the local-only dev login shortcut may run: LOCAL_DEV_LOGIN_ENABLED
+    must be explicitly true (only docker-compose.yml sets it) AND SUPABASE_URL
+    must point at a local host, so a stray env var alone can never enable it
+    against a real deployment."""
+    if not settings.local_dev_login_enabled:
+        return False
+    supabase_url = settings.supabase_url.lower()
+    return any(host in supabase_url for host in ("127.0.0.1", "localhost", "host.docker.internal"))
+
+
+def admin_create_user(*, email: str, password: str, metadata: dict[str, Any], app_metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+    payload: dict[str, Any] = {
         "email": email,
         "password": password,
         "email_confirm": True,
         "user_metadata": metadata,
-    })
+    }
+    if app_metadata:
+        payload["app_metadata"] = app_metadata
+    result = _request("/admin/users", method="POST", admin=True, payload=payload)
     return result.get("user", result)
 
 
