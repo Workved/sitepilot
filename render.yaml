@@ -41,6 +41,12 @@ services:
         sync: false
       - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
         sync: false
+      - key: WHATSAPP_PROVIDER
+        sync: false
+      - key: DOUBLETICK_API_KEY
+        sync: false
+      - key: DOUBLETICK_FROM_NUMBER
+        sync: false
       - key: BOOTSTRAP_SUPER_ADMIN_EMAIL
         sync: false
       - key: BOOTSTRAP_SUPER_ADMIN_PASSWORD

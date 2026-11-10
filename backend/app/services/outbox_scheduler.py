@@ -30,7 +30,7 @@ import logging
 from app.config import settings
 from app.database import SessionLocal
 from app.services.message_dispatch import MessageDispatchService, SandboxProviderAdapter, WhatsAppProviderAdapter
-from app.services.whatsapp_provider import MetaCloudApiAdapter
+from app.services.whatsapp_provider import DoubleTickAdapter, MetaCloudApiAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,11 @@ TASK_ATTRIBUTE = "outbox_dispatch_task"
 
 
 def _build_adapter() -> WhatsAppProviderAdapter:
+    if settings.whatsapp_provider.strip().lower() == "doubletick":
+        # No sandbox fallback here: choosing DoubleTick without its key or
+        # sender number should show up as `not_configured` failures, not
+        # as sandbox "sends" that never reach anyone.
+        return DoubleTickAdapter()
     if settings.whatsapp_access_token and settings.whatsapp_phone_number_id:
         return MetaCloudApiAdapter()
     return SandboxProviderAdapter()
@@ -92,7 +97,13 @@ def start_dispatcher(app) -> bool:
     if not settings.outbox_dispatch_enabled:
         logger.info("Outbox dispatcher is disabled by configuration; events will accumulate.")
         return False
-    if not (settings.whatsapp_access_token and settings.whatsapp_phone_number_id):
+    if settings.whatsapp_provider.strip().lower() == "doubletick":
+        if not (settings.doubletick_api_key and settings.doubletick_from_number):
+            logger.warning(
+                "WHATSAPP_PROVIDER is doubletick but DOUBLETICK_API_KEY / DOUBLETICK_FROM_NUMBER is not set: "
+                "every WhatsApp delivery will fail as not_configured."
+            )
+    elif not (settings.whatsapp_access_token and settings.whatsapp_phone_number_id):
         # The sandbox adapter marks every delivery 'sent' without contacting
         # Meta, so without this a missing credential looks like a healthy
         # system in the UI.
