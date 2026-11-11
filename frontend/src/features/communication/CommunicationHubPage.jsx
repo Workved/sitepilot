@@ -68,12 +68,39 @@ export function CommunicationHubPage({ user, action }) {
 
   useEffect(() => { setPage(1); }, [query, projectId, categoryId, status, type, sortBy, pageSize]);
 
+  // One save at a time. The ref is the real guard (a fast double-click fires
+  // both submits before a state update re-renders the disabled button);
+  // `saving` only drives the button's disabled/"Saving..." look. On the
+  // hosted backend a create can take seconds (Render free tier cold start),
+  // and an unguarded second click used to create the vendor twice.
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
   async function perform(fn, message) {
+    if (savingRef.current) return { ok: false, error: "A save is already in progress." };
+    savingRef.current = true;
+    setSaving(true);
     let saved = false;
-    const result = await action(async () => { await fn(); saved = true; }, message);
-    if (saved) { setForm(null); await load(); }
-    return result;
+    try {
+      const result = await action(async () => {
+        await fn();
+        saved = true;
+        // Close the form as soon as the writes succeed - `action` then
+        // reloads the whole dashboard, and the form must not sit open (and
+        // re-submittable) through that.
+        setForm(null);
+      }, message);
+      if (saved) await load();
+      return result;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   }
+  // A vendor created by a "create" attempt whose later steps (profile,
+  // categories, contact) failed. Retrying the same form reuses it instead of
+  // creating a second company. Cleared whenever a create form opens/closes.
+  const pendingCompanyRef = useRef(null);
+  useEffect(() => { pendingCompanyRef.current = null; }, [form]);
   async function deleteCompany(vendor) {
     const result = await perform(() => vendorsApi.remove(vendor.id), `${vendor.engagement_type === "main" ? "Main vendor" : "Sub-vendor"} deleted`);
     if (result?.ok) setSelected(null);
@@ -98,12 +125,14 @@ export function CommunicationHubPage({ user, action }) {
     const profile = { name: legacy.name, engagement_type: mode === "sub" ? "sub_vendor" : "main", parent_vendor_id: mode === "sub" ? data.get("main_contractor_id") : null, status: data.get("status"), category_ids: categoryIds, email: data.get("email") || null, address: data.get("address") || null, gst_number: data.get("gst_number") || null, notes: legacy.notes };
     const contact = { name: legacy.contact_person, designation: data.get("designation") || null, phone: legacy.phone, whatsapp: legacy.whatsapp, is_primary: true };
     await perform(async () => {
-      const company = await vendorsApi.create(legacy);
+      if (!pendingCompanyRef.current) pendingCompanyRef.current = await vendorsApi.create(legacy);
+      const company = pendingCompanyRef.current;
       // updateContractor already sets parent_vendor_id for a sub-vendor,
       // which is now the sole source of that relationship - a follow-up
       // linkSubcontractor call would simply conflict with itself.
       await communicationApi.updateContractor(company.id, profile);
       await communicationApi.addContact({ ...contact, vendor_id: company.id });
+      pendingCompanyRef.current = null;
     }, mode === "main" ? "Main vendor added" : "Sub-vendor added");
   }
   async function mapToProjects(vendor, projectIds) {
@@ -306,9 +335,9 @@ export function CommunicationHubPage({ user, action }) {
       addContact={() => setForm("contact")} addSubcontractor={() => setForm("sub")} selectVendor={setSelected}
       onContactChanged={load}/>}
 
-    {form === "main" && <CompanyModal title="Add main vendor" categories={hub.categories} onClose={() => setForm(null)} onSubmit={event => createCompany(event, "main")}/>}
-    {form === "sub" && selectedVendor?.engagement_type === "main" && <CompanyModal title="Add sub-vendor" categories={hub.categories} fixedMainContractor={selectedVendor} onClose={() => setForm(null)} onSubmit={event => createCompany(event, "sub")}/>}
-    {form === "edit" && selectedVendor && <ProfileModal vendor={selectedVendor} categories={hub.categories} onClose={() => setForm(null)} onSubmit={event => updateCompany(event, selectedVendor.id)}/>}
+    {form === "main" && <CompanyModal title="Add main vendor" categories={hub.categories} saving={saving} onClose={() => setForm(null)} onSubmit={event => createCompany(event, "main")}/>}
+    {form === "sub" && selectedVendor?.engagement_type === "main" && <CompanyModal title="Add sub-vendor" categories={hub.categories} fixedMainContractor={selectedVendor} saving={saving} onClose={() => setForm(null)} onSubmit={event => createCompany(event, "sub")}/>}
+    {form === "edit" && selectedVendor && <ProfileModal vendor={selectedVendor} categories={hub.categories} saving={saving} onClose={() => setForm(null)} onSubmit={event => updateCompany(event, selectedVendor.id)}/>}
     {form === "contact" && <Modal title="Add vendor contact" subtitle="Add a person under a main vendor or sub-vendor" onClose={() => setForm(null)}>
       <form className="modal-form grid gap-3 [&_label]:grid [&_label]:gap-2 [&_label]:text-sm [&_label]:font-extrabold [&_label]:text-slate-700 [&_input]:min-h-11 [&_input]:w-full [&_input]:rounded-xl [&_input]:border [&_input]:border-slate-200 [&_input]:bg-white [&_input]:px-4 [&_input]:py-3 [&_input]:outline-none [&_select]:min-h-11 [&_select]:w-full [&_select]:rounded-xl [&_select]:border [&_select]:border-slate-200 [&_select]:bg-white [&_select]:px-4 [&_select]:py-3 [&_select]:outline-none focus-within:[&_input]:border-blue-600 focus-within:[&_select]:border-blue-600 [&>button]:min-h-12 [&>button]:rounded-xl [&>button]:bg-blue-700 [&>button]:px-5 [&>button]:font-black [&>button]:text-white two-col grid-cols-2 max-[720px]:grid-cols-1" onSubmit={event => submit(event, payload => communicationApi.addContact({ ...payload, is_primary: false }), "Contact added")}>
         <label className="full-field col-span-full max-[720px]:col-span-1">Vendor<select name="vendor_id" defaultValue={selectedVendor?.id || ""} required>{hub.vendors.map(vendor => <option value={vendor.id} key={vendor.id}>{vendor.name}</option>)}</select></label>
@@ -316,7 +345,7 @@ export function CommunicationHubPage({ user, action }) {
         <label>Designation<input name="designation"/></label>
         <label>Phone<input name="phone" required/></label>
         <label>WhatsApp<input name="whatsapp"/></label>
-        <button>Add contact</button>
+        <button disabled={saving} className="disabled:cursor-not-allowed disabled:opacity-60">{saving ? "Saving..." : "Add contact"}</button>
       </form>
     </Modal>}
     {canManage && <button className="fixed bottom-24 right-4 z-30 grid size-14 place-items-center rounded-full bg-blue-700 p-0 text-white shadow-xl min-[721px]:hidden" aria-label="Add vendor" onClick={() => setForm("main")}><Plus/></button>}
