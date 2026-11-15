@@ -65,6 +65,28 @@ class VendorCapabilitiesIn(BaseModel):
     category_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
+class ProjectContactAttachmentOut(BaseModel):
+    """One active attachment of a vendor contact to this project."""
+
+    id: uuid.UUID
+    category_id: uuid.UUID | None = None
+    category_name: str | None = None
+    note: str | None = None
+
+
+class ProjectVendorContactOut(BaseModel):
+    """A vendor's contact as seen from one project: who they are, and what
+    they are attached to on this project (empty = not attached here)."""
+
+    id: uuid.UUID
+    name: str
+    designation: str | None = None
+    phone: str
+    whatsapp: str | None = None
+    is_primary: bool = False
+    attachments: list[ProjectContactAttachmentOut] = Field(default_factory=list)
+
+
 class ProjectVendorMappingOut(BaseModel):
     """Read surface for "list current mappings" (ProjectVendorPanel) and
     the vendor picker inside TaskVendorDelegationForm, which must only
@@ -80,11 +102,44 @@ class ProjectVendorMappingOut(BaseModel):
     created_at: datetime
     ends_at: datetime | None = None
     acknowledged_at: datetime | None = None
+    contacts: list[ProjectVendorContactOut] = Field(default_factory=list)
 
 
 class TaskVendorAssignmentIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     vendor_id: uuid.UUID
+    # Optional point person: a contact of `vendor_id`.
+    contact_id: uuid.UUID | None = None
+
+
+class TaskVendorContactIn(BaseModel):
+    """Change (or clear, with null) a task assignment's point person."""
+
+    model_config = ConfigDict(extra="forbid")
+    contact_id: uuid.UUID | None = None
+
+
+class VendorContactProjectIn(BaseModel):
+    """Attach a vendor contact to this project. One row per category; an
+    empty `category_ids` means all of the vendor's work on the project."""
+
+    model_config = ConfigDict(extra="forbid")
+    contact_id: uuid.UUID
+    category_ids: list[uuid.UUID] = Field(default_factory=list)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class VendorContactProjectOut(BaseModel):
+    id: uuid.UUID
+    contact_id: uuid.UUID
+    project_id: uuid.UUID
+    category_id: uuid.UUID | None = None
+    note: str | None = None
+    assigned_by: uuid.UUID | None = None
+    created_at: datetime
+    ends_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TaskVendorAssignmentOut(BaseModel):
@@ -96,6 +151,7 @@ class TaskVendorAssignmentOut(BaseModel):
     assigned_by: uuid.UUID
     created_at: datetime
     ends_at: datetime | None = None
+    contact_id: uuid.UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -140,4 +196,8 @@ class TaskVendorAssignmentDetailOut(BaseModel):
     assigned_by: uuid.UUID
     created_at: datetime
     ends_at: datetime | None = None
+    contact_id: uuid.UUID | None = None
+    contact_name: str | None = None
+    contact_phone: str | None = None
+    contact_whatsapp: str | None = None
     acknowledgements: list[VendorAcknowledgementOut] = Field(default_factory=list)

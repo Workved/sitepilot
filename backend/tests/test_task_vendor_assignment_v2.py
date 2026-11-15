@@ -31,6 +31,7 @@ from app.routes.project_vendors_v2 import router as project_vendors_router
 from app.routes.project_vendors_v2 import vendors_router
 from app.routes.projects_v2 import router as projects_router
 from app.template_models import V2Template, V2TemplateExternalGate, V2TemplateExternalGateTask, V2TemplateTask, V2TemplateTaskDependency, V2TemplateVersion
+from app.vendor_models import V2VendorContact, VendorContactProject
 from app.vendor_models import (
     ProjectVendor,
     TaskVendorAssignment,
@@ -96,6 +97,8 @@ class TaskVendorAssignmentApiTests(unittest.TestCase):
             V2CapabilityCategory.__table__,
             V2VendorCapability.__table__,
             ProjectVendor.__table__,
+            V2VendorContact.__table__,
+            VendorContactProject.__table__,
             TaskVendorAssignment.__table__,
             VendorAcknowledgement.__table__,
             FileObject.__table__,

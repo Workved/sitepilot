@@ -13,5 +13,9 @@ export const vendorAssignmentApi = {
   listTaskVendorAssignments: (projectId, taskId) => api(`/api/v2/projects/${projectId}/tasks/${taskId}/vendor-assignments`),
   delegateTask: (projectId, taskId, payload) => api(`/api/v2/projects/${projectId}/tasks/${taskId}/vendor-assignment`, { method: "POST", body: JSON.stringify(payload) }),
   unassignTask: (projectId, taskId, assignmentId, payload) => api(`/api/v2/projects/${projectId}/tasks/${taskId}/vendor-assignment/${assignmentId}/unassign`, { method: "POST", body: JSON.stringify(payload) }),
+  // A vendor's people on a project (optionally per trade) and a task's point person.
+  attachContact: (projectId, payload) => api(`/api/v2/projects/${projectId}/vendor-contacts`, { method: "POST", body: JSON.stringify(payload) }),
+  endContactAttachment: (projectId, attachmentId) => api(`/api/v2/projects/${projectId}/vendor-contacts/${attachmentId}/end`, { method: "POST" }),
+  setTaskPointPerson: (projectId, taskId, assignmentId, contactId) => api(`/api/v2/projects/${projectId}/tasks/${taskId}/vendor-assignment/${assignmentId}/contact`, { method: "PUT", body: JSON.stringify({ contact_id: contactId }) }),
   acknowledge: (projectId, taskId, assignmentId, payload) => api(`/api/v2/projects/${projectId}/tasks/${taskId}/vendor-assignment/${assignmentId}/acknowledge`, { method: "POST", body: JSON.stringify(payload) }),
 };

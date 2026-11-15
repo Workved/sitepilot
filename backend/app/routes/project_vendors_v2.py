@@ -26,6 +26,8 @@ from app.models import User, UserRole
 from app.routes.projects_v2 import get_project
 from app.schemas.vendor_assignment import (
     CapabilityCategoryOut,
+    ProjectContactAttachmentOut,
+    ProjectVendorContactOut,
     ProjectVendorMapIn,
     ProjectVendorMappingOut,
     ProjectVendorOut,
@@ -33,15 +35,19 @@ from app.schemas.vendor_assignment import (
     TaskVendorAssignmentDetailOut,
     TaskVendorAssignmentIn,
     TaskVendorAssignmentOut,
+    TaskVendorContactIn,
     TaskVendorUnassignIn,
     V2VendorOut,
     VendorAcknowledgementIn,
     VendorAcknowledgementOut,
     VendorCapabilitiesIn,
+    VendorContactProjectIn,
+    VendorContactProjectOut,
 )
 from app.services.project_vendor import ProjectVendorService
 from app.services.task_vendor_assignment import TaskVendorAssignmentService
 from app.services.vendor_acknowledgement import VendorAcknowledgementService
+from app.services.vendor_contact_project import VendorContactProjectService
 from app.template_models import V2TemplateTask, V2TemplateVersion
 from app.vendor_models import (
     ProjectVendor,
@@ -49,7 +55,9 @@ from app.vendor_models import (
     V2CapabilityCategory,
     V2Vendor,
     V2VendorCapability,
+    V2VendorContact,
     VendorAcknowledgement,
+    VendorContactProject,
 )
 
 router = APIRouter(prefix="/api/v2/projects", tags=["v2-vendors"])
@@ -229,6 +237,7 @@ def list_project_vendors(
     if not include_ended:
         query = query.where(ProjectVendor.ends_at.is_(None))
     rows = db.execute(query.order_by(V2Vendor.name)).all()
+    contacts_by_vendor = _project_contacts_by_vendor(db, project.id, {vendor.id for _, vendor in rows})
     return [
         ProjectVendorMappingOut(
             id=mapping.id,
@@ -241,9 +250,62 @@ def list_project_vendors(
             created_at=mapping.created_at,
             ends_at=mapping.ends_at,
             acknowledged_at=mapping.acknowledged_at,
+            contacts=contacts_by_vendor.get(vendor.id, []),
         )
         for mapping, vendor in rows
     ]
+
+
+def _project_contacts_by_vendor(db: Session, project_id: uuid.UUID, vendor_ids: set[uuid.UUID]) -> dict[uuid.UUID, list[ProjectVendorContactOut]]:
+    """Each vendor's contacts, with what they're attached to on this
+    project. Attached people first, then the primary contact, then by name -
+    so the people actually working here lead every list."""
+    if not vendor_ids:
+        return {}
+    contacts = db.scalars(select(V2VendorContact).where(V2VendorContact.vendor_id.in_(vendor_ids))).all()
+    attachments = db.scalars(
+        select(VendorContactProject).where(
+            VendorContactProject.project_id == project_id,
+            VendorContactProject.contact_id.in_([contact.id for contact in contacts]),
+            VendorContactProject.ends_at.is_(None),
+        )
+    ).all() if contacts else []
+    category_names = dict(db.execute(select(V2CapabilityCategory.id, V2CapabilityCategory.name)).all())
+    by_contact: dict[uuid.UUID, list[ProjectContactAttachmentOut]] = {}
+    for row in attachments:
+        by_contact.setdefault(row.contact_id, []).append(ProjectContactAttachmentOut(
+            id=row.id, category_id=row.category_id,
+            category_name=category_names.get(row.category_id) if row.category_id else None, note=row.note,
+        ))
+    result: dict[uuid.UUID, list[ProjectVendorContactOut]] = {}
+    for contact in sorted(contacts, key=lambda c: (not by_contact.get(c.id), not c.is_primary, c.name.lower())):
+        result.setdefault(contact.vendor_id, []).append(ProjectVendorContactOut(
+            id=contact.id, name=contact.name, designation=contact.designation, phone=contact.phone,
+            whatsapp=contact.whatsapp, is_primary=contact.is_primary, attachments=by_contact.get(contact.id, []),
+        ))
+    return result
+
+
+@router.post("/{project_id}/vendor-contacts", response_model=list[VendorContactProjectOut])
+def attach_vendor_contact(
+    project_id: uuid.UUID,
+    payload: VendorContactProjectIn,
+    actor: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    """Attach one of a mapped vendor's people to this project, optionally
+    per trade category. Returns that person's active attachments here."""
+    return VendorContactProjectService(db).attach(project_id, payload.contact_id, payload.category_ids, payload.note, actor)
+
+
+@router.post("/{project_id}/vendor-contacts/{attachment_id}/end", response_model=VendorContactProjectOut)
+def end_vendor_contact(
+    project_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    actor: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    return VendorContactProjectService(db).end(project_id, attachment_id, actor)
 
 
 @router.post("/{project_id}/vendors/{vendor_id}/remove", response_model=ProjectVendorOut)
@@ -265,7 +327,7 @@ def assign_vendor_to_task(
     actor: User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
-    return TaskVendorAssignmentService(db).assign_vendor(project_id, task_id, payload.vendor_id, actor)
+    return TaskVendorAssignmentService(db).assign_vendor(project_id, task_id, payload.vendor_id, actor, contact_id=payload.contact_id)
 
 
 @router.get(
@@ -287,8 +349,9 @@ def list_task_vendor_assignments(
     if not task:
         raise HTTPException(404, "Task not found.")
     rows = db.execute(
-        select(TaskVendorAssignment, V2Vendor)
+        select(TaskVendorAssignment, V2Vendor, V2VendorContact)
         .join(V2Vendor, TaskVendorAssignment.vendor_id == V2Vendor.id)
+        .outerjoin(V2VendorContact, TaskVendorAssignment.contact_id == V2VendorContact.id)
         .where(TaskVendorAssignment.task_id == task.id)
         .order_by(TaskVendorAssignment.created_at.desc())
     ).all()
@@ -303,6 +366,10 @@ def list_task_vendor_assignments(
             assigned_by=assignment.assigned_by,
             created_at=assignment.created_at,
             ends_at=assignment.ends_at,
+            contact_id=contact.id if contact else None,
+            contact_name=contact.name if contact else None,
+            contact_phone=contact.phone if contact else None,
+            contact_whatsapp=contact.whatsapp if contact else None,
             acknowledgements=[
                 VendorAcknowledgementOut.model_validate(ack)
                 for ack in db.scalars(
@@ -312,8 +379,24 @@ def list_task_vendor_assignments(
                 ).all()
             ],
         )
-        for assignment, vendor in rows
+        for assignment, vendor, contact in rows
     ]
+
+
+@router.put(
+    "/{project_id}/tasks/{task_id}/vendor-assignment/{assignment_id}/contact",
+    response_model=TaskVendorAssignmentOut,
+)
+def set_task_point_person(
+    project_id: uuid.UUID,
+    task_id: uuid.UUID,
+    assignment_id: uuid.UUID,
+    payload: TaskVendorContactIn,
+    actor: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    """Change (or clear) which of the vendor's people handles this task."""
+    return VendorContactProjectService(db).set_point_person(project_id, task_id, assignment_id, payload.contact_id, actor)
 
 
 @router.post(

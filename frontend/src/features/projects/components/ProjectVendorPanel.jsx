@@ -2,6 +2,7 @@ import { Building2, Pencil, RotateCcw, Truck, UserMinus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { vendorAssignmentApi } from "../../../api/vendorAssignmentApi";
 import { AcknowledgementPill, Button, EmptyState, Field, Pill, Select, Textarea } from "../../../components/ui";
+import { PEOPLE_MANAGER_ROLES, VendorProjectPeople } from "./VendorProjectPeople";
 
 const engagementLabel = { main: "Main vendor", sub_vendor: "Sub-vendor" };
 
@@ -124,6 +125,7 @@ export function ProjectVendorPanel({ project, user }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const canManage = ["admin", "super_admin", "project_manager"].includes(user.role);
+  const canManagePeople = PEOPLE_MANAGER_ROLES.includes(user.role);
 
   async function load() {
     setLoading(true);
@@ -187,6 +189,7 @@ export function ProjectVendorPanel({ project, user }) {
           <div className="flex items-center gap-3"><time className="text-xs text-slate-400">Added {new Date(mapping.created_at).toLocaleDateString("en-GB")}</time>{canManage && vendor && <RemoveVendorControl project={project} vendor={vendor} onChanged={load}/>}</div>
         </div>
         {vendor && <VendorTradePhaseEditor vendor={vendor} categories={categories} canManage={canManage} onChanged={load}/>}
+        <VendorProjectPeople project={project} mapping={mapping} vendor={vendor} categories={categories} canManage={canManagePeople} onChanged={load}/>
       </article>;
     })}</div>}
 

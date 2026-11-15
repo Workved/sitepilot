@@ -218,6 +218,12 @@ class TaskVendorAssignment(Base):
     assigned_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Point person: the vendor contact handling this task. Must belong to
+    # `vendor_id` (TaskVendorAssignmentService). Task messages go to this
+    # person and the vendor's primary contact; null = primary contact only.
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.vendor_contacts.id", ondelete="SET NULL")
+    )
 
 
 class VendorAcknowledgement(Base):
@@ -307,3 +313,36 @@ class V2VendorPastProject(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+
+class VendorContactProject(Base):
+    """A vendor contact (a person) attached to a project, optionally for one
+    trade category - one row per category, `category_id` null meaning all of
+    the vendor's work there.
+
+    Mirrors `supabase/migrations/202611160001_v2_vendor_contact_assignments.sql`.
+    Soft removal via `ends_at`, like `ProjectVendor`; one active row per
+    contact/project/category (partial unique index in SQL, also checked in
+    `VendorContactProjectService`)."""
+
+    __tablename__ = "vendor_contact_projects"
+    __table_args__ = (
+        Index("ix_v2_vendor_contact_projects_contact", "contact_id"),
+        Index("ix_v2_vendor_contact_projects_project", "project_id"),
+        {"schema": V2_SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    contact_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.vendor_contacts.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    category_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.capability_categories.id", ondelete="SET NULL")
+    )
+    note: Mapped[str | None] = mapped_column(Text)
+    assigned_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

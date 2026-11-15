@@ -10,7 +10,7 @@ import { ConfirmModal, EmptyState, LoadingSpinner, Modal, RefreshButton } from "
 import { cn } from "../../utils/cn";
 import { paginationItems } from "../../utils/pagination";
 
-const emptyHub = { vendors: [], contacts: [], categories: [], projects: [], project_vendors: [], relationships: [], past_projects: [], project_history: [] };
+const emptyHub = { vendors: [], contacts: [], categories: [], projects: [], project_vendors: [], relationships: [], past_projects: [], project_history: [], contact_projects: [], contact_tasks: [] };
 import { CategoryChip, CompanyModal, Metric, ProfileModal, VendorRow } from "./components/CommunicationDirectory";
 import { VendorDetailPanel } from "./components/VendorDetailPanel";
 
@@ -353,7 +353,8 @@ export function CommunicationHubPage({ user, action }) {
       pastProjects={hub.past_projects.filter(item => item.vendor_id === selectedVendor.id)}
       projectHistory={hub.project_history.filter(item => item.vendor_id === selectedVendor.id)}
       savePastProject={(pastProjectId, payload) => savePastProject(selectedVendor.id, pastProjectId, payload)}
-      deletePastProject={deletePastProject}/>}
+      deletePastProject={deletePastProject}
+      contactProjects={hub.contact_projects} contactTasks={hub.contact_tasks}/>}
 
     {form === "main" && <CompanyModal title="Add main vendor" categories={hub.categories} saving={saving} onClose={() => setForm(null)} onSubmit={event => createCompany(event, "main")}/>}
     {form === "sub" && selectedVendor?.engagement_type === "main" && <CompanyModal title="Add sub-vendor" categories={hub.categories} fixedMainContractor={selectedVendor} saving={saving} onClose={() => setForm(null)} onSubmit={event => createCompany(event, "sub")}/>}
