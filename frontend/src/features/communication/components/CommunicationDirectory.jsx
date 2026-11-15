@@ -153,15 +153,15 @@ function VendorForm({ formId, vendor, categories, fixedMainVendor, includeContac
   </form>;
 }
 
-const submitButtonClass = "min-h-12 rounded-xl bg-blue-700 px-6 font-black text-white shadow-[0_10px_24px_rgba(29,78,216,0.22)] transition hover:bg-blue-800";
+const submitButtonClass = "min-h-12 rounded-xl bg-blue-700 px-6 font-black text-white shadow-[0_10px_24px_rgba(29,78,216,0.22)] transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60";
 
-export function CompanyModal({ title, categories, fixedMainContractor, onClose, onSubmit }) {
+export function CompanyModal({ title, categories, fixedMainContractor, saving = false, onClose, onSubmit }) {
   const formId = "vendor-company-form";
   const submitLabel = fixedMainContractor ? "Create sub-vendor" : "Create main vendor";
-  return <Modal className="max-w-5xl" title={title} subtitle={fixedMainContractor ? "Create a sub-vendor inside the approved parent relationship." : "Create a structured vendor profile for project and task assignment."} onClose={onClose} footer={<div className="flex justify-end"><button type="submit" form={formId} className={submitButtonClass}>{submitLabel}</button></div>}><VendorForm formId={formId} categories={categories} fixedMainVendor={fixedMainContractor} includeContact onSubmit={onSubmit}/></Modal>;
+  return <Modal className="max-w-5xl" title={title} subtitle={fixedMainContractor ? "Create a sub-vendor inside the approved parent relationship." : "Create a structured vendor profile for project and task assignment."} onClose={onClose} footer={<div className="flex justify-end"><button type="submit" form={formId} disabled={saving} className={submitButtonClass}>{saving ? "Saving..." : submitLabel}</button></div>}><VendorForm formId={formId} categories={categories} fixedMainVendor={fixedMainContractor} includeContact onSubmit={onSubmit}/></Modal>;
 }
 
-export function ProfileModal({ vendor, categories, onClose, onSubmit }) {
+export function ProfileModal({ vendor, categories, saving = false, onClose, onSubmit }) {
   const formId = "vendor-profile-form";
-  return <Modal className="max-w-5xl" title={`Edit ${vendor.name}`} subtitle="Update company details, categories and assignment availability." onClose={onClose} footer={<div className="flex justify-end"><button type="submit" form={formId} className={submitButtonClass}>Save vendor changes</button></div>}><VendorForm formId={formId} vendor={vendor} categories={categories} onSubmit={onSubmit}/></Modal>;
+  return <Modal className="max-w-5xl" title={`Edit ${vendor.name}`} subtitle="Update company details, categories and assignment availability." onClose={onClose} footer={<div className="flex justify-end"><button type="submit" form={formId} disabled={saving} className={submitButtonClass}>{saving ? "Saving..." : "Save vendor changes"}</button></div>}><VendorForm formId={formId} vendor={vendor} categories={categories} onSubmit={onSubmit}/></Modal>;
 }
