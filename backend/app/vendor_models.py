@@ -33,6 +33,7 @@ class V2Vendor(Base):
         CheckConstraint("engagement_type in ('main', 'sub_vendor')", name="ck_v2_vendors_engagement_type"),
         CheckConstraint("engagement_type != 'sub_vendor' OR parent_vendor_id IS NOT NULL", name="ck_v2_vendors_sub_vendor_parent"),
         CheckConstraint("engagement_type != 'main' OR parent_vendor_id IS NULL", name="ck_v2_vendors_main_without_parent"),
+        CheckConstraint("status in ('active', 'blacklisted')", name="ck_v2_vendors_status"),
         Index("ix_v2_vendors_parent", "parent_vendor_id"),
         Index("ix_v2_vendors_status", "status"),
         {"schema": V2_SCHEMA},
@@ -51,7 +52,12 @@ class V2Vendor(Base):
     address: Mapped[str | None] = mapped_column(Text)
     gst_number: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
+    # 'active' only means "not blacklisted" and is never shown; the one status
+    # a person sets is 'blacklisted' (VendorBlacklistService), with a reason.
     status: Mapped[str] = mapped_column(Text, nullable=False, default="active")
+    blacklist_reason: Mapped[str | None] = mapped_column(Text)
+    blacklisted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    blacklisted_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     engagement_type: Mapped[str] = mapped_column(Text, nullable=False, default="main")
     parent_vendor_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.vendors.id", ondelete="RESTRICT")

@@ -348,11 +348,13 @@ class TaskVendorAssignmentApiTests(unittest.TestCase):
 
         with self.Session.begin() as session:
             vendor = session.get(V2Vendor, self.vendor_soon_inactive_id)
-            vendor.status = "inactive"
+            vendor.status = "blacklisted"
+            vendor.blacklist_reason = "Quality issues"
 
         response = self.assign_vendor(project["id"], task.id, self.vendor_soon_inactive_id)
 
         self.assertEqual(response.status_code, 422, response.text)
+        self.assertIn("blacklisted", response.json()["detail"])
 
     # ---- integration: non-interference with Phase 1 accountability -------
 

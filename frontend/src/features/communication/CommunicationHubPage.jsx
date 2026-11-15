@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ChevronDown, ChevronLeft, ChevronRight, ClipboardList, ContactRound, FolderKanban,
+  Ban, ChevronDown, ChevronLeft, ChevronRight, ContactRound, FolderKanban,
   LayoutGrid, List, Plus, Search, SlidersHorizontal, Tag, UsersRound,
 } from "lucide-react";
 import { communicationApi } from "../../api/communicationApi";
@@ -13,6 +13,7 @@ import { paginationItems } from "../../utils/pagination";
 const emptyHub = { vendors: [], contacts: [], categories: [], projects: [], project_vendors: [], relationships: [], past_projects: [], project_history: [], contact_projects: [], contact_tasks: [] };
 import { CategoryChip, CompanyModal, Metric, ProfileModal, VendorRow } from "./components/CommunicationDirectory";
 import { VendorDetailPanel } from "./components/VendorDetailPanel";
+import { BlacklistModal, canBlacklist, canUnblacklist, isBlocked } from "./components/VendorBlacklist";
 
 const SORT_OPTIONS = [
   ["name_asc", "Name (A-Z)"],
@@ -41,6 +42,9 @@ export function CommunicationHubPage({ user, action }) {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [confirmDeleteVendor, setConfirmDeleteVendor] = useState(null);
   const [deleteError, setDeleteError] = useState("");
+  const [blacklistTarget, setBlacklistTarget] = useState(null); // { vendor, mode: "blacklist" | "remove" }
+  const [blacklistError, setBlacklistError] = useState("");
+  function openBlacklist(vendor, mode) { setBlacklistError(""); setBlacklistTarget({ vendor, mode }); }
   const canManage = user.role !== "supervisor";
 
   const filtersRef = useRef(null);
@@ -127,7 +131,7 @@ export function CommunicationHubPage({ user, action }) {
     const categoryIds = data.getAll("category_ids");
     const firstCategory = hub.categories.find(item => item.id === categoryIds[0])?.name || "Other";
     const legacy = { name: data.get("name"), category: firstCategory, contact_person: data.get("contact_person"), phone: data.get("phone"), whatsapp: data.get("whatsapp") || null, notes: data.get("notes") || null };
-    const profile = { name: legacy.name, engagement_type: mode === "sub" ? "sub_vendor" : "main", parent_vendor_id: mode === "sub" ? data.get("main_contractor_id") : null, status: data.get("status"), category_ids: categoryIds, email: data.get("email") || null, address: data.get("address") || null, gst_number: data.get("gst_number") || null, notes: legacy.notes };
+    const profile = { name: legacy.name, engagement_type: mode === "sub" ? "sub_vendor" : "main", parent_vendor_id: mode === "sub" ? data.get("main_contractor_id") : null, category_ids: categoryIds, email: data.get("email") || null, address: data.get("address") || null, gst_number: data.get("gst_number") || null, notes: legacy.notes };
     const contact = { name: legacy.contact_person, designation: data.get("designation") || null, phone: legacy.phone, whatsapp: legacy.whatsapp, is_primary: true };
     await perform(async () => {
       if (!pendingCompanyRef.current) pendingCompanyRef.current = await vendorsApi.create(legacy);
@@ -160,14 +164,19 @@ export function CommunicationHubPage({ user, action }) {
   async function updateCompany(event, vendorId) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    await perform(() => communicationApi.updateContractor(vendorId, { name: data.get("name"), engagement_type: vendorById[vendorId]?.engagement_type || "main", status: data.get("status"), category_ids: data.getAll("category_ids"), email: data.get("email") || null, address: data.get("address") || null, gst_number: data.get("gst_number") || null, notes: data.get("notes") || null }), "Vendor updated");
+    await perform(() => communicationApi.updateContractor(vendorId, { name: data.get("name"), engagement_type: vendorById[vendorId]?.engagement_type || "main", category_ids: data.getAll("category_ids"), email: data.get("email") || null, address: data.get("address") || null, gst_number: data.get("gst_number") || null, notes: data.get("notes") || null }), "Vendor updated");
   }
-  async function deactivateVendor(vendor) {
-    return perform(() => communicationApi.updateContractor(vendor.id, {
-      name: vendor.name, engagement_type: vendor.engagement_type, status: "inactive",
-      category_ids: vendor.category_ids || [], email: vendor.email || null,
-      address: vendor.address || null, gst_number: vendor.gst_number || null, notes: vendor.notes || null,
-    }), "Vendor deactivated");
+  // Blacklist / remove from blacklist, with a reason (BlacklistModal).
+  async function submitBlacklist(reason) {
+    const { vendor, mode } = blacklistTarget;
+    setBlacklistError("");
+    const result = await perform(
+      () => mode === "remove" ? communicationApi.unblacklistVendor(vendor.id, reason) : communicationApi.blacklistVendor(vendor.id, reason),
+      mode === "remove" ? `${vendor.name} removed from the blacklist` : `${vendor.name} blacklisted`,
+      { inPanel: true },
+    );
+    if (result?.ok) setBlacklistTarget(null);
+    else setBlacklistError(result?.error || "That didn't work. Try again.");
   }
 
   const vendorById = useMemo(() => Object.fromEntries(hub.vendors.map(vendor => [vendor.id, vendor])), [hub.vendors]);
@@ -183,7 +192,7 @@ export function CommunicationHubPage({ user, action }) {
   const projectVendorIds = useMemo(() => new Set(hub.project_vendors.filter(link => !projectId || link.project_id === projectId).map(link => link.vendor_id)), [hub.project_vendors, projectId]);
   const matches = vendor => {
     const text = `${vendor.name} ${(vendor.categories || []).join(" ")} ${contactsFor(vendor.id).map(contact => contact.name).join(" ")}`.toLowerCase();
-    return text.includes(query.toLowerCase()) && (!status || vendor.status === status) && (!categoryId || vendor.category_ids?.includes(categoryId));
+    return text.includes(query.toLowerCase()) && (!status || (status === "blacklisted" && isBlocked(vendor))) && (!categoryId || vendor.category_ids?.includes(categoryId));
   };
   const projectMatches = vendor => { if (!projectId || projectVendorIds.has(vendor.id)) return true; if (vendor.engagement_type === "sub_vendor") return Boolean(vendor.parent_vendor_id && projectVendorIds.has(vendor.parent_vendor_id)); return false; };
   const typeMatches = vendor => (type === "all" ? true : type === "main" ? vendor.engagement_type === "main" : vendor.engagement_type !== "main");
@@ -215,7 +224,7 @@ export function CommunicationHubPage({ user, action }) {
     }).length;
   }, [hub.vendors]);
   const categoriesInUse = hub.categories.filter(category => (category.vendor_count || 0) > 0).length;
-  const pendingFollowups = hub.vendors.filter(vendor => vendor.status === "on_hold").length;
+  const blacklistedCount = hub.vendors.filter(vendor => vendor.blacklisted).length;
   const topCategories = useMemo(() => [...hub.categories].sort((a, b) => (b.vendor_count || 0) - (a.vendor_count || 0)).slice(0, 8), [hub.categories]);
 
   function clearFilters() { setCategoryId(""); setType("all"); setStatus(""); setProjectId(""); }
@@ -250,8 +259,8 @@ export function CommunicationHubPage({ user, action }) {
         <Metric icon={<Tag size={20}/>} label="Active Categories" value={categoriesInUse} hint={`of ${hub.categories.length} total`} tone="border-emerald-200 bg-emerald-50"/>
         <Metric icon={<ContactRound size={20}/>} label="Site Contacts" value={hub.contacts.length} hint="Across all vendors" tone="border-violet-200 bg-violet-50"/>
         <Metric icon={<FolderKanban size={20}/>} label="Active Projects" value={activeProjects} hint={`of ${hub.projects.length} total`} tone="border-amber-200 bg-amber-50"/>
-        <Metric icon={<ClipboardList size={20}/>} label="Pending Follow-ups" value={pendingFollowups} tone="border-rose-200 bg-rose-50" className="col-span-2 sm:col-span-1"
-          action={<button type="button" onClick={() => setStatus("on_hold")} className="text-[11px] font-black text-blue-700 hover:underline">See all</button>}/>
+        <Metric icon={<Ban size={20}/>} label="Blacklisted" value={blacklistedCount} tone="border-rose-200 bg-rose-50" className="col-span-2 sm:col-span-1"
+          action={blacklistedCount > 0 && <button type="button" onClick={() => setStatus("blacklisted")} className="text-[11px] font-black text-blue-700 hover:underline">See all</button>}/>
       </div>
     </section>
 
@@ -268,7 +277,7 @@ export function CommunicationHubPage({ user, action }) {
         </select>
         <select value={status} onChange={event => setStatus(event.target.value)}
           className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10">
-          <option value="">All Status</option><option value="active">Active</option><option value="on_hold">On hold</option><option value="inactive">Inactive</option>
+          <option value="">All vendors</option><option value="blacklisted">Blacklisted</option>
         </select>
         <div ref={filtersRef} className="relative">
           <button type="button" onClick={() => setFiltersOpen(v => !v)}
@@ -321,7 +330,9 @@ export function CommunicationHubPage({ user, action }) {
         : <div className={viewMode === "grid" ? "grid gap-3 sm:grid-cols-2" : "grid gap-3"}>
             {pageVendors.map(vendor => <VendorRow key={vendor.id} vendor={vendor} primary={primaryFor(vendor.id)} projectCount={projectsFor(vendor.id).length}
               selected={vendor.id === selected} layout={viewMode} onSelect={() => setSelected(vendor.id)}
-              onEdit={() => { setSelected(vendor.id); setForm("edit"); }} onDeactivate={() => deactivateVendor(vendor)} onDelete={() => setConfirmDeleteVendor(vendor)}/>)}
+              onEdit={() => { setSelected(vendor.id); setForm("edit"); }} onDelete={() => setConfirmDeleteVendor(vendor)}
+              canBlacklist={canBlacklist(user)} canUnblacklist={canUnblacklist(user)}
+              onBlacklist={() => openBlacklist(vendor, "blacklist")} onUnblacklist={() => openBlacklist(vendor, "remove")}/>)}
           </div>}
 
       {sorted.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
@@ -346,7 +357,7 @@ export function CommunicationHubPage({ user, action }) {
       unmappedProjects={hub.projects.filter(project => project.status === "active" && !projectsFor(selectedVendor.id).some(mapped => mapped.id === project.id))}
       mapToProjects={projectIds => mapToProjects(selectedVendor, projectIds)} categories={hub.categories}
       canManage={canManage} onClose={() => setSelected(null)}
-      remove={() => deleteCompany(selectedVendor)} edit={() => setForm("edit")} deactivate={() => deactivateVendor(selectedVendor)}
+      remove={() => deleteCompany(selectedVendor)} edit={() => setForm("edit")} blacklist={() => openBlacklist(selectedVendor, "blacklist")} unblacklist={() => openBlacklist(selectedVendor, "remove")}
       addContact={() => setForm("contact")} addSubcontractor={() => setForm("sub")} selectVendor={setSelected}
       onContactChanged={load}
       user={user} saving={saving}
@@ -370,6 +381,10 @@ export function CommunicationHubPage({ user, action }) {
       </form>
     </Modal>}
     {canManage && <button className="fixed bottom-24 right-4 z-30 grid size-14 place-items-center rounded-full bg-blue-700 p-0 text-white shadow-xl min-[721px]:hidden" aria-label="Add vendor" onClick={() => setForm("main")}><Plus/></button>}
+
+    {blacklistTarget && <BlacklistModal vendor={blacklistTarget.vendor} mode={blacklistTarget.mode} saving={saving} error={blacklistError}
+      projectCount={projectsFor(blacklistTarget.vendor.id).length} subVendorCount={childrenFor(blacklistTarget.vendor.id).length}
+      onClose={() => setBlacklistTarget(null)} onSubmit={submitBlacklist}/>}
 
     {confirmDeleteVendor && (() => {
       const blocked = confirmDeleteVendor.engagement_type === "main" && childrenFor(confirmDeleteVendor.id).length > 0;

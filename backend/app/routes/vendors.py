@@ -59,19 +59,19 @@ def delete_vendor(vendor_id: uuid.UUID, actor: User = Depends(require_roles(User
     if linked_sub_vendor_count:
         noun = "sub-vendor" if linked_sub_vendor_count == 1 else "sub-vendors"
         verb = "is" if linked_sub_vendor_count == 1 else "are"
-        raise HTTPException(409, f"This main vendor cannot be deleted because {linked_sub_vendor_count} {noun} {verb} still linked. Transfer or delete them first, or mark the main vendor inactive.")
+        raise HTTPException(409, f"This main vendor cannot be deleted because {linked_sub_vendor_count} {noun} {verb} still linked. Transfer or delete them first, or blacklist the main vendor instead.")
     assigned_task_count = len(db.scalars(select(TaskVendorAssignment.id).where(TaskVendorAssignment.vendor_id == vendor_id)).all())
     if assigned_task_count:
         noun = "task" if assigned_task_count == 1 else "tasks"
-        raise HTTPException(409, f"This vendor cannot be deleted because it is assigned to {assigned_task_count} execution {noun}. Reassign those tasks or mark the vendor inactive to preserve assignment history.")
+        raise HTTPException(409, f"This vendor cannot be deleted because it is assigned to {assigned_task_count} execution {noun}. Reassign those tasks, or blacklist the vendor instead to keep its assignment history.")
     mapped_project_count = len(db.scalars(select(ProjectVendor.id).where(ProjectVendor.vendor_id == vendor_id)).all())
     if mapped_project_count:
         noun = "project" if mapped_project_count == 1 else "projects"
-        raise HTTPException(409, f"This vendor cannot be deleted because it is mapped to {mapped_project_count} {noun}. Remove those mappings or mark the vendor inactive.")
+        raise HTTPException(409, f"This vendor cannot be deleted because it is mapped to {mapped_project_count} {noun}. Remove those mappings, or blacklist the vendor instead.")
     db.delete(vendor)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(409, "This vendor cannot be deleted because it is still linked to operational records. Remove those links or mark the vendor inactive.")
+        raise HTTPException(409, "This vendor cannot be deleted because it is still linked to operational records. Remove those links, or blacklist the vendor instead.")
     return {"message": "Vendor deleted."}
