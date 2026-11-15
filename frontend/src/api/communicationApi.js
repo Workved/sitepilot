@@ -3,6 +3,9 @@ export const communicationApi = {
   get: () => api("/api/communication-hub"),
   updateContractor: (contractorId, payload) => api(`/api/communication-hub/contractors/${contractorId}`, { method: "PUT", body: JSON.stringify(payload) }),
   addContact: (payload) => api("/api/communication-hub/contacts", { method: "POST", body: JSON.stringify(payload) }),
+  // The only vendor status: blacklisted (reason required). Removing it is Admin-only.
+  blacklistVendor: (vendorId, reason) => api(`/api/communication-hub/vendors/${vendorId}/blacklist`, { method: "POST", body: JSON.stringify({ reason }) }),
+  unblacklistVendor: (vendorId, reason) => api(`/api/communication-hub/vendors/${vendorId}/unblacklist`, { method: "POST", body: JSON.stringify({ reason }) }),
   // Work history: past projects entered by hand on a vendor's profile.
   addPastProject: (vendorId, payload) => api(`/api/communication-hub/vendors/${vendorId}/past-projects`, { method: "POST", body: JSON.stringify(payload) }),
   updatePastProject: (pastProjectId, payload) => api(`/api/communication-hub/past-projects/${pastProjectId}`, { method: "PUT", body: JSON.stringify(payload) }),

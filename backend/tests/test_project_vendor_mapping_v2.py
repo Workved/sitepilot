@@ -180,7 +180,7 @@ class ProjectVendorMappingApiTests(unittest.TestCase):
             )
             inactive_vendor = V2Vendor(
                 id=uuid.uuid4(), name="Dormant Vendor", contact_person="Meena", phone="9000000002",
-                status="inactive", engagement_type="main",
+                status="blacklisted", blacklist_reason="Quality issues", engagement_type="main",
             )
             session.add_all([main_vendor, inactive_vendor])
             session.flush()
@@ -281,6 +281,7 @@ class ProjectVendorMappingApiTests(unittest.TestCase):
         response = self.map_vendor(project["id"], self.inactive_vendor_id)
 
         self.assertEqual(response.status_code, 422, response.text)
+        self.assertIn("blacklisted", response.json()["detail"])
 
     def test_non_pm_non_admin_cannot_map_vendor(self):
         project = self.create_draft()
@@ -299,7 +300,7 @@ class ProjectVendorMappingApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200, response.text)
         body = response.json()
-        # `inactive_vendor` is excluded - only active vendors are listable.
+        # `inactive_vendor` (blacklisted) is excluded - blacklisted vendors aren't offered.
         ids = {row["id"] for row in body}
         self.assertIn(str(self.main_vendor_id), ids)
         self.assertIn(str(self.sub_vendor_id), ids)

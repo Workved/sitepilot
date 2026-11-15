@@ -174,7 +174,13 @@ def list_vendors(
     project-side user may view vendor master data (mirrors the legacy
     Vendor Hub's unrestricted vendor read), since mapping/delegation
     itself is still PM/Admin-gated at the write routes below."""
-    vendors = db.scalars(select(V2Vendor).where(V2Vendor.status == "active").order_by(V2Vendor.name)).all()
+    # Blacklisted vendors, and sub-vendors of a blacklisted main vendor, can't
+    # take new work, so they aren't offered.
+    blacklisted_ids = set(db.scalars(select(V2Vendor.id).where(V2Vendor.status == "blacklisted")).all())
+    vendors = [
+        vendor for vendor in db.scalars(select(V2Vendor).order_by(V2Vendor.name)).all()
+        if vendor.id not in blacklisted_ids and vendor.parent_vendor_id not in blacklisted_ids
+    ]
     if not vendors:
         return []
     category_rows = db.execute(
