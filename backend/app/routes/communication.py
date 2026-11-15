@@ -45,7 +45,10 @@ from app.vendor_models import (
     V2VendorCapability,
     V2VendorContact,
     V2VendorPastProject,
+    TaskVendorAssignment,
+    VendorContactProject,
 )
+from app.execution_models import Task
 
 router = APIRouter(prefix="/api/communication-hub", tags=["communication-hub"])
 MANAGER_ROLES = (UserRole.super_admin, UserRole.admin, UserRole.project_manager)
@@ -173,6 +176,32 @@ def get_hub(user: User = Depends(current_user), db: Session = Depends(get_db)):
 
     parent_status_by_id = {vendor.id: vendor.status for vendor in vendors if vendor.engagement_type == "main"}
 
+    # Which of each vendor's people works on which project (optionally per
+    # trade) and which tasks they are the point person for. Same project
+    # visibility as everything else on this page.
+    contact_ids = [contact.id for contact in contacts]
+    contact_project_query = (
+        select(VendorContactProject, V2Project.name)
+        .join(V2Project, V2Project.id == VendorContactProject.project_id)
+        .where(VendorContactProject.contact_id.in_(contact_ids), VendorContactProject.ends_at.is_(None))
+    ) if contact_ids else None
+    contact_task_query = (
+        select(TaskVendorAssignment.id, TaskVendorAssignment.contact_id, TaskVendorAssignment.status, Task.id, Task.title, Task.phase, V2Project.id, V2Project.name)
+        .join(Task, Task.id == TaskVendorAssignment.task_id)
+        .join(V2Project, V2Project.id == TaskVendorAssignment.project_id)
+        .where(
+            TaskVendorAssignment.contact_id.in_(contact_ids),
+            TaskVendorAssignment.ends_at.is_(None),
+            TaskVendorAssignment.status != "declined",
+        )
+    ) if contact_ids else None
+    if contact_ids and user.role not in HISTORY_ADMIN_ROLES:
+        visible = list(project_ids) or [uuid.UUID(int=0)]
+        contact_project_query = contact_project_query.where(VendorContactProject.project_id.in_(visible))
+        contact_task_query = contact_task_query.where(TaskVendorAssignment.project_id.in_(visible))
+    contact_projects = db.execute(contact_project_query).all() if contact_ids else []
+    contact_tasks = db.execute(contact_task_query).all() if contact_ids else []
+
     # Work history, part 2: past projects entered by hand.
     past_projects = db.scalars(
         select(V2VendorPastProject).where(V2VendorPastProject.vendor_id.in_(vendor_ids))
@@ -232,6 +261,17 @@ def get_hub(user: User = Depends(current_user), db: Session = Depends(get_db)):
             "started_at": link.created_at.isoformat(), "ended_at": link.ends_at.isoformat(),
         } for link in ended_links],
         "past_projects": [serialize_past_project(item, category_by_id, author_names) for item in sort_past_projects(past_projects)],
+        "contact_projects": [{
+            "id": str(row.id), "contact_id": str(row.contact_id), "project_id": str(row.project_id), "project_name": project_name,
+            "category_id": str(row.category_id) if row.category_id else None,
+            "category_name": category_by_id.get(row.category_id) if row.category_id else None,
+            "note": row.note,
+        } for row, project_name in contact_projects],
+        "contact_tasks": [{
+            "assignment_id": str(assignment_id), "contact_id": str(contact_id), "status": status,
+            "task_id": str(task_id), "task_title": title, "phase": phase,
+            "project_id": str(project_id), "project_name": project_name,
+        } for assignment_id, contact_id, status, task_id, title, phase, project_id, project_name in contact_tasks],
     }
 
 

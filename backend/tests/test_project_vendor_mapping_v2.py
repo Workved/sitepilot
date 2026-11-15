@@ -21,6 +21,7 @@ from app.routes.project_vendors_v2 import router as project_vendors_router
 from app.routes.project_vendors_v2 import vendors_router
 from app.routes.projects_v2 import router as projects_router
 from app.template_models import V2Template, V2TemplateExternalGate, V2TemplateExternalGateTask, V2TemplateTask, V2TemplateTaskDependency, V2TemplateVersion
+from app.vendor_models import V2VendorContact, VendorContactProject
 from app.vendor_models import ProjectVendor, V2CapabilityCategory, V2Vendor, V2VendorCapability
 from tests.project_dates import pin_project_creation_today
 
@@ -75,6 +76,8 @@ class ProjectVendorMappingApiTests(unittest.TestCase):
             V2CapabilityCategory.__table__,
             V2VendorCapability.__table__,
             ProjectVendor.__table__,
+            V2VendorContact.__table__,
+            VendorContactProject.__table__,
             OutboxEvent.__table__,
             V2TemplateExternalGate.__table__,
             V2TemplateExternalGateTask.__table__,

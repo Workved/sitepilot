@@ -45,6 +45,7 @@ from app.template_models import (
     V2TemplateTaskDependency,
     V2TemplateVersion,
 )
+from app.vendor_models import V2VendorContact, VendorContactProject
 from app.vendor_models import (
     ProjectVendor,
     TaskVendorAssignment,
@@ -109,6 +110,8 @@ class VendorSoftRemovalApiTests(unittest.TestCase):
             V2CapabilityCategory.__table__,
             V2VendorCapability.__table__,
             ProjectVendor.__table__,
+            V2VendorContact.__table__,
+            VendorContactProject.__table__,
             TaskVendorAssignment.__table__,
             VendorAcknowledgement.__table__,
             FileObject.__table__,

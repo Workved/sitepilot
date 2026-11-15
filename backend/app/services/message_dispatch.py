@@ -448,6 +448,46 @@ class MessageDispatchService:
         phone = contact.phone or contact.whatsapp or ""
         return Recipient(employee_id=None, vendor_contact_id=contact.id, phone=phone)
 
+    def _contact_recipient(self, contact: V2VendorContact) -> Recipient:
+        phone = contact.phone or contact.whatsapp or ""
+        return Recipient(employee_id=None, vendor_contact_id=contact.id, phone=phone)
+
+    def _vendor_task_recipients(self, vendor_id: uuid.UUID, contact_id: uuid.UUID | None) -> list[Recipient]:
+        """A task's vendor audience: its point person (the contact named on
+        the `TaskVendorAssignment`, when it still belongs to that vendor) and
+        the vendor's primary contact, so the person doing the work hears
+        about it and the vendor stays informed. One entry when they are the
+        same person; primary only when no point person is set (the
+        behaviour before point persons existed)."""
+        recipients: list[Recipient] = []
+        if contact_id is not None:
+            contact = self.db.get(V2VendorContact, contact_id)
+            if contact is not None and contact.vendor_id == vendor_id:
+                recipients.append(self._contact_recipient(contact))
+        primary = self._primary_vendor_contact_recipient(vendor_id)
+        if primary is not None:
+            recipients.append(primary)
+        return _unique_recipients(recipients)
+
+    def _resolve_vendor_task_event_recipients(self, event: OutboxEvent) -> list[Recipient]:
+        """`task.vendor_assigned`/`task.vendor_unassigned`: the vendor from
+        the payload plus the assignment's point person. The point person is
+        read from the assignment row (current value), falling back to the
+        payload's `contact_id` only if the row is gone, so clearing or
+        changing the point person takes effect for messages not yet sent."""
+        payload = event.payload or {}
+        assignment = None
+        if payload.get("assignment_id"):
+            assignment = self.db.get(TaskVendorAssignment, uuid.UUID(payload["assignment_id"]))
+        vendor_id_raw = payload.get("vendor_id") or (str(assignment.vendor_id) if assignment else None)
+        if not vendor_id_raw:
+            return []
+        if assignment is not None:
+            contact_id = assignment.contact_id
+        else:
+            contact_id = uuid.UUID(payload["contact_id"]) if payload.get("contact_id") else None
+        return self._vendor_task_recipients(uuid.UUID(vendor_id_raw), contact_id)
+
     def _resolve_vendor_recipient(self, event: OutboxEvent) -> Recipient | None:
         """Called for `task.vendor_assigned`/`task.vendor_unassigned` and
         `project.vendor_removed`. Reads `vendor_id` directly off the payload
@@ -474,7 +514,7 @@ class MessageDispatchService:
 
         return self._primary_vendor_contact_recipient(uuid.UUID(vendor_id_raw))
 
-    def _resolve_vendor_recipient_for_task(self, task: Task) -> Recipient | None:
+    def _resolve_vendor_recipient_for_task(self, task: Task) -> list[Recipient]:
         """Lookup-driven vendor resolution for the vendor's day-before
         reminder (`task.prestart_warning`). Unlike `_resolve_vendor_recipient`,
         a reminder's payload (written by `TaskReminderService`) carries no
@@ -489,10 +529,11 @@ class MessageDispatchService:
         one non-declined assignment exists on the same task (e.g. a re-
         delegation), the most recently created one wins.
 
-        Returns `None` (not an error) when the task has no active vendor
-        assignment or that vendor has no primary contact - "vendor not
-        involved" is the normal case for most tasks, per the doc's "if
-        involved" language."""
+        Returns the assignment's point person and the vendor's primary
+        contact (see `_vendor_task_recipients`), or `[]` (not an error) when
+        the task has no active vendor assignment - "vendor not involved" is
+        the normal case for most tasks, per the doc's "if involved"
+        language."""
         assignment = self.db.scalar(
             select(TaskVendorAssignment)
             .where(
@@ -504,8 +545,8 @@ class MessageDispatchService:
             .limit(1)
         )
         if assignment is None:
-            return None
-        return self._primary_vendor_contact_recipient(assignment.vendor_id)
+            return []
+        return self._vendor_task_recipients(assignment.vendor_id, assignment.contact_id)
 
     def _resolve_admin_recipients(self) -> list[Recipient]:
         """All active users with `role in (admin, super_admin)`. Deliberately
@@ -581,9 +622,7 @@ class MessageDispatchService:
             recipients.extend(self._resolve_role_recipients(task.project_id, ("project_manager",)))
         recipients = self._only_active_project_members(task.project_id, recipients)
         if "vendor" in audience:
-            vendor_recipient = self._resolve_vendor_recipient_for_task(task)
-            if vendor_recipient is not None:
-                recipients.append(vendor_recipient)
+            recipients.extend(self._resolve_vendor_recipient_for_task(task))
         if "admin" in audience:
             recipients.extend(self._resolve_admin_recipients())
         return _unique_recipients(recipients)
@@ -780,9 +819,7 @@ class MessageDispatchService:
                 return self._resolve_reminder_audience(task, event.event_type)
             recipients.extend(self._resolve_pm_supervisor_recipients(task.project_id))
             if event.event_type in ("task.vendor_assigned", "task.vendor_unassigned"):
-                vendor_recipient = self._resolve_vendor_recipient(event)
-                if vendor_recipient is not None:
-                    recipients.append(vendor_recipient)
+                recipients.extend(self._resolve_vendor_task_event_recipients(event))
             if event.event_type in _EMPLOYEE_ELIGIBLE_TASK_EVENTS:
                 recipients.extend(self._resolve_internal_employee_recipient(task))
             if event.event_type in _SUPPORT_ASSIGNMENT_EMPLOYEE_KEYS:
