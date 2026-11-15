@@ -113,6 +113,7 @@ class TaskVendorAssignmentService:
 
     def assign_vendor(
         self, project_id: uuid.UUID, task_id: uuid.UUID, vendor_id: uuid.UUID, actor: User,
+        contact_id: uuid.UUID | None = None,
     ) -> TaskVendorAssignment:
         project = self._require_access(project_id, actor)
         self._require_pm(project, actor)
@@ -138,12 +139,18 @@ class TaskVendorAssignmentService:
             phase_label = (task.phase or "").strip() or "this task's phase"
             raise HTTPException(422, f"This vendor's trade phase does not cover \"{phase_label}\".")
 
+        # Imported here, not at module top: that module imports from
+        # app.routes.projects_v2, and this one must stay importable on its own.
+        from app.services.vendor_contact_project import VendorContactProjectService
+        VendorContactProjectService(self.db).require_contact_of_vendor(contact_id, vendor.id)
+
         assignment = TaskVendorAssignment(
             task_id=task.id,
             project_id=project.id,
             vendor_id=vendor.id,
             status="pending_ack",
             assigned_by=actor.id,
+            contact_id=contact_id,
         )
         self.db.add(assignment)
         self.db.flush()
@@ -157,6 +164,7 @@ class TaskVendorAssignmentService:
                 "project_id": str(project.id),
                 "assignment_id": str(assignment.id),
                 "vendor_id": str(vendor.id),
+                "contact_id": str(contact_id) if contact_id else None,
             },
             idempotency_key=f"task:{task.id}:task.vendor_assigned:{assignment.id}",
         )

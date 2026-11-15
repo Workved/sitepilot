@@ -15,9 +15,10 @@ naming convention used throughout `app.project_models` /
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Numeric, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -217,6 +218,12 @@ class TaskVendorAssignment(Base):
     assigned_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Point person: the vendor contact handling this task. Must belong to
+    # `vendor_id` (TaskVendorAssignmentService). Task messages go to this
+    # person and the vendor's primary contact; null = primary contact only.
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.vendor_contacts.id", ondelete="SET NULL")
+    )
 
 
 class VendorAcknowledgement(Base):
@@ -268,3 +275,74 @@ class VendorAcknowledgement(Base):
 # release. See `supabase/migrations/202608040003_v2_vendor_acknowledgements_activity.sql`
 # and `202608080001_v2_vendor_notes.sql` for the tables themselves, left in
 # place (unused) rather than dropped.
+
+
+class V2VendorPastProject(Base):
+    """A past project entered by hand on a vendor's Work history.
+
+    Mirrors `supabase/migrations/202611150001_v2_vendor_past_projects.sql`.
+    Projects the vendor worked on inside SiteOps are not stored here - they
+    are the ended `ProjectVendor` rows, read live. Months are the first day
+    of the month."""
+
+    __tablename__ = "vendor_past_projects"
+    __table_args__ = (
+        CheckConstraint("start_month is null or end_month is null or end_month >= start_month", name="ck_v2_vendor_past_projects_months"),
+        CheckConstraint("approx_value is null or approx_value >= 0", name="ck_v2_vendor_past_projects_value"),
+        Index("ix_v2_vendor_past_projects_vendor", "vendor_id"),
+        {"schema": V2_SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    vendor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.vendors.id", ondelete="CASCADE"), nullable=False
+    )
+    project_name: Mapped[str] = mapped_column(Text, nullable=False)
+    client_name: Mapped[str | None] = mapped_column(Text)
+    location: Mapped[str | None] = mapped_column(Text)
+    category_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.capability_categories.id", ondelete="SET NULL")
+    )
+    work_description: Mapped[str | None] = mapped_column(Text)
+    start_month: Mapped[date | None] = mapped_column(Date)
+    end_month: Mapped[date | None] = mapped_column(Date)
+    approx_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class VendorContactProject(Base):
+    """A vendor contact (a person) attached to a project, optionally for one
+    trade category - one row per category, `category_id` null meaning all of
+    the vendor's work there.
+
+    Mirrors `supabase/migrations/202611160001_v2_vendor_contact_assignments.sql`.
+    Soft removal via `ends_at`, like `ProjectVendor`; one active row per
+    contact/project/category (partial unique index in SQL, also checked in
+    `VendorContactProjectService`)."""
+
+    __tablename__ = "vendor_contact_projects"
+    __table_args__ = (
+        Index("ix_v2_vendor_contact_projects_contact", "contact_id"),
+        Index("ix_v2_vendor_contact_projects_project", "project_id"),
+        {"schema": V2_SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    contact_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.vendor_contacts.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    category_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.capability_categories.id", ondelete="SET NULL")
+    )
+    note: Mapped[str | None] = mapped_column(Text)
+    assigned_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

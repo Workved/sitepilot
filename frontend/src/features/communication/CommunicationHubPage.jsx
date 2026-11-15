@@ -10,7 +10,7 @@ import { ConfirmModal, EmptyState, LoadingSpinner, Modal, RefreshButton } from "
 import { cn } from "../../utils/cn";
 import { paginationItems } from "../../utils/pagination";
 
-const emptyHub = { vendors: [], contacts: [], categories: [], projects: [], project_vendors: [], relationships: [] };
+const emptyHub = { vendors: [], contacts: [], categories: [], projects: [], project_vendors: [], relationships: [], past_projects: [], project_history: [], contact_projects: [], contact_tasks: [] };
 import { CategoryChip, CompanyModal, Metric, ProfileModal, VendorRow } from "./components/CommunicationDirectory";
 import { VendorDetailPanel } from "./components/VendorDetailPanel";
 
@@ -46,13 +46,15 @@ export function CommunicationHubPage({ user, action }) {
   const filtersRef = useRef(null);
   const addMenuRef = useRef(null);
 
-  async function load() {
-    setLoading(true);
+  // `quiet` refreshes the data without the full-page spinner, so an open
+  // vendor panel stays open (the spinner unmounts it).
+  async function load({ quiet = false } = {}) {
+    if (!quiet) setLoading(true);
     try {
       const data = await communicationApi.get();
       setHub({ ...emptyHub, ...data });
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }
   useEffect(() => { load().catch(() => {}); }, []);
@@ -75,7 +77,10 @@ export function CommunicationHubPage({ user, action }) {
   // and an unguarded second click used to create the vendor twice.
   const savingRef = useRef(false);
   const [saving, setSaving] = useState(false);
-  async function perform(fn, message) {
+  // `inPanel` is for saves made inside the open vendor panel (work history):
+  // the dashboard reload `action` normally does would unmount this page and
+  // close the panel, and nothing those saves change is dashboard data.
+  async function perform(fn, message, { inPanel = false } = {}) {
     if (savingRef.current) return { ok: false, error: "A save is already in progress." };
     savingRef.current = true;
     setSaving(true);
@@ -88,8 +93,8 @@ export function CommunicationHubPage({ user, action }) {
         // reloads the whole dashboard, and the form must not sit open (and
         // re-submittable) through that.
         setForm(null);
-      }, message);
-      if (saved) await load();
+      }, message, { refresh: !inPanel });
+      if (saved) await load({ quiet: inPanel });
       return result;
     } finally {
       savingRef.current = false;
@@ -134,6 +139,16 @@ export function CommunicationHubPage({ user, action }) {
       await communicationApi.addContact({ ...contact, vendor_id: company.id });
       pendingCompanyRef.current = null;
     }, mode === "main" ? "Main vendor added" : "Sub-vendor added");
+  }
+  function savePastProject(vendorId, pastProjectId, payload) {
+    return perform(
+      () => pastProjectId ? communicationApi.updatePastProject(pastProjectId, payload) : communicationApi.addPastProject(vendorId, payload),
+      pastProjectId ? "Past project updated" : "Past project added",
+      { inPanel: true },
+    );
+  }
+  function deletePastProject(pastProjectId) {
+    return perform(() => communicationApi.deletePastProject(pastProjectId), "Past project removed", { inPanel: true });
   }
   async function mapToProjects(vendor, projectIds) {
     return perform(async () => {
@@ -333,7 +348,13 @@ export function CommunicationHubPage({ user, action }) {
       canManage={canManage} onClose={() => setSelected(null)}
       remove={() => deleteCompany(selectedVendor)} edit={() => setForm("edit")} deactivate={() => deactivateVendor(selectedVendor)}
       addContact={() => setForm("contact")} addSubcontractor={() => setForm("sub")} selectVendor={setSelected}
-      onContactChanged={load}/>}
+      onContactChanged={load}
+      user={user} saving={saving}
+      pastProjects={hub.past_projects.filter(item => item.vendor_id === selectedVendor.id)}
+      projectHistory={hub.project_history.filter(item => item.vendor_id === selectedVendor.id)}
+      savePastProject={(pastProjectId, payload) => savePastProject(selectedVendor.id, pastProjectId, payload)}
+      deletePastProject={deletePastProject}
+      contactProjects={hub.contact_projects} contactTasks={hub.contact_tasks}/>}
 
     {form === "main" && <CompanyModal title="Add main vendor" categories={hub.categories} saving={saving} onClose={() => setForm(null)} onSubmit={event => createCompany(event, "main")}/>}
     {form === "sub" && selectedVendor?.engagement_type === "main" && <CompanyModal title="Add sub-vendor" categories={hub.categories} fixedMainContractor={selectedVendor} saving={saving} onClose={() => setForm(null)} onSubmit={event => createCompany(event, "sub")}/>}
