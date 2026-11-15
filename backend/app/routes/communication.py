@@ -24,6 +24,7 @@ Two consequences of that move are deliberate:
 """
 
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
@@ -36,16 +37,23 @@ from app.models import EmployeeProfile, User, UserRole
 from app.project_models import V2AuditEvent, V2Project, V2ProjectMembership
 from app.routes.project_vendors_v2 import _ensure_phase_categories
 from app.schemas.requests import ContractorProfileIn, ContractorRelationshipIn, VendorContactIn
+from app.schemas.vendor_history import VendorPastProjectIn
 from app.vendor_models import (
     ProjectVendor,
     V2CapabilityCategory,
     V2Vendor,
     V2VendorCapability,
     V2VendorContact,
+    V2VendorPastProject,
 )
 
 router = APIRouter(prefix="/api/communication-hub", tags=["communication-hub"])
 MANAGER_ROLES = (UserRole.super_admin, UserRole.admin, UserRole.project_manager)
+# Work history (past projects) is open to supervisors too: they are the ones
+# on site who know what a vendor has done before. Editing/deleting an entry
+# is limited to whoever added it, plus admins (see _require_history_owner).
+HISTORY_ROLES = (*MANAGER_ROLES, UserRole.supervisor)
+HISTORY_ADMIN_ROLES = {UserRole.super_admin, UserRole.admin}
 VALID_STATUSES = {"active", "inactive", "on_hold"}
 
 
@@ -136,6 +144,19 @@ def get_hub(user: User = Depends(current_user), db: Session = Depends(get_db)):
         links_query = links_query.where(ProjectVendor.project_id.in_(project_ids)) if project_ids else links_query.where(False)
     project_links = db.execute(links_query).all()
 
+    # Work history, part 1: projects the vendor was on inside SiteOps and has
+    # since been removed from (soft-removed mappings keep their row). Same
+    # visibility rule as current mappings.
+    ended_query = (
+        select(ProjectVendor.id, ProjectVendor.vendor_id, ProjectVendor.project_id, ProjectVendor.created_at, ProjectVendor.ends_at, V2Project.name, V2Project.status)
+        .join(V2Project, V2Project.id == ProjectVendor.project_id)
+        .where(ProjectVendor.ends_at.is_not(None))
+        .order_by(ProjectVendor.ends_at.desc())
+    )
+    if user.role not in HISTORY_ADMIN_ROLES:
+        ended_query = ended_query.where(ProjectVendor.project_id.in_(project_ids)) if project_ids else ended_query.where(False)
+    ended_links = db.execute(ended_query).all()
+
     vendors = db.scalars(select(V2Vendor).order_by(V2Vendor.created_at.desc(), V2Vendor.name)).all()
     vendor_ids = {vendor.id for vendor in vendors}
     contacts = db.scalars(
@@ -151,6 +172,13 @@ def get_hub(user: User = Depends(current_user), db: Session = Depends(get_db)):
     vendor_counts = dict(db.execute(select(V2VendorCapability.category_id, func.count()).group_by(V2VendorCapability.category_id)).all())
 
     parent_status_by_id = {vendor.id: vendor.status for vendor in vendors if vendor.engagement_type == "main"}
+
+    # Work history, part 2: past projects entered by hand.
+    past_projects = db.scalars(
+        select(V2VendorPastProject).where(V2VendorPastProject.vendor_id.in_(vendor_ids))
+    ).all() if vendor_ids else []
+    author_ids = {item.created_by for item in past_projects if item.created_by}
+    author_names = dict(db.execute(select(User.id, User.name).where(User.id.in_(author_ids))).all()) if author_ids else {}
 
     def vendor_categories(vendor_id):
         return [category_by_id[item] for item in category_ids_by_vendor.get(vendor_id, []) if item in category_by_id]
@@ -198,7 +226,100 @@ def get_hub(user: User = Depends(current_user), db: Session = Depends(get_db)):
         } for c in categories],
         "projects": [{"id": str(p.id), "name": p.name, "status": p.status} for p in projects],
         "project_vendors": [{"id": str(link.id), "project_id": str(link.project_id), "vendor_id": str(link.vendor_id)} for link in project_links],
+        "project_history": [{
+            "id": str(link.id), "vendor_id": str(link.vendor_id), "project_id": str(link.project_id),
+            "project_name": link.name, "project_status": link.status,
+            "started_at": link.created_at.isoformat(), "ended_at": link.ends_at.isoformat(),
+        } for link in ended_links],
+        "past_projects": [serialize_past_project(item, category_by_id, author_names) for item in sort_past_projects(past_projects)],
     }
+
+
+def _month(value):
+    return value.strftime("%Y-%m") if value else None
+
+
+def sort_past_projects(items):
+    # Most recent work first: by end month, then start month; undated last.
+    return sorted(items, key=lambda item: (item.end_month or item.start_month or date.min, item.start_month or date.min, item.created_at), reverse=True)
+
+
+def serialize_past_project(item: V2VendorPastProject, category_by_id: dict, author_names: dict) -> dict:
+    return {
+        "id": str(item.id), "vendor_id": str(item.vendor_id),
+        "project_name": item.project_name, "client_name": item.client_name, "location": item.location,
+        "category_id": str(item.category_id) if item.category_id else None,
+        "category_name": category_by_id.get(item.category_id) if item.category_id else None,
+        "work_description": item.work_description,
+        "start_month": _month(item.start_month), "end_month": _month(item.end_month),
+        "approx_value": float(item.approx_value) if item.approx_value is not None else None,
+        "notes": item.notes,
+        "created_by": str(item.created_by) if item.created_by else None,
+        "created_by_name": author_names.get(item.created_by),
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+    }
+
+
+def _past_project_fields(payload: VendorPastProjectIn, db: Session) -> dict:
+    data = payload.model_dump()
+    if data["category_id"] and not db.get(V2CapabilityCategory, data["category_id"]):
+        raise HTTPException(400, "That category no longer exists.")
+    return data
+
+
+def _require_history_owner(item: V2VendorPastProject, actor: User) -> None:
+    if actor.role in HISTORY_ADMIN_ROLES or (item.created_by and item.created_by == actor.id):
+        return
+    raise HTTPException(403, "Only the person who added this past project, or an admin, can change it.")
+
+
+def _past_project_response(item: V2VendorPastProject, db: Session) -> dict:
+    category = db.get(V2CapabilityCategory, item.category_id) if item.category_id else None
+    category_by_id = {category.id: category.name} if category else {}
+    author = db.get(User, item.created_by) if item.created_by else None
+    return serialize_past_project(item, category_by_id, {author.id: author.name} if author else {})
+
+
+@router.post("/vendors/{vendor_id}/past-projects")
+def create_past_project(vendor_id: uuid.UUID, payload: VendorPastProjectIn, actor: User = Depends(require_roles(*HISTORY_ROLES)), db: Session = Depends(get_db)):
+    vendor = db.get(V2Vendor, vendor_id)
+    if not vendor:
+        raise HTTPException(404, "Vendor not found.")
+    item = V2VendorPastProject(vendor_id=vendor_id, created_by=actor.id, **_past_project_fields(payload, db))
+    db.add(item)
+    db.flush()
+    record_vendor_audit(db, actor, vendor, "vendor_past_project_added", "Past project added to work history", None, {"past_project_id": str(item.id), "project_name": item.project_name})
+    db.commit()
+    db.refresh(item)
+    return _past_project_response(item, db)
+
+
+@router.put("/past-projects/{past_project_id}")
+def update_past_project(past_project_id: uuid.UUID, payload: VendorPastProjectIn, actor: User = Depends(require_roles(*HISTORY_ROLES)), db: Session = Depends(get_db)):
+    item = db.get(V2VendorPastProject, past_project_id)
+    if not item:
+        raise HTTPException(404, "Past project not found.")
+    _require_history_owner(item, actor)
+    for key, value in _past_project_fields(payload, db).items():
+        setattr(item, key, value)
+    vendor = db.get(V2Vendor, item.vendor_id)
+    record_vendor_audit(db, actor, vendor, "vendor_past_project_updated", "Past project updated", None, {"past_project_id": str(item.id), "project_name": item.project_name})
+    db.commit()
+    db.refresh(item)
+    return _past_project_response(item, db)
+
+
+@router.delete("/past-projects/{past_project_id}")
+def delete_past_project(past_project_id: uuid.UUID, actor: User = Depends(require_roles(*HISTORY_ROLES)), db: Session = Depends(get_db)):
+    item = db.get(V2VendorPastProject, past_project_id)
+    if not item:
+        raise HTTPException(404, "Past project not found.")
+    _require_history_owner(item, actor)
+    vendor = db.get(V2Vendor, item.vendor_id)
+    record_vendor_audit(db, actor, vendor, "vendor_past_project_deleted", "Past project removed from work history", {"past_project_id": str(item.id), "project_name": item.project_name}, None)
+    db.delete(item)
+    db.commit()
+    return {"message": "Past project removed."}
 
 
 @router.put("/contractors/{vendor_id}")
