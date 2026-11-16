@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, Building2, ChevronRight, ClipboardList, FolderKanban, KeyRound, Mail, MapPin, MessageCircle, MoreVertical, Pencil, Phone, Plus, PowerOff, ShieldAlert, ShieldCheck, Trash2, Unlink, UserRound, UsersRound, Wrench, X } from "lucide-react";
+import { ArrowLeftRight, Building2, ChevronRight, ClipboardList, FolderKanban, KeyRound, Mail, MapPin, MessageCircle, MoreVertical, Pencil, Phone, Plus, ShieldAlert, ShieldCheck, ShieldOff, Ban, Unlink, UserRound, UsersRound, Wrench, X } from "lucide-react";
 import { channelToggleApi } from "../../../api/channelToggleApi";
 import { telegramConnectApi } from "../../../api/telegramConnectApi";
 import { Button, ConfirmModal, Pill } from "../../../components/ui";
 import { ContactWorkSummary } from "./ContactWorkSummary";
+import { BlacklistBanner, BlacklistPill, canBlacklist, canUnblacklist, isBlocked } from "./VendorBlacklist";
 import { VendorWorkHistory } from "./VendorWorkHistory";
 
 const cleanPhone = (value = "") => value.replace(/[^\d+]/g, "");
-const statusLabel = value => ({ active: "Active", inactive: "Inactive", on_hold: "On hold", blocked_by_parent: "Blocked by parent" }[value] || value);
+const projectStatusLabel = value => ({ draft: "Draft", active: "Active", on_hold: "On hold", completed: "Completed", archived: "Archived" }[value] || value);
 
 function ContactActions({ contact, labels = true }) {
   if (!contact) return null;
@@ -202,7 +203,7 @@ function HeaderMenu({ onDelete }) {
   </div>;
 }
 
-export function VendorDetailPanel({ vendor, parentVendor, subVendors = [], contacts = [], projects = [], unmappedProjects = [], mapToProjects, categories = [], canManage, onClose, remove, edit, deactivate, addContact, addSubcontractor, selectVendor, onContactChanged, user, saving = false, pastProjects = [], projectHistory = [], savePastProject, deletePastProject, contactProjects = [], contactTasks = [] }) {
+export function VendorDetailPanel({ vendor, parentVendor, subVendors = [], contacts = [], projects = [], unmappedProjects = [], mapToProjects, categories = [], canManage, onClose, remove, edit, blacklist, unblacklist, addContact, addSubcontractor, selectVendor, onContactChanged, user, saving = false, pastProjects = [], projectHistory = [], savePastProject, deletePastProject, contactProjects = [], contactTasks = [] }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -235,7 +236,9 @@ export function VendorDetailPanel({ vendor, parentVendor, subVendors = [], conta
     ...(isMain ? [{ id: "subvendors", label: "Sub-vendors", icon: UsersRound, count: subVendors.length }] : []),
   ];
 
-  const effectiveStatus = vendor.effective_status || vendor.status;
+  const blocked = isBlocked(vendor);
+  const mayBlacklist = !vendor.blacklisted && canBlacklist(user);
+  const mayUnblacklist = vendor.blacklisted && canUnblacklist(user);
 
   return <>
     <div className="fixed inset-0 z-40 bg-slate-950/40" onClick={onClose} aria-hidden="true"/>
@@ -248,7 +251,7 @@ export function VendorDetailPanel({ vendor, parentVendor, subVendors = [], conta
             <h2 className="truncate text-lg font-black tracking-tight text-slate-950">{vendor.name}</h2>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <Pill tone={pending ? "orange" : isMain ? "blue" : "green"}>{pending ? "Mapping required" : isMain ? "Main Vendor" : "Sub-vendor"}</Pill>
-              <Pill tone={effectiveStatus === "active" ? "green" : effectiveStatus === "on_hold" ? "orange" : "gray"}>{statusLabel(effectiveStatus)}</Pill>
+              <BlacklistPill vendor={vendor}/>
             </div>
           </div>
         </div>
@@ -260,6 +263,7 @@ export function VendorDetailPanel({ vendor, parentVendor, subVendors = [], conta
           {onClose && <button type="button" aria-label="Close vendor details" onClick={onClose} className="grid size-10 place-items-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"><X size={18}/></button>}
         </div>
       </div>
+      <BlacklistBanner vendor={vendor} parentVendor={parentVendor}/>
       {pending && <div className="mt-3 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><ShieldAlert className="mt-0.5 shrink-0" size={18}/><span>This legacy record remains visible but cannot receive project or task assignments until its parent is approved.</span></div>}
     </section>
     <nav className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-200 bg-white px-4 py-3 sm:flex sm:flex-wrap sm:px-5" aria-label="Vendor detail sections">{tabs.map(tab => { const Icon = tab.icon; return <button type="button" key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex min-h-10 min-w-0 items-center justify-center gap-2 rounded-xl px-3 text-sm font-black transition ${activeTab === tab.id ? "bg-slate-950 text-white shadow-sm" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"}`}><Icon size={16}/>{tab.label}{tab.count !== undefined && <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${activeTab === tab.id ? "bg-white/15" : "bg-slate-100"}`}>{tab.count}</span>}</button>; })}</nav>
@@ -273,18 +277,17 @@ export function VendorDetailPanel({ vendor, parentVendor, subVendors = [], conta
 
       {activeTab === "contacts" && <section className="grid gap-3"><header className="mb-1 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-black text-slate-950">Vendor contacts</h3><p className="mt-1 text-sm text-slate-500">People available for site coordination.</p></div>{canManage && <button type="button" onClick={addContact} className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white"><Plus size={17}/> Add contact</button>}</header>{contacts.map(contact => <article key={contact.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 max-[640px]:grid-cols-[auto_minmax(0,1fr)]"><span className="grid size-11 place-items-center rounded-xl bg-slate-100 font-black text-slate-700">{contact.name.slice(0, 2).toUpperCase()}</span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-slate-950">{contact.name}</strong>{contact.is_primary && <Pill tone="blue">Primary</Pill>}</div><span className="mt-1 block text-sm text-slate-500">{contact.designation || "Contact person"}</span><a href={`tel:${cleanPhone(contact.phone)}`} className="mt-1 block text-sm font-bold text-slate-700">{contact.phone}</a></div><div className="max-[640px]:col-span-2"><ContactActions contact={contact}/></div></div><ContactTelegramControl contact={contact} canManage={canManage} onChanged={onContactChanged}/><ContactWorkSummary projects={contactProjects.filter(row => row.contact_id === contact.id)} tasks={contactTasks.filter(row => row.contact_id === contact.id)}/></article>)}{!contacts.length && <EmptyPanel icon={UserRound} title="No contacts yet" text="Add a primary site contact so assignments and WhatsApp messages reach the right person." action={canManage && <button type="button" onClick={addContact} className="mt-4 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white">Add first contact</button>}/>}</section>}
 
-      {activeTab === "projects" && <section className="grid gap-3"><header className="mb-1"><h3 className="text-lg font-black text-slate-950">Assigned projects</h3><p className="mt-1 text-sm text-slate-500">Current project visibility and inherited access.</p></header>{isMain && canManage && <VendorProjectMappingForm vendor={vendor} unmappedProjects={unmappedProjects} mapToProjects={mapToProjects}/>}{projects.map(project => <article key={project.id} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><FolderKanban size={19}/></span><div className="min-w-0 flex-1"><strong className="block truncate text-slate-950">{project.name}</strong><span className="mt-1 block text-xs text-slate-500">{isMain ? "Direct project mapping" : "Inherited through parent vendor"}</span></div><Pill tone={project.status === "active" ? "green" : "orange"}>{statusLabel(project.status)}</Pill></article>)}{!projects.length && <EmptyPanel icon={FolderKanban} title="No project mapping" text={isMain ? "Map this vendor to a project before assigning its team to project tasks." : "This sub-vendor will inherit project visibility from its parent vendor."}/>}<VendorWorkHistory user={user} pastProjects={pastProjects} projectHistory={projectHistory} categories={categories} saving={saving} savePastProject={savePastProject} deletePastProject={deletePastProject}/></section>}
+      {activeTab === "projects" && <section className="grid gap-3"><header className="mb-1"><h3 className="text-lg font-black text-slate-950">Assigned projects</h3><p className="mt-1 text-sm text-slate-500">Current project visibility and inherited access.</p></header>{isMain && canManage && !blocked && <VendorProjectMappingForm vendor={vendor} unmappedProjects={unmappedProjects} mapToProjects={mapToProjects}/>}{projects.map(project => <article key={project.id} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><FolderKanban size={19}/></span><div className="min-w-0 flex-1"><strong className="block truncate text-slate-950">{project.name}</strong><span className="mt-1 block text-xs text-slate-500">{isMain ? "Direct project mapping" : "Inherited through parent vendor"}</span></div><Pill tone={project.status === "active" ? "green" : "orange"}>{projectStatusLabel(project.status)}</Pill></article>)}{!projects.length && <EmptyPanel icon={FolderKanban} title="No project mapping" text={isMain ? "Map this vendor to a project before assigning its team to project tasks." : "This sub-vendor will inherit project visibility from its parent vendor."}/>}<VendorWorkHistory user={user} pastProjects={pastProjects} projectHistory={projectHistory} categories={categories} saving={saving} savePastProject={savePastProject} deletePastProject={deletePastProject}/></section>}
 
-      {activeTab === "subvendors" && <section className="grid gap-3"><header className="mb-1 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-black text-slate-950">Sub-vendor network</h3><p className="mt-1 text-sm text-slate-500">Approved companies operating under this vendor.</p></div>{canManage && <button type="button" onClick={addSubcontractor} className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white"><Plus size={17}/> Add sub-vendor</button>}</header>{subVendors.map(subVendor => <button type="button" key={subVendor.id} onClick={() => selectVendor?.(subVendor.id)} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-300 hover:shadow-sm"><span className="grid size-11 place-items-center rounded-xl bg-emerald-50 font-black text-emerald-700">{subVendor.name.slice(0, 2).toUpperCase()}</span><div className="min-w-0"><strong className="block truncate text-slate-950">{subVendor.name}</strong><span className="mt-1 block truncate text-xs text-slate-500">{(subVendor.categories || [subVendor.category]).join(" - ")}</span></div><ChevronRight className="text-slate-400"/></button>)}{!subVendors.length && <EmptyPanel icon={UsersRound} title="No sub-vendors linked" text="Create sub-vendors only from this approved parent profile." action={canManage && <button type="button" onClick={addSubcontractor} className="mt-4 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white">Add sub-vendor</button>}/>}</section>}
+      {activeTab === "subvendors" && <section className="grid gap-3"><header className="mb-1 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-black text-slate-950">Sub-vendor network</h3><p className="mt-1 text-sm text-slate-500">Approved companies operating under this vendor.</p></div>{canManage && !blocked && <button type="button" onClick={addSubcontractor} className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white"><Plus size={17}/> Add sub-vendor</button>}</header>{subVendors.map(subVendor => <button type="button" key={subVendor.id} onClick={() => selectVendor?.(subVendor.id)} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-300 hover:shadow-sm"><span className="grid size-11 place-items-center rounded-xl bg-emerald-50 font-black text-emerald-700">{subVendor.name.slice(0, 2).toUpperCase()}</span><div className="min-w-0"><strong className="block truncate text-slate-950">{subVendor.name}</strong><span className="mt-1 block truncate text-xs text-slate-500">{(subVendor.categories || [subVendor.category]).join(" - ")}</span></div><ChevronRight className="text-slate-400"/></button>)}{!subVendors.length && <EmptyPanel icon={UsersRound} title="No sub-vendors linked" text="Create sub-vendors only from this approved parent profile." action={canManage && !blocked && <button type="button" onClick={addSubcontractor} className="mt-4 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white">Add sub-vendor</button>}/>}</section>}
 
     </div>
 
-    {canManage && <footer className="flex shrink-0 flex-wrap gap-2 border-t border-slate-200 bg-white p-4">
+    {(canManage || mayBlacklist || mayUnblacklist) && <footer className="flex shrink-0 flex-wrap gap-2 border-t border-slate-200 bg-white p-4">
       <Button type="button" size="sm" variant="secondary" onClick={() => setActiveTab("overview")}><ClipboardList size={16}/> View profile</Button>
-      <Button type="button" size="sm" variant="secondary" onClick={edit}><Pencil size={16}/> Edit vendor</Button>
-      {effectiveStatus === "active"
-        ? <Button type="button" size="sm" variant="danger" onClick={deactivate}><PowerOff size={16}/> Deactivate</Button>
-        : <Button type="button" size="sm" variant="danger" onClick={() => setConfirmDelete(true)}><Trash2 size={16}/> Delete vendor</Button>}
+      {canManage && <Button type="button" size="sm" variant="secondary" onClick={edit}><Pencil size={16}/> Edit vendor</Button>}
+      {mayBlacklist && <Button type="button" size="sm" variant="danger" onClick={blacklist}><Ban size={16}/> Blacklist</Button>}
+      {mayUnblacklist && <Button type="button" size="sm" variant="secondary" onClick={unblacklist}><ShieldOff size={16}/> Remove from blacklist</Button>}
     </footer>}
 
     {confirmDelete && <ConfirmModal title={deletionBlocked ? "Deletion blocked" : `Delete ${vendor.name}?`} message={deleteMessage} confirmLabel={deletionBlocked ? "Linked sub-vendors must be resolved" : "Delete permanently"} confirmDisabled={deletionBlocked} onClose={() => { setConfirmDelete(false); setDeleteError(""); }} onConfirm={confirmVendorDeletion}/>}

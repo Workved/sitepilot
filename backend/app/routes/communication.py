@@ -27,6 +27,7 @@ import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -38,6 +39,7 @@ from app.project_models import V2AuditEvent, V2Project, V2ProjectMembership
 from app.routes.project_vendors_v2 import _ensure_phase_categories
 from app.schemas.requests import ContractorProfileIn, ContractorRelationshipIn, VendorContactIn
 from app.schemas.vendor_history import VendorPastProjectIn
+from app.services.vendor_blacklist import BLACKLIST_ROLES, UNBLACKLIST_ROLES, VendorBlacklistService
 from app.vendor_models import (
     ProjectVendor,
     V2CapabilityCategory,
@@ -56,8 +58,11 @@ MANAGER_ROLES = (UserRole.super_admin, UserRole.admin, UserRole.project_manager)
 # on site who know what a vendor has done before. Editing/deleting an entry
 # is limited to whoever added it, plus admins (see _require_history_owner).
 HISTORY_ROLES = (*MANAGER_ROLES, UserRole.supervisor)
+
+
+class VendorBlacklistIn(BaseModel):
+    reason: str
 HISTORY_ADMIN_ROLES = {UserRole.super_admin, UserRole.admin}
-VALID_STATUSES = {"active", "inactive", "on_hold"}
 
 
 # Any authenticated non-admin sees only projects they hold an active
@@ -91,22 +96,14 @@ def record_vendor_audit(db: Session, actor: User, vendor: V2Vendor, action: str,
     ))
 
 
-def set_vendor_status(db: Session, actor: User, vendor: V2Vendor, status: str, reason: str) -> bool:
-    if vendor.status == status:
-        return False
-    record_vendor_audit(db, actor, vendor, "vendor_status_changed", reason, {"status": vendor.status}, {"status": status})
-    vendor.status = status
-    return True
-
-
 def require_main_vendor(vendor_id, db) -> V2Vendor:
     vendor = db.get(V2Vendor, vendor_id)
     if not vendor:
         raise HTTPException(404, "Main vendor not found.")
     if vendor.engagement_type != "main":
         raise HTTPException(422, "The selected parent must be a main vendor.")
-    if vendor.status != "active":
-        raise HTTPException(409, "Only active main vendors can receive sub-vendors or new project assignments.")
+    if vendor.status == "blacklisted":
+        raise HTTPException(409, "This main vendor is blacklisted, so it can't receive sub-vendors.")
     return vendor
 
 
@@ -175,6 +172,8 @@ def get_hub(user: User = Depends(current_user), db: Session = Depends(get_db)):
     vendor_counts = dict(db.execute(select(V2VendorCapability.category_id, func.count()).group_by(V2VendorCapability.category_id)).all())
 
     parent_status_by_id = {vendor.id: vendor.status for vendor in vendors if vendor.engagement_type == "main"}
+    blacklister_ids = {vendor.blacklisted_by for vendor in vendors if vendor.blacklisted_by}
+    blacklister_names = dict(db.execute(select(User.id, User.name).where(User.id.in_(blacklister_ids))).all()) if blacklister_ids else {}
 
     # Which of each vendor's people works on which project (optionally per
     # trade) and which tasks they are the point person for. Same project
@@ -221,9 +220,14 @@ def get_hub(user: User = Depends(current_user), db: Session = Depends(get_db)):
             "category": (vendor_categories(v.id) or ["Other"])[0],
             "category_ids": [str(item) for item in category_ids_by_vendor.get(v.id, [])],
             "categories": vendor_categories(v.id) or ["Other"],
+            # Only status shown: blacklisted (own, or the main vendor's for a
+            # sub-vendor). 'active' just means "not blacklisted".
             "status": v.status,
-            "effective_status": "blocked_by_parent" if v.parent_vendor_id and parent_status_by_id.get(v.parent_vendor_id) != "active" else v.status,
-            "blocked_by_parent": bool(v.parent_vendor_id and parent_status_by_id.get(v.parent_vendor_id) != "active"),
+            "blacklisted": v.status == "blacklisted",
+            "blocked_by_parent": v.status != "blacklisted" and bool(v.parent_vendor_id and parent_status_by_id.get(v.parent_vendor_id) == "blacklisted"),
+            "blacklist_reason": v.blacklist_reason,
+            "blacklisted_at": v.blacklisted_at.isoformat() if v.blacklisted_at else None,
+            "blacklisted_by_name": blacklister_names.get(v.blacklisted_by),
             "engagement_type": v.engagement_type,
             "parent_vendor_id": str(v.parent_vendor_id) if v.parent_vendor_id else None,
             "contact_person": v.contact_person, "phone": v.phone, "whatsapp": v.whatsapp,
@@ -362,13 +366,27 @@ def delete_past_project(past_project_id: uuid.UUID, actor: User = Depends(requir
     return {"message": "Past project removed."}
 
 
+@router.post("/vendors/{vendor_id}/blacklist")
+def blacklist_vendor(vendor_id: uuid.UUID, payload: VendorBlacklistIn, actor: User = Depends(require_roles(*BLACKLIST_ROLES)), db: Session = Depends(get_db)):
+    """Blacklist a vendor (reason required): ends its current project and
+    task work, and its sub-vendors', without messaging the vendor."""
+    return VendorBlacklistService(db).blacklist(vendor_id, payload.reason, actor)
+
+
+@router.post("/vendors/{vendor_id}/unblacklist")
+def unblacklist_vendor(vendor_id: uuid.UUID, payload: VendorBlacklistIn, actor: User = Depends(require_roles(*UNBLACKLIST_ROLES)), db: Session = Depends(get_db)):
+    """Admin only. Removes the blacklist; the vendor's ended project and
+    task work is not restored."""
+    return VendorBlacklistService(db).unblacklist(vendor_id, payload.reason, actor)
+
+
 @router.put("/contractors/{vendor_id}")
 def update_contractor(vendor_id: uuid.UUID, payload: ContractorProfileIn, actor: User = Depends(require_roles(*MANAGER_ROLES)), db: Session = Depends(get_db)):
     vendor = db.get(V2Vendor, vendor_id)
     if not vendor:
         raise HTTPException(404, "Contractor not found.")
-    if payload.status not in VALID_STATUSES:
-        raise HTTPException(400, "Invalid contractor status.")
+    # Status is not edited here: the only status is the blacklist, set and
+    # cleared through /vendors/{id}/blacklist and /unblacklist.
     requested_type = "sub_vendor" if payload.engagement_type == "exclusive_subcontractor" else payload.engagement_type
     if requested_type == "independent":
         raise HTTPException(422, "Independent sub-vendors are no longer supported. Select a parent vendor.")
@@ -381,19 +399,8 @@ def update_contractor(vendor_id: uuid.UUID, payload: ContractorProfileIn, actor:
             raise HTTPException(409, "A linked sub-vendor cannot be converted into a main vendor.")
         vendor.parent_vendor_id = None
 
-    previous_status = vendor.status
     vendor.name = payload.name.strip()
-    set_vendor_status(db, actor, vendor, payload.status, "Vendor profile updated")
     vendor.engagement_type = requested_type
-
-    # Parent status is inherited at read/assignment time; do not overwrite a
-    # child's own lifecycle decision. Recover only legacy children that this
-    # endpoint previously inactivated through the old cascade behaviour.
-    if requested_type == "main" and previous_status != "active" and payload.status == "active":
-        children = db.scalars(select(V2Vendor).where(V2Vendor.parent_vendor_id == vendor.id, V2Vendor.status == "inactive")).all()
-        for child in children:
-            set_vendor_status(db, actor, child, "active", "Recovered legacy parent-status cascade")
-
     vendor.email = payload.email or None
     vendor.address = payload.address or None
     vendor.gst_number = payload.gst_number or None

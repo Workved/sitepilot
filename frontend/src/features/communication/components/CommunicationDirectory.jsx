@@ -3,9 +3,9 @@ import { Building2, MessageCircle, MoreVertical, Phone, ShieldCheck, UserRound }
 import { Modal, Pill } from "../../../components/ui";
 import { cn } from "../../../utils/cn";
 import { CategorySelector } from "./CategorySelector";
+import { BlacklistPill } from "./VendorBlacklist";
 
 const cleanPhone = (value = "") => value.replace(/[^\d+]/g, "");
-const statusLabel = value => ({ active: "Active", inactive: "Inactive", on_hold: "On hold", blocked_by_parent: "Blocked by parent" }[value] || value);
 const inputClass = "min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-50";
 
 export function QuickActions({ contact, compact = false }) {
@@ -60,12 +60,12 @@ function RowMenu({ items }) {
   </div>;
 }
 
-export function VendorRow({ vendor, primary, projectCount, selected, layout = "list", onSelect, onEdit, onDeactivate, onDelete }) {
+export function VendorRow({ vendor, primary, projectCount, selected, layout = "list", onSelect, onEdit, onDelete, onBlacklist, onUnblacklist, canBlacklist = false, canUnblacklist = false }) {
   const isMain = vendor.engagement_type === "main";
-  const effectiveStatus = vendor.effective_status || vendor.status;
   const menuItems = [
     { label: "Edit vendor", onClick: onEdit },
-    ...(effectiveStatus === "active" ? [{ label: "Deactivate", onClick: onDeactivate }] : []),
+    ...(!vendor.blacklisted && canBlacklist ? [{ label: "Blacklist vendor", onClick: onBlacklist, danger: true }] : []),
+    ...(vendor.blacklisted && canUnblacklist ? [{ label: "Remove from blacklist", onClick: onUnblacklist }] : []),
     { label: "Delete vendor", onClick: onDelete, danger: true },
   ];
 
@@ -99,7 +99,7 @@ export function VendorRow({ vendor, primary, projectCount, selected, layout = "l
         <strong className="block text-sm font-black text-slate-950">{projectCount}</strong>
         <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Projects</span>
       </div>
-      <Pill tone={effectiveStatus === "active" ? "green" : effectiveStatus === "on_hold" ? "orange" : "gray"}>{statusLabel(effectiveStatus)}</Pill>
+      <BlacklistPill vendor={vendor}/>
       <RowMenu items={menuItems}/>
     </div>
   </article>;
@@ -127,9 +127,8 @@ function VendorForm({ formId, vendor, categories, fixedMainVendor, includeContac
     {fixedMainVendor && <div className="col-span-full flex items-center gap-4 rounded-2xl border border-blue-200 bg-blue-50 p-4"><span className="grid size-11 place-items-center rounded-xl bg-blue-700 text-white"><Building2 size={20}/></span><div><span className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-700">Approved parent vendor</span><strong className="mt-1 block text-slate-950">{fixedMainVendor.name}</strong></div><ShieldCheck className="ml-auto text-blue-700"/><input type="hidden" name="main_contractor_id" value={fixedMainVendor.id}/></div>}
 
     <section className="col-span-full grid grid-cols-2 gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-5 max-[720px]:grid-cols-1">
-      <SectionHeading icon={Building2} eyebrow="Company" title="Vendor profile" text="Core identity and current availability."/>
-      <label className="grid gap-2 text-sm font-black text-slate-700">Company name<input className={inputClass} name="name" defaultValue={vendor?.name || ""} required/></label>
-      <label className="grid gap-2 text-sm font-black text-slate-700">Status<select className={inputClass} name="status" defaultValue={vendor?.status || "active"}><option value="active">Active</option><option value="on_hold">On hold</option><option value="inactive">Inactive</option></select></label>
+      <SectionHeading icon={Building2} eyebrow="Company" title="Vendor profile" text="Core identity."/>
+      <label className="col-span-full grid gap-2 text-sm font-black text-slate-700 max-[720px]:col-span-1">Company name<input className={inputClass} name="name" defaultValue={vendor?.name || ""} required/></label>
     </section>
 
     <CategorySelector categories={categories} selected={selectedCategories} onChange={value => { setSelectedCategories(value); setCategoryError(""); }} error={categoryError}/>

@@ -122,8 +122,10 @@ class TaskVendorAssignmentService:
         vendor = self.db.get(V2Vendor, vendor_id)
         if not vendor:
             raise HTTPException(404, "Vendor not found.")
-        if vendor.status != "active":
-            raise HTTPException(422, "Only an active vendor can be assigned to a task.")
+        from app.services.vendor_blacklist import vendor_block_reason
+        blocked = vendor_block_reason(self.db, vendor)
+        if blocked:
+            raise HTTPException(422, f"{blocked} It can't be assigned to a task.")
 
         mapped = self.db.scalar(
             select(ProjectVendor.id).where(
