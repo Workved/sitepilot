@@ -11,11 +11,17 @@ from app.auth import can_create_role, require_roles
 from app.database import get_db
 from app.models import AccessRequest, AccessRequestEvent, EmployeeProfile, User, UserAccountEvent, UserRole
 from app.project_models import V2Project, V2ProjectMembership
-from app.schemas.requests import MyProfileUpdateIn, UserDeleteIn, UserInviteIn, UserLifecycleIn, UserUpdateIn
+from app.schemas.requests import MyProfileUpdateIn, UserDeleteIn, UserInviteIn, UserLifecycleIn, UserPasswordIn, UserUpdateIn
 from app.services.access_control import access_catalog, manageable_roles
 from app.services.outbox import OutboxService
 from app.services.serializers import public_user
-from app.services.supabase_auth import SupabaseAuthError, admin_delete_user, admin_update_user
+from app.services.supabase_auth import (
+    SupabaseAuthError,
+    admin_create_user,
+    admin_delete_user,
+    admin_find_user_by_email,
+    admin_update_user,
+)
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -34,6 +40,63 @@ def clean_phone(value: str | None) -> str | None:
     if not re.fullmatch(r"\+[1-9]\d{7,14}", phone):
         raise HTTPException(422, "Use an international mobile number such as +919876543210.")
     return phone
+
+
+MIN_PASSWORD_LENGTH = 8
+# bcrypt, which Supabase Auth hashes with, ignores everything past 72 bytes.
+MAX_PASSWORD_BYTES = 72
+
+
+def clean_password(value: str | None) -> str:
+    password = value or ""
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(422, f"Use a password of at least {MIN_PASSWORD_LENGTH} characters.")
+    if len(password.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise HTTPException(422, "Use a password of at most 72 characters.")
+    if password != password.strip():
+        raise HTTPException(422, "The password cannot start or end with a space.")
+    return password
+
+
+def set_login_password(db: Session, target: User, password: str) -> str | None:
+    """Gives `target` an email/password Supabase identity with `password`,
+    and links it to the row. Returns the Supabase user id when this call
+    created a new identity, so a caller whose transaction then fails can
+    delete it again; None when an existing identity was updated.
+
+    The identity is tagged with `siteops_user_id` in app_metadata (only the
+    service key can write it), which is what lets app.auth.current_user
+    trust its email - see `_may_link_by_email`."""
+    attributes = {
+        "password": password,
+        "email_confirm": True,
+        "app_metadata": {"siteops_user_id": str(target.id)},
+    }
+    if target.supabase_user_id:
+        admin_update_user(str(target.supabase_user_id), attributes)
+        return None
+
+    existing = admin_find_user_by_email(target.email)
+    if existing:
+        # Typically the person already tried Google, or self-registered,
+        # before this row was linked. Taking it over is safe: the Admin
+        # now sets its password, so whoever registered it loses access.
+        identity_id = uuid.UUID(existing["id"])
+        linked_elsewhere = db.scalar(select(User).where(User.supabase_user_id == identity_id, User.id != target.id))
+        if linked_elsewhere:
+            raise HTTPException(409, "This email's login is already linked to another SiteOps account.")
+        admin_update_user(str(identity_id), attributes)
+        target.supabase_user_id = identity_id
+        return None
+
+    created = admin_create_user(
+        email=target.email,
+        password=password,
+        metadata={"name": target.name, "siteops_role": target.role.value},
+        app_metadata={"siteops_user_id": str(target.id)},
+    )
+    target.supabase_user_id = uuid.UUID(created["id"])
+    return created["id"]
 
 
 def ensure_manageable(actor: User, target: User | None) -> User:
@@ -121,9 +184,10 @@ def account_events(user_id: uuid.UUID, actor: User = Depends(require_roles(*tupl
 
 @router.post("/invite")
 def invite_user(payload: UserInviteIn, actor: User = Depends(require_roles(UserRole.super_admin, UserRole.admin)), db: Session = Depends(get_db)):
-    """Pre-registers a roster entry with no password: the person's first
-    Google sign-in auto-links to this row by matching email (see
-    app.auth.current_user), which is when the account actually activates."""
+    """Pre-registers a roster entry: the person's first Google sign-in
+    auto-links to this row by matching email (see app.auth.current_user),
+    which is when the account actually activates. With an optional
+    password, they can sign in with that email and password as well."""
     if not can_create_role(actor.role, payload.role):
         raise HTTPException(403, "You cannot create this role.")
     name = clean_required(payload.name, "Full name")
@@ -133,6 +197,8 @@ def invite_user(payload: UserInviteIn, actor: User = Depends(require_roles(UserR
     employee_code = clean_required(payload.employee_code, "Employee code")
     designation = clean_required(payload.designation, "Designation")
     phone = clean_phone(payload.phone)
+    password = clean_password(payload.password) if payload.password else None
+    created_identity_id = None
 
     user = User(
         name=name,
@@ -151,16 +217,14 @@ def invite_user(payload: UserInviteIn, actor: User = Depends(require_roles(UserR
             employee_code=employee_code.upper(),
             designation=designation,
             department=(payload.department or "").strip() or None,
-            # New users default to Telegram, per the current messaging
-            # rollout - WhatsApp production is still blocked externally,
-            # and Telegram needs no business verification. This only sets
-            # the PREFERRED channel; it does nothing until the person
-            # actually connects via the Telegram connect-code flow, so
-            # they show "Messaging Not Ready" (see serializers.py) until
-            # then rather than being silently undeliverable.
-            active_channel="telegram",
+            # WhatsApp is the primary channel. An Admin can still move a
+            # person to Telegram via the channel toggle once they connect.
+            active_channel="whatsapp",
         ))
         add_event(db, user, actor, "ACCOUNT_INVITED", "Pre-registered for Google sign-in; awaiting first login.", to_role=payload.role)
+        if password:
+            created_identity_id = set_login_password(db, user, password)
+            add_event(db, user, actor, "PASSWORD_SET", "Email and password sign-in set by an administrator.")
         OutboxService(db).emit(
             event_type="user.created",
             aggregate_type="user",
@@ -169,16 +233,67 @@ def invite_user(payload: UserInviteIn, actor: User = Depends(require_roles(UserR
             idempotency_key=f"user:{user.id}:user.created",
         )
         db.commit()
-    except IntegrityError as exc:
+    except SupabaseAuthError as exc:
         db.rollback()
+        raise HTTPException(exc.status_code, exc.public_message) from exc
+    except (IntegrityError, HTTPException) as exc:
+        db.rollback()
+        _discard_identity(created_identity_id)
+        if isinstance(exc, HTTPException):
+            raise
         raise HTTPException(409, "Email or employee code is already in use.") from exc
     return public_user(user, db)
+
+
+def _discard_identity(identity_id: str | None) -> None:
+    """Removes a Supabase identity this request created, when the SiteOps row
+    it was made for could not be saved - otherwise a later invite for the
+    same email would find a stray login that no Admin created on purpose."""
+    if not identity_id:
+        return
+    try:
+        admin_delete_user(identity_id)
+    except SupabaseAuthError:
+        pass
+
+
+@router.put("/{user_id}/password")
+def set_user_password(user_id: uuid.UUID, payload: UserPasswordIn, actor: User = Depends(require_roles(UserRole.super_admin, UserRole.admin)), db: Session = Depends(get_db)):
+    """Sets (or resets) the email/password a person signs in with. The
+    password goes to Supabase Auth only; SiteOps never stores it."""
+    target = ensure_manageable(actor, db.get(User, user_id))
+    if not target.active:
+        raise HTTPException(409, "Restore this account before setting a password.")
+    password = clean_password(payload.password)
+    created_identity_id = None
+    try:
+        created_identity_id = set_login_password(db, target, password)
+        add_event(db, target, actor, "PASSWORD_SET", "Email and password sign-in set by an administrator.")
+        db.commit()
+    except SupabaseAuthError as exc:
+        db.rollback()
+        raise HTTPException(exc.status_code, exc.public_message) from exc
+    except IntegrityError as exc:
+        db.rollback()
+        _discard_identity(created_identity_id)
+        raise HTTPException(409, "This email's login is already linked to another SiteOps account.") from exc
+    return public_user(target, db)
 
 
 @router.put("/me/profile")
 def update_my_profile(payload: MyProfileUpdateIn, actor: User = Depends(require_roles(*tuple(UserRole))), db: Session = Depends(get_db)):
     actor.name = clean_required(payload.name, "Full name")
     actor.phone = clean_phone(payload.phone)
+    if actor.role == UserRole.super_admin and not db.scalar(select(EmployeeProfile).where(EmployeeProfile.user_id == actor.id)):
+        # The bootstrap Super Admin is seeded without a profile, and every
+        # notification/inbound-reply lookup joins through EmployeeProfile -
+        # without one their phone is never used for WhatsApp.
+        db.add(EmployeeProfile(
+            user_id=actor.id,
+            employee_code=f"SUPERADMIN-{actor.id.hex[:8].upper()}",
+            designation="Super Admin",
+            active_channel="whatsapp",
+        ))
     if actor.supabase_user_id:
         try:
             admin_update_user(str(actor.supabase_user_id), {"user_metadata": {"name": actor.name, "siteops_role": actor.role.value}})

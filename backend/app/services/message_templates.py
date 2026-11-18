@@ -36,11 +36,27 @@ class TemplateSpec:
     `variable_order` names the `OutboxEvent.payload` keys to render into the
     Meta template's body parameters, in the order the approved template's
     placeholders expect them (`{{1}}`, `{{2}}`, ...) - see `render_components`.
+    It may also name the readable keys `whatsapp_template_fields` derives at
+    dispatch time (`task_label`, `project_name`, `*_label`, `*_ref`).
+
+    The starter templates' exact Meta body text lives in
+    `WHATSAPP_TEMPLATES.md` (repo root); a change to one of their
+    `variable_order` tuples means a template change in Meta too.
     """
 
     meta_template_name: str
     language: str
     variable_order: tuple[str, ...]
+
+    @property
+    def is_placeholder(self) -> bool:
+        return is_placeholder_template(self.meta_template_name)
+
+
+def is_placeholder_template(template_name: str | None) -> bool:
+    """Returns True when `template_name` is an unapproved `TBD_` placeholder
+    identifier awaiting Meta Business Manager creation/approval."""
+    return bool(template_name and template_name.startswith("TBD_"))
 
 
 DEFAULT_TEMPLATE = TemplateSpec("generic_notification", "en", ())
@@ -58,7 +74,8 @@ TEMPLATE_REGISTRY: dict[str, TemplateSpec] = {
     "task.status_changed": TemplateSpec(
         # No doc template maps 1:1 to every individual transition - one
         # generic status-update template covers all of them.
-        "task_status_update", "en", ("task_id", "before_status", "target_status", "reason"),
+        "task_status_update", "en",
+        ("project_name", "task_label", "before_status_label", "target_status_label", "reason"),
     ),
     "task.verification_recorded": TemplateSpec(
         "task_verification_recorded", "en", ("task_id", "decision", "remarks", "decision_mode"),
@@ -66,16 +83,16 @@ TEMPLATE_REGISTRY: dict[str, TemplateSpec] = {
     "task.approval_recorded": TemplateSpec(
         # BR-008: Admin is a recipient here (see message_dispatch.py's
         # `_ADMIN_CC_TASK_EVENTS`), never the decision-maker of record.
-        "task_approval_decision", "en", ("task_id", "decision", "remarks", "decision_mode"),
+        "task_approval_decision", "en", ("task_label", "project_name", "decision_label", "remarks"),
     ),
     "task.blocker_created": TemplateSpec(
-        "task_blocker_alert", "en", ("task_id", "type", "description"),
+        "task_blocker_alert", "en", ("task_label", "project_name", "type_label", "description"),
     ),
     "task.blocker_resolved": TemplateSpec(
         "task_blocker_resolved", "en", ("task_id", "resolved_by"),
     ),
     "task.delay_recorded": TemplateSpec(
-        "task_delay_recorded", "en", ("task_id", "responsibility_type", "impact_days"),
+        "task_delay_recorded", "en", ("task_label", "project_name", "impact_days", "responsibility_type_label"),
     ),
     "task.support_assigned": TemplateSpec(
         "task_support_assigned", "en", ("task_id", "employee_id", "responsibility"),
@@ -90,7 +107,7 @@ TEMPLATE_REGISTRY: dict[str, TemplateSpec] = {
         "task_evidence_submitted", "en", ("task_id", "update_type"),
     ),
     "task.vendor_assigned": TemplateSpec(
-        "task_vendor_assigned", "en", ("task_id", "vendor_id"),
+        "task_vendor_assigned", "en", ("task_label", "project_name", "assignment_ref"),
     ),
     "task.vendor_unassigned": TemplateSpec(
         "TBD_task_vendor_unassigned", "en", ("task_id", "vendor_id", "reason"),
@@ -162,7 +179,7 @@ TEMPLATE_REGISTRY: dict[str, TemplateSpec] = {
     "task.sla_overdue": TemplateSpec(
         # Telegram T5: 06:30 IST (EOD + 12h) the day after `planned_end_date`
         # for work still not submitted.
-        "task_sla_overdue", "en", ("task_id", "planned_end_date"),
+        "task_sla_overdue", "en", ("task_label", "project_name", "planned_end_date_label"),
     ),
     "task.sla_escalated": TemplateSpec(
         # Telegram T5: 09:30 IST (EOD + 15h), same condition, to PM and Admin.
@@ -186,7 +203,7 @@ TEMPLATE_REGISTRY: dict[str, TemplateSpec] = {
         # this widening render_components only emitted the original two
         # parameters and the new fields never reached a rendered message.
         "external_approval_assigned", "en",
-        ("approval_id", "assigned_to_user_id", "gate_name", "project_name", "due_date"),
+        ("gate_name", "project_name", "due_date_label", "approval_ref"),
     ),
     "project_external_approval.reassigned": TemplateSpec(
         # Same widening as .assigned above, same reason.
@@ -308,6 +325,10 @@ TEMPLATE_REGISTRY: dict[str, TemplateSpec] = {
         # Admin via `message_dispatch.py`'s `_ADMIN_CC_PROJECT_EVENTS`.
         "weekly_project_summary", "en", ("project_id", "report_snapshot_id"),
     ),
+    # ---- broadcast events (Milestone 1 Phase 2) --------------------------
+    "broadcast.message_dispatched": TemplateSpec(
+        "project_broadcast_announcement", "en", ("project_name", "title", "message_body"),
+    ),
 }
 
 
@@ -328,12 +349,44 @@ def render_components(spec: TemplateSpec, payload: dict) -> list[dict]:
     `components` list `MetaCloudApiAdapter._build_body` already reads off
     `payload["components"]`, but nothing has ever populated until now).
 
-    A spec with no `variable_order` (e.g. `DEFAULT_TEMPLATE`) still returns
-    one body component with an empty `parameters` list, matching the shape
-    Meta expects for a template with no placeholders."""
+    A spec with no `variable_order` (e.g. `DEFAULT_TEMPLATE`) returns no
+    components at all - Meta rejects a body component with an empty
+    `parameters` list for a template that has no placeholders.
+
+    Meta also rejects an empty-string parameter, so an optional field that
+    is missing or blank (a `reason` on a normal status change, `remarks` on
+    an approval) is sent as `EMPTY_PARAMETER_TEXT` instead, and a parameter
+    may not contain new lines, tabs or more than four spaces in a row
+    (error 132018), so those are collapsed to single spaces."""
+    if not spec.variable_order:
+        return []
     return [
         {
             "type": "body",
-            "parameters": [{"type": "text", "text": str(payload.get(key, ""))} for key in spec.variable_order],
+            "parameters": [{"type": "text", "text": _parameter_text(payload.get(key))} for key in spec.variable_order],
         }
     ]
+
+
+EMPTY_PARAMETER_TEXT = "-"
+
+
+def _parameter_text(value: object) -> str:
+    text = "" if value is None else " ".join(str(value).split())
+    return text or EMPTY_PARAMETER_TEXT
+
+
+def audit_template_registry() -> list[dict]:
+    """Returns a structured audit inventory of every entry in
+    `TEMPLATE_REGISTRY`, categorizing each template as `'configured'` or
+    `'placeholder_tbd'`."""
+    inventory: list[dict] = []
+    for event_type, spec in TEMPLATE_REGISTRY.items():
+        inventory.append({
+            "event_type": event_type,
+            "meta_template_name": spec.meta_template_name,
+            "language": spec.language,
+            "variable_order": spec.variable_order,
+            "status": "placeholder_tbd" if spec.is_placeholder else "configured",
+        })
+    return inventory

@@ -90,27 +90,31 @@ import hashlib
 import hmac
 import json
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.execution_models import MessageDelivery
 from app.services.inbound_message import InboundMessageService
-from app.services.whatsapp_provider import send_diagnostic_text_reply
 
 logger = logging.getLogger(__name__)
-
-# TEMPORARY, diagnostic-only (see send_diagnostic_text_reply's own
-# docstring): fixed text sent back for every inbound "text" message, to
-# prove the receive -> reply loop end-to-end per management's request,
-# before any real workflow reply is built. Delete alongside that function
-# and this constant once the test is done.
-_DIAGNOSTIC_AUTO_REPLY_TEXT = "Hi, your message has been received by SiteOps."
 
 router = APIRouter(prefix="/api/v2/whatsapp", tags=["v2-whatsapp-webhook"])
 
 _MEDIA_MESSAGE_TYPES = ("image", "document")
+_SUPPORTED_CALLBACK_STATUSES = ("sent", "delivered", "read", "failed")
+_STATUS_PROGRESSION_RANK = {
+    "queued": 0,
+    "sending": 1,
+    "sent": 2,
+    "delivered": 3,
+    "read": 4,
+}
 
 
 def _verify_signature(raw_body: bytes, signature_header: str | None) -> None:
@@ -160,6 +164,157 @@ def _extract_errors(payload: dict) -> list[dict]:
     if not isinstance(errors, list):
         return []
     return [error for error in errors if isinstance(error, dict)]
+
+
+def _extract_statuses(payload: dict) -> list[dict]:
+    """Pulls every `statuses[]` entry out of Meta's nested
+    `entry[].changes[].value.statuses` envelope, tolerating any missing or
+    malformed level without raising."""
+    statuses: list[dict] = []
+    for entry in payload.get("entry") or []:
+        if not isinstance(entry, dict):
+            continue
+        for change in entry.get("changes") or []:
+            if not isinstance(change, dict):
+                continue
+            value = change.get("value")
+            if not isinstance(value, dict):
+                continue
+            for status_item in value.get("statuses") or []:
+                if isinstance(status_item, dict):
+                    statuses.append(status_item)
+    return statuses
+
+
+def _parse_status_timestamp(raw_timestamp: object) -> datetime:
+    """Parses Meta's Unix epoch seconds timestamp string/int into a UTC
+    datetime, falling back to current UTC time if absent or malformed."""
+    if raw_timestamp is not None:
+        try:
+            return datetime.fromtimestamp(int(str(raw_timestamp)), tz=timezone.utc)
+        except (ValueError, TypeError, OverflowError):
+            try:
+                parsed = datetime.fromisoformat(str(raw_timestamp))
+                return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                pass
+    return datetime.now(timezone.utc)
+
+
+def _apply_status_update(db: Session, status_item: dict) -> bool:
+    """Applies a single Meta WhatsApp status callback (`sent`, `delivered`,
+    `read`, `failed`) to its matching `MessageDelivery` row.
+
+    Enforces monotonic forward progression (`read` never reverts to
+    `delivered` or `sent`; `delivered` never reverts to `sent`; already
+    `delivered`/`read` rows never revert to `failed`) and idempotency on
+    duplicate callbacks. Unknown `provider_message_id` callbacks are logged
+    safely without exposing sensitive payload or recipient data.
+    """
+    provider_message_id = status_item.get("id")
+    raw_status = status_item.get("status")
+    if not provider_message_id or not isinstance(provider_message_id, str):
+        return False
+    if raw_status not in _SUPPORTED_CALLBACK_STATUSES:
+        return False
+
+    try:
+        delivery = db.scalar(
+            select(MessageDelivery).where(MessageDelivery.provider_message_id == provider_message_id)
+        )
+    except OperationalError:
+        db.rollback()
+        return False
+
+    if delivery is None:
+        logger.warning(
+            "WhatsApp status callback for unknown provider_message_id=%s (status=%s)",
+            provider_message_id,
+            raw_status,
+        )
+        return False
+
+    event_ts = _parse_status_timestamp(status_item.get("timestamp"))
+    current_status = delivery.status
+
+    if raw_status == "sent":
+        if _STATUS_PROGRESSION_RANK.get(current_status, -1) < _STATUS_PROGRESSION_RANK["sent"]:
+            delivery.status = "sent"
+            db.add(delivery)
+            return True
+        return False
+
+    if raw_status == "delivered":
+        changed = False
+        if delivery.delivered_at is None:
+            delivery.delivered_at = event_ts
+            changed = True
+        if _STATUS_PROGRESSION_RANK.get(current_status, -1) < _STATUS_PROGRESSION_RANK["delivered"]:
+            delivery.status = "delivered"
+            changed = True
+        if changed:
+            db.add(delivery)
+        return changed
+
+    if raw_status == "read":
+        changed = False
+        if delivery.read_at is None:
+            delivery.read_at = event_ts
+            changed = True
+        if current_status != "read":
+            delivery.status = "read"
+            changed = True
+        if changed:
+            db.add(delivery)
+        return changed
+
+    if raw_status == "failed":
+        if current_status in ("delivered", "read"):
+            return False
+        delivery.status = "failed"
+        if delivery.failed_at is None:
+            delivery.failed_at = event_ts
+        errors = status_item.get("errors")
+        first_err = (
+            next((err for err in errors if isinstance(err, dict)), None)
+            if isinstance(errors, list)
+            else None
+        )
+        if first_err is not None:
+            code = first_err.get("code")
+            title = first_err.get("title") or first_err.get("message")
+            error_data = first_err.get("error_data")
+            details = error_data.get("details") if isinstance(error_data, dict) else None
+            delivery.failure_code = str(code) if code is not None else (delivery.failure_code or "provider_failed")
+            reason_parts = [str(part) for part in (title, details) if part]
+            delivery.failure_reason = (
+                ": ".join(reason_parts)
+                if reason_parts
+                else (delivery.failure_reason or "WhatsApp delivery failed.")
+            )
+            delivery.error_details = first_err
+        else:
+            delivery.failure_code = delivery.failure_code or "provider_failed"
+            delivery.failure_reason = delivery.failure_reason or "WhatsApp delivery failed."
+        db.add(delivery)
+        return True
+
+    return False
+
+
+def _process_whatsapp_statuses(db: Session, payload: dict) -> int:
+    """Processes all status callbacks in the webhook payload and commits any
+    updates."""
+    statuses = _extract_statuses(payload)
+    if not statuses:
+        return 0
+    updated = 0
+    for status_item in statuses:
+        if _apply_status_update(db, status_item):
+            updated += 1
+    if updated > 0:
+        db.commit()
+    return updated
 
 
 def _extract_media_metadata(message: dict) -> dict | None:
@@ -221,6 +376,8 @@ async def receive_inbound_whatsapp_message(request: Request, db: Session = Depen
         # surfaced as a 4xx/5xx.
         logger.warning("WhatsApp webhook delivered a top-level error: %s", error)
 
+    _process_whatsapp_statuses(db, payload)
+
     for message in _extract_messages(payload):
         provider_message_id = message.get("id")
         sender_phone = message.get("from")
@@ -240,22 +397,5 @@ async def receive_inbound_whatsapp_message(request: Request, db: Session = Depen
         InboundMessageService(db).process(
             str(provider_message_id), f"+{sender_phone}", str(message_text), _media_metadata,
         )
-
-        # TEMPORARY diagnostic reply (see _DIAGNOSTIC_AUTO_REPLY_TEXT above) -
-        # fires for every inbound text message regardless of whether
-        # InboundMessageService matched/processed it, so a plain "Hi" from an
-        # unregistered personal number still proves the loop. Never raises:
-        # a failed send (e.g. the #200 permission error) is logged, not
-        # surfaced as a 4xx, matching this route's existing failure-handling
-        # discipline for provider-side outcomes.
-        if message.get("type") == "text":
-            result = send_diagnostic_text_reply(f"+{sender_phone}", _DIAGNOSTIC_AUTO_REPLY_TEXT)
-            if result.ok:
-                logger.info("Diagnostic auto-reply sent to +%s (provider_message_id=%s)", sender_phone, result.provider_message_id)
-            else:
-                logger.warning(
-                    "Diagnostic auto-reply FAILED to +%s: %s - %s",
-                    sender_phone, result.failure_code, result.failure_reason,
-                )
 
     return {"status": "received"}

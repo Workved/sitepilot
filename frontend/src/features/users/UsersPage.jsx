@@ -64,7 +64,7 @@ function AccessDirectory({ data, user, action, onRefresh }) {
 
   async function invite(event) {
     event.preventDefault();
-    const result = await action(() => usersApi.invite(Object.fromEntries(new FormData(event.currentTarget))), "Added to roster - they can now sign in with Google");
+    const result = await action(() => usersApi.invite(Object.fromEntries(new FormData(event.currentTarget))), "Added to roster - they can now sign in");
     if (result?.ok !== false) { setInviting(false); onRefresh?.(); }
   }
 
@@ -86,7 +86,7 @@ function AccessDirectory({ data, user, action, onRefresh }) {
       <div className="absolute -right-20 -top-28 size-72 rounded-full border-[52px] border-blue-500/10"/>
       <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="text-xs font-black uppercase tracking-[.2em] text-blue-300">Identity and access</p><h1 className="mt-2 text-3xl font-black tracking-[-.04em] sm:text-4xl">Users & Access</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100/70">One auditable directory for employee identity, fixed role boundaries, and account status.</p></div>
-        <div className="flex flex-wrap items-center gap-2"><Pill tone="blue">Google sign-in, no passwords</Pill><Button onClick={() => setInviting(true)}><UserPlus size={17}/>Add team member</Button>{onRefresh && <RefreshButton onClick={onRefresh}/>}</div>
+        <div className="flex flex-wrap items-center gap-2"><Pill tone="blue">Google or password sign-in</Pill><Button onClick={() => setInviting(true)}><UserPlus size={17}/>Add team member</Button>{onRefresh && <RefreshButton onClick={onRefresh}/>}</div>
       </div>
     </section>
 

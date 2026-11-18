@@ -139,10 +139,16 @@ $bootstrapPassword = First-Value $existing @("BOOTSTRAP_SUPER_ADMIN_PASSWORD")
 $migrationPassword = First-Value $existing @("MIGRATION_TEMP_PASSWORD")
 $telegramAccessToken = First-Value $existing @("TELEGRAM_ACCESS_TOKEN")
 $telegramWebhookSecret = First-Value $existing @("TELEGRAM_WEBHOOK_SECRET")
+$whatsappAccessToken = First-Value $existing @("WHATSAPP_ACCESS_TOKEN")
+$whatsappPhoneNumberId = First-Value $existing @("WHATSAPP_PHONE_NUMBER_ID")
+$whatsappApiVersion = First-Value $existing @("WHATSAPP_API_VERSION")
+$whatsappWebhookSecret = First-Value $existing @("WHATSAPP_WEBHOOK_SECRET")
+$whatsappWebhookVerifyToken = First-Value $existing @("WHATSAPP_WEBHOOK_VERIFY_TOKEN")
 
 if (-not $bootstrapEmail) { $bootstrapEmail = "superadmin@siteops.local" }
 if (-not $bootstrapPassword) { $bootstrapPassword = "LocalSiteOps!2026" }
 if (-not $migrationPassword) { $migrationPassword = "LocalMigration!2026" }
+if (-not $whatsappApiVersion) { $whatsappApiVersion = "v21.0" }
 
 $envLines = @(
     "# Generated for the local Supabase CLI stack. Git ignored.",
@@ -160,7 +166,13 @@ $envLines = @(
     "VITE_API_BASE=http://localhost:8000",
     "",
     "TELEGRAM_ACCESS_TOKEN=$telegramAccessToken",
-    "TELEGRAM_WEBHOOK_SECRET=$telegramWebhookSecret"
+    "TELEGRAM_WEBHOOK_SECRET=$telegramWebhookSecret",
+    "",
+    "WHATSAPP_ACCESS_TOKEN=$whatsappAccessToken",
+    "WHATSAPP_PHONE_NUMBER_ID=$whatsappPhoneNumberId",
+    "WHATSAPP_API_VERSION=$whatsappApiVersion",
+    "WHATSAPP_WEBHOOK_SECRET=$whatsappWebhookSecret",
+    "WHATSAPP_WEBHOOK_VERIFY_TOKEN=$whatsappWebhookVerifyToken"
 )
 [System.IO.File]::WriteAllLines((Join-Path $repoRoot ".env"), $envLines, (New-Object System.Text.UTF8Encoding($false)))
 

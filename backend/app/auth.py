@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User, UserAccountEvent, UserRole
-from app.services.supabase_auth import SupabaseAuthError, verify_access_token
+from app.services.supabase_auth import SupabaseAuthError, local_dev_login_available, verify_access_token
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -35,15 +35,21 @@ def current_user(
         # meeting its Supabase identity for the first time - e.g. the first
         # Google sign-in for that email, which Supabase has no prior record
         # of and so cannot link to an existing auth identity on its own.
-        # Provider-verified email only: Google/other OAuth providers don't
-        # let a user claim an unverified address, so this match is as safe
-        # as the admin-entered roster row it's confirming against.
+        # Only for identities whose email nobody could have claimed: Google
+        # (it never lets a user claim an address they don't own), or an
+        # account an Admin created with a password (tagged with this row's
+        # id in app_metadata, which only the service key can write). With
+        # email/password sign-in enabled, anyone can self-register a
+        # Supabase identity for any address, so a bare email match would let
+        # them take over a pre-registered row.
         identity_email = str(auth_identity.get("email") or "").strip().lower()
         if identity_email:
             user = db.scalar(select(User).where(
                 func.lower(User.email) == identity_email,
                 User.supabase_user_id.is_(None),
             ))
+            if user and not _may_link_by_email(auth_identity, user):
+                user = None
             if user:
                 user.supabase_user_id = supabase_user_id
                 db.add(UserAccountEvent(
@@ -75,6 +81,20 @@ def current_user(
     if db.is_modified(user):
         db.commit()
     return user
+
+
+def _may_link_by_email(auth_identity: dict, user: User) -> bool:
+    app_metadata = auth_identity.get("app_metadata") or {}
+    providers = set(app_metadata.get("providers") or [])
+    providers.add(app_metadata.get("provider"))
+    if "google" in providers:
+        return True
+    if app_metadata.get("siteops_user_id") == str(user.id):
+        return True
+    # Local dev login mints sessions through Supabase's email link flow, so
+    # its identities look like email sign-ups; it only ever runs against a
+    # local Supabase stack.
+    return local_dev_login_available()
 
 
 def require_roles(*roles: UserRole):

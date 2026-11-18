@@ -15,6 +15,14 @@ export const authApi = {
     const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
     if (error) throw new Error(error.message);
   },
+  // Email + password set by an Admin (backend PUT /api/users/{id}/password);
+  // the password lives in Supabase Auth only.
+  async signInWithPassword(email, password) {
+    ensureConfigured();
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message === "Invalid login credentials" ? "That email and password don't match. Check them, or ask your Admin to reset your password." : error.message);
+    return data.session;
+  },
   async logout() {
     ensureConfigured();
     const { error } = await supabase.auth.signOut();

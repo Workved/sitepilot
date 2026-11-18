@@ -1,26 +1,20 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.config import settings
-from app.services.supabase_auth import SupabaseAuthError, dev_login_session
+from app.services.supabase_auth import SupabaseAuthError, dev_login_session, local_dev_login_available
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-
-def _local_dev_login_available() -> bool:
-    if not settings.local_dev_login_enabled:
-        return False
-    supabase_url = settings.supabase_url.lower()
-    return any(host in supabase_url for host in ("127.0.0.1", "localhost", "host.docker.internal"))
 
 
 @router.get("/provider")
 def provider():
     return {
         "provider": "supabase",
+        # Passwords set by an Admin live in Supabase Auth, never in SiteOps.
         "passwords_stored_by_siteops": False,
+        "password_login_enabled": True,
         "recovery": "google_oauth",
-        "dev_login_enabled": _local_dev_login_available(),
+        "dev_login_enabled": local_dev_login_available(),
     }
 
 
@@ -39,7 +33,7 @@ class DevLoginIn(BaseModel):
 # current_user() (app/auth.py) gives a real first-time Google login.
 @router.post("/dev-login")
 def dev_login(payload: DevLoginIn):
-    if not _local_dev_login_available():
+    if not local_dev_login_available():
         raise HTTPException(404)
     email = payload.email.strip().lower()
     if not email:

@@ -3,10 +3,11 @@ from __future__ import annotations
 import unittest
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
@@ -15,9 +16,11 @@ from sqlalchemy.pool import StaticPool
 from app.auth import current_user
 from app.broadcast_models import Broadcast, BroadcastRecipient, BroadcastTemplate
 from app.database import get_db
+from app.execution_models import MessageDelivery, OutboxEvent
 from app.models import EmployeeProfile, User, UserRole
 from app.project_models import V2AuditEvent, V2Project, V2ProjectMembership
 from app.routes.broadcasts import router as broadcasts_router
+from app.services.message_dispatch import ProviderSendResult
 from app.vendor_models import ProjectVendor, V2Vendor, V2VendorContact
 
 ADMIN_ID = uuid.UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1")
@@ -46,6 +49,7 @@ class BroadcastsTests(unittest.TestCase):
             User.__table__, EmployeeProfile.__table__, V2Project.__table__, V2ProjectMembership.__table__,
             V2Vendor.__table__, V2VendorContact.__table__, ProjectVendor.__table__, V2AuditEvent.__table__,
             Broadcast.__table__, BroadcastRecipient.__table__, BroadcastTemplate.__table__,
+            OutboxEvent.__table__, MessageDelivery.__table__,
         ):
             table.create(self.engine)
 
@@ -231,6 +235,217 @@ class BroadcastsTests(unittest.TestCase):
         self.act_as_pm()
         response = self.client.get(f"/api/v2/broadcasts/recipients?project_id={self.project_id}")
         self.assertEqual(response.status_code, 403)
+
+    # ---- Milestone 1 Phase 2: provider integration, failures, retries -----
+
+    def test_send_now_creates_outbox_event_and_message_deliveries(self):
+        response = self.client.post("/api/v2/broadcasts", json={
+            "project_id": str(self.project_id),
+            "title": "Safety Briefing",
+            "message_body": "Mandatory PPE on site.",
+            "recipient_groups": ["project_manager", "site_supervisor", "vendor_contact"],
+            "excluded_recipient_keys": [],
+            "send_mode": "now",
+        })
+        self.assertEqual(response.status_code, 200, response.text)
+        with self.Session() as session:
+            outbox_events = list(session.scalars(select(OutboxEvent)).all())
+            self.assertEqual(len(outbox_events), 1)
+            self.assertEqual(outbox_events[0].event_type, "broadcast.message_dispatched")
+
+            deliveries = list(session.scalars(select(MessageDelivery)).all())
+            self.assertEqual(len(deliveries), 3)
+            for delivery in deliveries:
+                self.assertEqual(delivery.status, "sent")
+                self.assertEqual(delivery.channel, "whatsapp")
+                self.assertIsNotNone(delivery.provider_message_id)
+
+    def test_provider_failure_marks_recipient_failed_and_broadcast_partially_failed(self):
+        class _FailSupervisorAdapter:
+            def __init__(self):
+                self.calls = []
+
+            def send(self, recipient_phone: str, template: str, payload: dict) -> ProviderSendResult:
+                self.calls.append(recipient_phone)
+                if recipient_phone == "+919876500002":  # Supervisor Rahul
+                    return ProviderSendResult(ok=False, failure_code="500", failure_reason="Meta API error")
+                return ProviderSendResult(ok=True, provider_message_id=f"wamid.{recipient_phone}")
+
+        fake_adapter = _FailSupervisorAdapter()
+        with patch("app.services.broadcast_service._default_whatsapp_adapter", return_value=fake_adapter):
+            response = self.client.post("/api/v2/broadcasts", json={
+                "project_id": str(self.project_id),
+                "title": "Urgent Notice",
+                "message_body": "Check scaffolding.",
+                "recipient_groups": ["project_manager", "site_supervisor"],
+                "excluded_recipient_keys": [],
+                "send_mode": "now",
+            })
+
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["status"], "partially_failed")
+        self.assertEqual(body["delivery_summary"]["sent"], 1)
+        self.assertEqual(body["delivery_summary"]["failed"], 1)
+        by_name = {r["name"]: r for r in body["recipients"]}
+        self.assertEqual(by_name["Niddhi"]["delivery_status"], "sent")
+        self.assertEqual(by_name["Rahul"]["delivery_status"], "failed")
+        self.assertIsNone(by_name["Rahul"]["delivered_at"])
+
+    def test_retry_partially_failed_broadcast_only_resends_failed_recipients_no_duplicates(self):
+        calls: list[str] = []
+
+        class _FlakyAdapter:
+            def __init__(self, fail_phone: str | None):
+                self.fail_phone = fail_phone
+
+            def send(self, recipient_phone: str, template: str, payload: dict) -> ProviderSendResult:
+                calls.append(recipient_phone)
+                if self.fail_phone and recipient_phone == self.fail_phone:
+                    return ProviderSendResult(ok=False, failure_code="network_error", failure_reason="Timeout")
+                return ProviderSendResult(ok=True, provider_message_id=f"wamid.{uuid.uuid4().hex}")
+
+        with patch("app.services.broadcast_service._default_whatsapp_adapter", return_value=_FlakyAdapter("+919876500002")):
+            created = self.client.post("/api/v2/broadcasts", json={
+                "project_id": str(self.project_id),
+                "title": "Retry Test",
+                "message_body": "Body",
+                "recipient_groups": ["project_manager", "site_supervisor"],
+                "excluded_recipient_keys": [],
+                "send_mode": "now",
+            }).json()
+
+        self.assertEqual(created["status"], "partially_failed")
+        self.assertCountEqual(calls, ["+919876500001", "+919876500002"])
+
+        calls.clear()
+        with patch("app.services.broadcast_service._default_whatsapp_adapter", return_value=_FlakyAdapter(None)):
+            retried = self.client.post(f"/api/v2/broadcasts/{created['id']}/send")
+
+        self.assertEqual(retried.status_code, 200, retried.text)
+        retried_body = retried.json()
+        self.assertEqual(retried_body["status"], "sent")
+        # Niddhi (+919876500001) already succeeded on first pass and must NOT be sent a duplicate message!
+        self.assertEqual(calls, ["+919876500002"])
+
+        # Attempting to send an already fully-'sent' broadcast returns 409
+        second_retry = self.client.post(f"/api/v2/broadcasts/{created['id']}/send")
+        self.assertEqual(second_retry.status_code, 409)
+
+    def test_telegram_recipient_dispatches_via_telegram_adapter(self):
+        with self.Session.begin() as session:
+            pm_profile = session.query(EmployeeProfile).filter_by(user_id=PM_ID).one()
+            pm_profile.active_channel = "telegram"
+            pm_profile.telegram_chat_id = "tg-chat-999"
+
+        tg_calls: list[tuple[str, dict]] = []
+        wa_calls: list[str] = []
+
+        class _SpyTelegramAdapter:
+            def send(self, recipient_phone: str, template: str, payload: dict) -> ProviderSendResult:
+                tg_calls.append((recipient_phone, payload))
+                return ProviderSendResult(ok=True, provider_message_id="tg-msg-1")
+
+        class _SpyWhatsAppAdapter:
+            def send(self, recipient_phone: str, template: str, payload: dict) -> ProviderSendResult:
+                wa_calls.append(recipient_phone)
+                return ProviderSendResult(ok=True, provider_message_id="wa-msg-1")
+
+        with patch("app.services.broadcast_service._default_telegram_adapter", return_value=_SpyTelegramAdapter()), \
+             patch("app.services.broadcast_service._default_whatsapp_adapter", return_value=_SpyWhatsAppAdapter()):
+            response = self.client.post("/api/v2/broadcasts", json={
+                "project_id": str(self.project_id),
+                "title": "Channel Routing",
+                "message_body": "Check Telegram vs WhatsApp.",
+                "recipient_groups": ["project_manager", "site_supervisor"],
+                "excluded_recipient_keys": [],
+                "send_mode": "now",
+            })
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(len(tg_calls), 1)
+        self.assertEqual(tg_calls[0][0], "tg-chat-999")
+        self.assertIn("Channel Routing", tg_calls[0][1]["text"])
+        self.assertEqual(wa_calls, ["+919876500002"])
+
+    def test_telegram_preferred_recipient_without_linked_chat_gets_whatsapp(self):
+        # Previously this person was skipped on every channel but still
+        # counted as 'sent' via the in-app/email fallback.
+        with self.Session.begin() as session:
+            pm_profile = session.query(EmployeeProfile).filter_by(user_id=PM_ID).one()
+            pm_profile.active_channel = "telegram"
+            pm_profile.telegram_chat_id = None
+
+        tg_calls: list[str] = []
+        wa_calls: list[str] = []
+
+        class _SpyTelegramAdapter:
+            def send(self, recipient_phone: str, template: str, payload: dict) -> ProviderSendResult:
+                tg_calls.append(recipient_phone)
+                return ProviderSendResult(ok=True, provider_message_id="tg-msg-1")
+
+        class _SpyWhatsAppAdapter:
+            provider_name = "meta"
+
+            def send(self, recipient_phone: str, template: str, payload: dict) -> ProviderSendResult:
+                wa_calls.append(recipient_phone)
+                return ProviderSendResult(ok=True, provider_message_id=f"wamid-{len(wa_calls)}")
+
+        with patch("app.services.broadcast_service._default_telegram_adapter", return_value=_SpyTelegramAdapter()), \
+             patch("app.services.broadcast_service._default_whatsapp_adapter", return_value=_SpyWhatsAppAdapter()):
+            response = self.client.post("/api/v2/broadcasts", json={
+                "project_id": str(self.project_id),
+                "title": "Channel Fallback",
+                "message_body": "Unlinked Telegram falls back to WhatsApp.",
+                "recipient_groups": ["project_manager"],
+                "excluded_recipient_keys": [],
+                "send_mode": "now",
+            })
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(tg_calls, [])
+        self.assertEqual(len(wa_calls), 1)
+        with self.Session() as session:
+            [delivery] = session.scalars(select(MessageDelivery)).all()
+            self.assertEqual((delivery.channel, delivery.provider, delivery.status), ("whatsapp", "meta", "sent"))
+
+    def test_inactive_user_excluded_from_broadcast_recipients_and_blocked_on_scheduled_send(self):
+        # 1. Schedule a broadcast while Supervisor Rahul is active
+        scheduled_at = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+        created = self.client.post("/api/v2/broadcasts", json={
+            "project_id": str(self.project_id),
+            "title": "Offboarded Check",
+            "message_body": "Body",
+            "recipient_groups": ["project_manager", "site_supervisor"],
+            "send_mode": "scheduled",
+            "scheduled_at": scheduled_at,
+        }).json()
+        self.assertEqual(created["recipient_count"], 2)
+
+        # 2. Deactivate Supervisor Rahul before the scheduled broadcast sends
+        with self.Session.begin() as session:
+            session.get(User, SUPERVISOR_ID).active = False
+
+        # Preview recipients now excludes deactivated Rahul even with active membership row
+        preview = self.client.get(f"/api/v2/broadcasts/recipients?project_id={self.project_id}").json()
+        preview_names = {r["name"] for r in preview["recipients"]}
+        self.assertNotIn("Rahul", preview_names)
+
+        # 3. Sending the already-scheduled broadcast must NOT send to deactivated Rahul
+        wa_calls: list[str] = []
+
+        class _SpyWhatsAppAdapter:
+            def send(self, recipient_phone: str, template: str, payload: dict) -> ProviderSendResult:
+                wa_calls.append(recipient_phone)
+                return ProviderSendResult(ok=True, provider_message_id="wa-msg-1")
+
+        with patch("app.services.broadcast_service._default_whatsapp_adapter", return_value=_SpyWhatsAppAdapter()):
+            sent = self.client.post(f"/api/v2/broadcasts/{created['id']}/send").json()
+
+        self.assertEqual(wa_calls, ["+919876500001"])  # PM Niddhi only, never Rahul
+        by_name = {r["name"]: r for r in sent["recipients"]}
+        self.assertEqual(by_name["Niddhi"]["delivery_status"], "sent")
+        self.assertEqual(by_name["Rahul"]["delivery_status"], "failed")
 
 
 if __name__ == "__main__":

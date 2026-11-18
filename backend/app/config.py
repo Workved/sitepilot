@@ -35,6 +35,16 @@ class Settings(BaseSettings):
     whatsapp_access_token: str = ""
     whatsapp_phone_number_id: str = ""
     whatsapp_api_version: str = "v21.0"
+    # Which service sends WhatsApp templates: "meta" (Graph API, above) or
+    # "doubletick" (see `DoubleTickAdapter` in whatsapp_provider.py), for a
+    # number onboarded through DoubleTick, where Meta refuses sends from any
+    # other app. Empty means "meta", so existing deployments are unchanged.
+    whatsapp_provider: str = ""
+    # DoubleTick public API key (DoubleTick -> Settings -> Developer API) and
+    # the connected sender number in international format ("+91...").
+    # Sourced from environment/`.env` only, never hardcoded.
+    doubletick_api_key: str = ""
+    doubletick_from_number: str = ""
     # Telegram Bot API credential (see
     # backend/app/services/telegram_provider.py). Sourced from
     # environment/`.env` only, mirroring `whatsapp_access_token`'s pattern -
