@@ -252,7 +252,9 @@ def get_hub(user: User = Depends(current_user), db: Session = Depends(get_db)):
             # The V2 capability list is flat and derived from template
             # phases, so these three keep the existing client contract
             # without pretending a hierarchy or archive state still exists.
-            "category_type": "service", "parent_id": None, "description": None, "active": True,
+            # `active` false = hidden by an Admin: kept by vendors that have
+            # it, left out of pickers.
+            "category_type": "service", "parent_id": None, "description": None, "active": c.active,
             "usage_count": vendor_counts.get(c.id, 0),
             "vendor_count": vendor_counts.get(c.id, 0),
             "child_count": 0,

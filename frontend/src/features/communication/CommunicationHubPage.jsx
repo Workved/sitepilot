@@ -14,6 +14,7 @@ const emptyHub = { vendors: [], contacts: [], categories: [], projects: [], proj
 import { CategoryChip, CompanyModal, Metric, ProfileModal, VendorRow } from "./components/CommunicationDirectory";
 import { VendorDetailPanel } from "./components/VendorDetailPanel";
 import { BlacklistModal, canBlacklist, canUnblacklist, isBlocked } from "./components/VendorBlacklist";
+import { VendorCategoryManager, canManageCategories } from "./components/VendorCategoryManager";
 
 const SORT_OPTIONS = [
   ["name_asc", "Name (A-Z)"],
@@ -25,6 +26,7 @@ const PAGE_SIZE_OPTIONS = [6, 12, 25];
 const TYPE_OPTIONS = [["all", "All types"], ["main", "Main vendors"], ["sub", "Sub-vendors"]];
 
 export function CommunicationHubPage({ user, action }) {
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [hub, setHub] = useState(emptyHub);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -223,9 +225,14 @@ export function CommunicationHubPage({ user, action }) {
       return created.getFullYear() === now.getFullYear() && created.getMonth() === now.getMonth();
     }).length;
   }, [hub.vendors]);
+  // Hidden categories (an Admin removed them while vendors still had them)
+  // drop out of pickers; filters still list them while vendors hold them.
+  const pickerCategories = useMemo(() => hub.categories.filter(category => category.active !== false), [hub.categories]);
+  const filterCategories = useMemo(() => hub.categories.filter(category => category.active !== false || (category.vendor_count || 0) > 0), [hub.categories]);
+  const profileCategories = vendor => hub.categories.filter(category => category.active !== false || (vendor?.category_ids || []).includes(category.id));
   const categoriesInUse = hub.categories.filter(category => (category.vendor_count || 0) > 0).length;
   const blacklistedCount = hub.vendors.filter(vendor => vendor.blacklisted).length;
-  const topCategories = useMemo(() => [...hub.categories].sort((a, b) => (b.vendor_count || 0) - (a.vendor_count || 0)).slice(0, 8), [hub.categories]);
+  const topCategories = useMemo(() => [...filterCategories].sort((a, b) => (b.vendor_count || 0) - (a.vendor_count || 0)).slice(0, 8), [filterCategories]);
 
   function clearFilters() { setCategoryId(""); setType("all"); setStatus(""); setProjectId(""); }
 
@@ -240,6 +247,7 @@ export function CommunicationHubPage({ user, action }) {
           <span className="mt-2 block text-sm text-slate-500">Centralized directory of vendors and contacts across all projects.</span>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {canManageCategories(user) && <button type="button" onClick={() => setCategoriesOpen(true)} className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50"><Tag size={16}/> Categories</button>}
           <RefreshButton loading={loading} onClick={() => load()}/>
           {canManage && <div ref={addMenuRef} className="relative shrink-0">
             <button type="button" onClick={() => setAddMenuOpen(v => !v)}
@@ -256,7 +264,7 @@ export function CommunicationHubPage({ user, action }) {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Metric icon={<UsersRound size={20}/>} label="Total Vendors" value={hub.vendors.length} hint={thisMonthVendors > 0 ? `+${thisMonthVendors} this month` : "Across all sites"} tone="border-blue-200 bg-blue-50"/>
-        <Metric icon={<Tag size={20}/>} label="Active Categories" value={categoriesInUse} hint={`of ${hub.categories.length} total`} tone="border-emerald-200 bg-emerald-50"/>
+        <Metric icon={<Tag size={20}/>} label="Active Categories" value={categoriesInUse} hint={`of ${pickerCategories.length} total`} tone="border-emerald-200 bg-emerald-50"/>
         <Metric icon={<ContactRound size={20}/>} label="Site Contacts" value={hub.contacts.length} hint="Across all vendors" tone="border-violet-200 bg-violet-50"/>
         <Metric icon={<FolderKanban size={20}/>} label="Active Projects" value={activeProjects} hint={`of ${hub.projects.length} total`} tone="border-amber-200 bg-amber-50"/>
         <Metric icon={<Ban size={20}/>} label="Blacklisted" value={blacklistedCount} tone="border-rose-200 bg-rose-50" className="col-span-2 sm:col-span-1"
@@ -294,7 +302,7 @@ export function CommunicationHubPage({ user, action }) {
               <p className="px-1 pb-1.5 text-[10px] font-black uppercase tracking-wide text-slate-400">Category</p>
               <div className="grid max-h-48 gap-0.5 overflow-y-auto">
                 <button type="button" onClick={() => setCategoryId("")} className={cn("rounded-lg px-2.5 py-1.5 text-left text-sm font-bold transition", !categoryId ? "bg-blue-700 text-white" : "text-slate-700 hover:bg-slate-50")}>All categories</button>
-                {hub.categories.map(category => <button key={category.id} type="button" onClick={() => setCategoryId(category.id)}
+                {filterCategories.map(category => <button key={category.id} type="button" onClick={() => setCategoryId(category.id)}
                   className={cn("flex items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm font-bold transition", categoryId === category.id ? "bg-blue-700 text-white" : "text-slate-700 hover:bg-slate-50")}>
                   {category.name}<span className={cn("text-xs", categoryId === category.id ? "text-blue-100" : "text-slate-400")}>{category.vendor_count || 0}</span>
                 </button>)}
@@ -318,7 +326,7 @@ export function CommunicationHubPage({ user, action }) {
       <div className="flex flex-wrap items-center gap-2 overflow-x-auto pb-0.5">
         <CategoryChip label="All" count={hub.vendors.length} active={!categoryId} onClick={() => setCategoryId("")}/>
         {topCategories.map(category => <CategoryChip key={category.id} label={category.name} count={category.vendor_count || 0} active={categoryId === category.id} onClick={() => setCategoryId(current => current === category.id ? "" : category.id)}/>)}
-        {hub.categories.length > topCategories.length && <CategoryChip label="More" count={hub.categories.length - topCategories.length} active={filtersOpen} onClick={() => setFiltersOpen(true)}/>}
+        {filterCategories.length > topCategories.length && <CategoryChip label="More" count={filterCategories.length - topCategories.length} active={filtersOpen} onClick={() => setFiltersOpen(true)}/>}
       </div>
     </section>
 
@@ -367,9 +375,10 @@ export function CommunicationHubPage({ user, action }) {
       deletePastProject={deletePastProject}
       contactProjects={hub.contact_projects} contactTasks={hub.contact_tasks}/>}
 
-    {form === "main" && <CompanyModal title="Add main vendor" categories={hub.categories} saving={saving} onClose={() => setForm(null)} onSubmit={event => createCompany(event, "main")}/>}
-    {form === "sub" && selectedVendor?.engagement_type === "main" && <CompanyModal title="Add sub-vendor" categories={hub.categories} fixedMainContractor={selectedVendor} saving={saving} onClose={() => setForm(null)} onSubmit={event => createCompany(event, "sub")}/>}
-    {form === "edit" && selectedVendor && <ProfileModal vendor={selectedVendor} categories={hub.categories} saving={saving} onClose={() => setForm(null)} onSubmit={event => updateCompany(event, selectedVendor.id)}/>}
+    {categoriesOpen && <VendorCategoryManager onClose={() => setCategoriesOpen(false)} onChanged={() => load({ quiet: true })}/>}
+    {form === "main" && <CompanyModal title="Add main vendor" categories={pickerCategories} saving={saving} onClose={() => setForm(null)} onSubmit={event => createCompany(event, "main")}/>}
+    {form === "sub" && selectedVendor?.engagement_type === "main" && <CompanyModal title="Add sub-vendor" categories={pickerCategories} fixedMainContractor={selectedVendor} saving={saving} onClose={() => setForm(null)} onSubmit={event => createCompany(event, "sub")}/>}
+    {form === "edit" && selectedVendor && <ProfileModal vendor={selectedVendor} categories={profileCategories(selectedVendor)} saving={saving} onClose={() => setForm(null)} onSubmit={event => updateCompany(event, selectedVendor.id)}/>}
     {form === "contact" && <Modal title="Add vendor contact" subtitle="Add a person under a main vendor or sub-vendor" onClose={() => setForm(null)}>
       <form className="modal-form grid gap-3 [&_label]:grid [&_label]:gap-2 [&_label]:text-sm [&_label]:font-extrabold [&_label]:text-slate-700 [&_input]:min-h-11 [&_input]:w-full [&_input]:rounded-xl [&_input]:border [&_input]:border-slate-200 [&_input]:bg-white [&_input]:px-4 [&_input]:py-3 [&_input]:outline-none [&_select]:min-h-11 [&_select]:w-full [&_select]:rounded-xl [&_select]:border [&_select]:border-slate-200 [&_select]:bg-white [&_select]:px-4 [&_select]:py-3 [&_select]:outline-none focus-within:[&_input]:border-blue-600 focus-within:[&_select]:border-blue-600 [&>button]:min-h-12 [&>button]:rounded-xl [&>button]:bg-blue-700 [&>button]:px-5 [&>button]:font-black [&>button]:text-white two-col grid-cols-2 max-[720px]:grid-cols-1" onSubmit={event => submit(event, payload => communicationApi.addContact({ ...payload, is_primary: false }), "Contact added")}>
         <label className="full-field col-span-full max-[720px]:col-span-1">Vendor<select name="vendor_id" defaultValue={selectedVendor?.id || ""} required>{hub.vendors.map(vendor => <option value={vendor.id} key={vendor.id}>{vendor.name}</option>)}</select></label>

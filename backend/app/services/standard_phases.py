@@ -1,0 +1,37 @@
+"""The 31 standard phases the template form offered before categories were
+Admin-managed. Seeded as vendor categories (migration 202611200001) and used
+as a fallback list. A vendor category is also a template phase."""
+
+STANDARD_PHASES = (
+    "Mobilisation",
+    "Coordination",
+    "Survey",
+    "Planning",
+    "Design & Planning",
+    "Shop Drawings",
+    "Procurement",
+    "Off-Site Production",
+    "Dismantling",
+    "Civil",
+    "Partitions",
+    "MEP First Fix",
+    "Floor Base",
+    "Ceiling",
+    "Carpentry",
+    "Doors & Glass",
+    "MEP Second Fix",
+    "Fire Second Fix",
+    "Flooring",
+    "Painting",
+    "Furniture",
+    "IT & ELV",
+    "Security",
+    "Testing",
+    "Inspection",
+    "Snagging",
+    "Rectification",
+    "Cleaning",
+    "Documentation",
+    "Handover",
+    "Demobilisation",
+)
