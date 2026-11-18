@@ -1,4 +1,5 @@
 ﻿from __future__ import annotations
+from app.execution_models import FileObject, ProjectTaskReferenceFile  # noqa: E402
 
 import unittest
 import uuid
@@ -54,6 +55,8 @@ class ProjectTemplateReviewApiTests(unittest.TestCase):
             V2Project.__table__,
             V2ProjectMembership.__table__,
             V2ProjectTask.__table__,
+            FileObject.__table__,
+            ProjectTaskReferenceFile.__table__,
         ):
             table.create(self.engine)
 
@@ -278,7 +281,9 @@ class ProjectTemplateReviewApiTests(unittest.TestCase):
         finally:
             event.remove(self.engine, "before_cursor_execute", capture)
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertLessEqual(len(statements), 4, statements)
+        # 4 for the page itself, plus one batched lookup of reference files
+        # added on the project (one query for the whole page, not per task).
+        self.assertLessEqual(len(statements), 5, statements)
 
 
 if __name__ == "__main__":

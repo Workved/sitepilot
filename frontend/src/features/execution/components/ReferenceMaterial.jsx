@@ -22,7 +22,7 @@ export function triggerDownload(blob, filename) {
  * proof the work needs, and the Admin's reference files. Deliberately separate
  * from the evidence people submit. Renders nothing when there is neither.
  */
-export function ReferenceMaterial({ instructions, files = [], onDownload, className = "" }) {
+export function ReferenceMaterial({ instructions, files = [], onDownload, onRemove, className = "" }) {
   const [error, setError] = useState("");
   if (!instructions && !files.length) return null;
 
@@ -44,16 +44,19 @@ export function ReferenceMaterial({ instructions, files = [], onDownload, classN
     {files.length > 0 && <div>
       <h4 className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-slate-400"><Paperclip size={12}/> Reference material</h4>
       <ul className="mt-2 grid gap-2">
-        {files.map(file => <li key={file.id}>
+        {files.map(file => <li key={file.id} className="flex items-start gap-2">
           <button type="button" onClick={() => download(file)} aria-label={`Download ${file.filename}`}
-            className="flex w-full items-start gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:border-blue-300 hover:bg-blue-50">
+            className="flex min-w-0 flex-1 items-start gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:border-blue-300 hover:bg-blue-50">
             <FileText size={16} className="mt-0.5 shrink-0 text-blue-700"/>
             <span className="min-w-0">
               <span className="block truncate text-sm font-bold text-blue-700">{file.filename}</span>
               {file.description && <span className="block text-xs font-semibold text-slate-600">{file.description}</span>}
-              <span className="block text-[11px] font-semibold text-slate-400">{sizeLabel(file.size_bytes)}</span>
+              <span className="block text-[11px] font-semibold text-slate-400">{sizeLabel(file.size_bytes)}{file.source === "project" ? " · added on this project" : ""}</span>
             </span>
           </button>
+          {/* Only files added on the project can be removed; template files stay as published. */}
+          {onRemove && file.source === "project" && <button type="button" aria-label={`Remove ${file.filename}`} onClick={() => onRemove(file)}
+            className="min-h-10 shrink-0 rounded-xl border border-slate-200 px-3 text-xs font-black text-rose-700 hover:bg-rose-50">Remove</button>}
         </li>)}
       </ul>
     </div>}

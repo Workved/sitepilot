@@ -60,8 +60,15 @@ def template_task_id_for(db: Session, task: Task) -> uuid.UUID | None:
 
 
 def material_for_task(db: Session, task: Task) -> dict:
+    """Template material plus any reference files added on the project."""
+    from app.services.project_task_references import project_files_by_task
+
     template_task_id = template_task_id_for(db, task)
-    return template_material(db, "task", [template_task_id]).get(template_task_id, NO_MATERIAL)
+    material = template_material(db, "task", [template_task_id]).get(template_task_id, NO_MATERIAL)
+    added = project_files_by_task(db, [task.id]).get(task.id, [])
+    if not added:
+        return material
+    return {**material, "reference_files": [*material["reference_files"], *added]}
 
 
 def material_for_gates(db: Session, gates: Iterable[V2ProjectExternalGate]) -> dict[uuid.UUID, dict]:
@@ -104,6 +111,11 @@ def task_reference_file(db: Session, project: V2Project, task_id: uuid.UUID, ref
         ).limit(1))
         if not assigned:
             raise HTTPException(403, "You can only view tasks you are actively assigned to support.")
+    from app.services.project_task_references import project_reference_link
+
+    added = project_reference_link(db, task, reference_id)
+    if added is not None:
+        return added, read_reference_bytes(added)
     return _file(db, "task", template_task_id_for(db, task), reference_id)
 
 

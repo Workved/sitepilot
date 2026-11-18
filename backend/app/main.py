@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import SessionLocal
-from app.routes import admin_visibility_v2, auth, broadcasts, channel_toggle, communication, dashboard, execution_tasks_v2, permissions, project_dashboard_v2, project_read_models_v2, project_vendors_v2, projects_v2, reports_v2, telegram_connect_codes, telegram_webhook, templates_v2, users, vendors, dependencies_v2, whatsapp_webhook_v2
+from app.routes import admin_visibility_v2, auth, broadcasts, channel_toggle, communication, dashboard, execution_tasks_v2, permissions, project_dashboard_v2, project_task_references_v2, project_read_models_v2, project_vendors_v2, projects_v2, reports_v2, telegram_connect_codes, telegram_webhook, templates_v2, users, vendors, dependencies_v2, whatsapp_webhook_v2
 from app.seed import ensure_seed_data
 from app.services.daily_task_prompts_scheduler import start_daily_task_prompts_scheduler, stop_daily_task_prompts_scheduler
 from app.services.evidence_retention_scheduler import start_retention_scheduler, stop_retention_scheduler
@@ -69,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(project_read_models_v2.router)
     app.include_router(projects_v2.router)
     app.include_router(execution_tasks_v2.router)
+    app.include_router(project_task_references_v2.router)
     app.include_router(project_dashboard_v2.router)
     app.include_router(reports_v2.router)
     app.include_router(admin_visibility_v2.router)

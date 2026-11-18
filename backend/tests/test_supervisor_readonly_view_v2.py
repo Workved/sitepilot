@@ -1,4 +1,5 @@
 from __future__ import annotations
+from app.execution_models import FileObject, ProjectTaskReferenceFile  # noqa: E402
 
 import unittest
 import uuid
@@ -89,6 +90,8 @@ class SupervisorReadOnlyViewApiTests(unittest.TestCase):
             ProjectBaseline.__table__,
             BaselineTask.__table__,
             Task.__table__,
+            FileObject.__table__,
+            ProjectTaskReferenceFile.__table__,
             ProjectExternalApproval.__table__,
             ProjectExternalApprovalTask.__table__,
             OutboxEvent.__table__,

@@ -1,5 +1,12 @@
 import { api } from "./client";
 
+function referenceForm(file, description) {
+  const body = new FormData();
+  body.append("file", file);
+  if (description?.trim()) body.append("description", description.trim());
+  return body;
+}
+
 function query(params = {}) {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -41,6 +48,10 @@ export const projectsApi = {
   taskApplicabilityHistory: (projectId, taskId) => api(`/api/v2/projects/${projectId}/tasks/${taskId}/applicability-decisions`),
   createManualTask: (projectId, payload) => api(`/api/v2/projects/${projectId}/tasks`, { method: "POST", body: JSON.stringify(payload) }),
   addRunningTask: (projectId, payload) => api(`/api/v2/projects/${projectId}/running-tasks`, { method: "POST", body: JSON.stringify(payload) }),
+  // Reference material added on the project (not the template).
+  addTaskReference: (projectId, taskId, { file, description }) => api(`/api/v2/projects/${projectId}/tasks/${taskId}/reference-files`, { method: "POST", body: referenceForm(file, description) }),
+  addProjectTaskReference: (projectId, projectTaskId, { file, description }) => api(`/api/v2/projects/${projectId}/project-tasks/${projectTaskId}/reference-files`, { method: "POST", body: referenceForm(file, description) }),
+  removeTaskReference: (projectId, referenceId) => api(`/api/v2/projects/${projectId}/task-reference-files/${referenceId}`, { method: "DELETE" }),
   createManualGate: (projectId, payload) => api(`/api/v2/projects/${projectId}/gates`, { method: "POST", body: JSON.stringify(payload) }),
   update: (projectId, payload) => api(`/api/v2/projects/${projectId}`, { method: "PATCH", body: JSON.stringify(payload) }),
   setMembership: (projectId, payload) => api(`/api/v2/projects/${projectId}/memberships`, { method: "POST", body: JSON.stringify(payload) }),

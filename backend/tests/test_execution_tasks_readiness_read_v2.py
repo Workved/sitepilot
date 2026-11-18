@@ -25,7 +25,9 @@ Same SQLite-ATTACHed-schema harness as `test_execution_tasks_read_v2.py`, so
 these assertions prove the response shape, not the migration's constraints.
 """
 
+
 from __future__ import annotations
+from app.execution_models import ProjectTaskReferenceFile  # noqa: E402
 
 import unittest
 import uuid
@@ -141,6 +143,7 @@ class ReadinessReadApiTestCase(unittest.TestCase):
             ProjectBaseline.__table__,
             BaselineTask.__table__,
             Task.__table__,
+            ProjectTaskReferenceFile.__table__,
             ProjectExternalApproval.__table__,
             ProjectExternalApprovalTask.__table__,
             TaskDependency.__table__,

@@ -1274,3 +1274,26 @@ class GateEvidenceSessionAttachment(Base):
     session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.gate_evidence_sessions.id", ondelete="CASCADE"), nullable=False)
     file_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.file_objects.id", ondelete="RESTRICT"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ProjectTaskReferenceFile(Base):
+    """Reference material added on a project rather than its template - to a
+    draft project task (`project_task_id`, plus `task_id` once activated) or
+    straight to a live task (`task_id` only). Never execution evidence."""
+
+    __tablename__ = "project_task_reference_files"
+    __table_args__ = (
+        CheckConstraint("project_task_id is not null or task_id is not null", name="ck_v2_project_task_reference_files_owner"),
+        Index("ix_v2_project_task_reference_files_task", "task_id"),
+        Index("ix_v2_project_task_reference_files_project_task", "project_task_id"),
+        {"schema": V2_SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.projects.id", ondelete="CASCADE"), nullable=False)
+    project_task_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.project_tasks.id", ondelete="CASCADE"))
+    task_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.tasks.id", ondelete="RESTRICT"))
+    file_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.file_objects.id", ondelete="RESTRICT"), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

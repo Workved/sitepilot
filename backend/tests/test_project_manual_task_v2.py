@@ -1,4 +1,5 @@
 from __future__ import annotations
+from app.execution_models import FileObject, ProjectTaskReferenceFile  # noqa: E402
 
 import unittest
 import uuid
@@ -55,6 +56,8 @@ class ProjectManualTaskApiTests(unittest.TestCase):
             V2Project.__table__,
             V2ProjectMembership.__table__,
             V2ProjectTask.__table__,
+            FileObject.__table__,
+            ProjectTaskReferenceFile.__table__,
             V2AuditEvent.__table__,
         ):
             table.create(self.engine)

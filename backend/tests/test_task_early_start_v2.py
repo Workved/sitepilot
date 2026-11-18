@@ -7,7 +7,9 @@ run there proves nothing about this unit. Every project here starts in the
 future, so its tasks are genuinely early.
 """
 
+
 from __future__ import annotations
+from app.execution_models import ProjectTaskReferenceFile  # noqa: E402
 
 import unittest
 import uuid
@@ -118,6 +120,7 @@ class TaskEarlyStartApiTests(unittest.TestCase):
             ProjectBaseline.__table__,
             BaselineTask.__table__,
             Task.__table__,
+            ProjectTaskReferenceFile.__table__,
             ProjectExternalApproval.__table__,
             ProjectExternalApprovalTask.__table__,
             TaskDependency.__table__,

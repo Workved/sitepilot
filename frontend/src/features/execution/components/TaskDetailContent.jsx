@@ -11,6 +11,9 @@ import { TaskProgressForm } from "./TaskProgressForm";
 import { TaskSupportAssignmentPanel } from "./TaskSupportAssignmentPanel";
 import { TaskTerminalSummary } from "./TaskTerminalSummary";
 import { ReferenceMaterial } from "./ReferenceMaterial";
+import { TaskReferenceManager } from "./TaskReferenceManager";
+import { canAddTasks } from "../../projects/components/TaskScope";
+import { projectsApi } from "../../../api/projectsApi";
 import { TaskVendorDelegationForm } from "./TaskVendorDelegationForm";
 
 // This is the single source of truth for what a task's detail looks like and
@@ -431,7 +434,7 @@ function Card({ title, icon: Icon, children, className = "" }) {
 
 // --- Overview: read-only / summary. ---
 
-function OverviewPane({ task, detail, project, candidates, externalApprovals, onDownloadReference }) {
+function OverviewPane({ task, detail, project, candidates, externalApprovals, onDownloadReference, projectId, canManageReferences, onReferencesChanged }) {
   const activeAssignments = (detail.support_assignments || []).filter(a => a.status === "active");
   const nameFor = employeeId => candidates?.find(c => c.employee_id === employeeId)?.name || "Assigned";
   const supervisor = primaryResponsible(project);
@@ -461,7 +464,17 @@ function OverviewPane({ task, detail, project, candidates, externalApprovals, on
         {detail.early_start_reason && <p className="mt-3 flex items-start gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
           <CalendarClock size={13} className="mt-0.5 shrink-0"/> Started early: {detail.early_start_reason}
         </p>}
-        <ReferenceMaterial className="mt-4 border-t border-slate-100 pt-4" instructions={detail.evidence_instructions} files={detail.reference_files} onDownload={onDownloadReference}/>
+        <ReferenceMaterial className="mt-4 border-t border-slate-100 pt-4" instructions={detail.evidence_instructions} files={detail.reference_files} onDownload={onDownloadReference}
+          onRemove={canManageReferences ? async file => {
+            if (!window.confirm(`Remove ${file.filename} from this task?`)) return;
+            try {
+              await projectsApi.removeTaskReference(projectId, file.id);
+              await onReferencesChanged();
+            } catch (caught) {
+              window.alert(caught?.message || "This file could not be removed.");
+            }
+          } : undefined}/>
+        {canManageReferences && <div className="mt-3"><TaskReferenceManager projectId={projectId} taskId={task.id} onChanged={onReferencesChanged}/></div>}
       </Card>
 
       <Card title="Ownership">
@@ -755,7 +768,8 @@ export function TaskDetailContent({ projectId, project, task, user, roles, candi
   return <div className="grid gap-4">
     {error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div>}
 
-    {activeTab === "overview" && <OverviewPane task={task} detail={detail} project={project} candidates={candidates} externalApprovals={externalApprovals} onDownloadReference={file => taskExecutionApi.downloadTaskReference(projectId, task.id, file.id)}/>}
+    {activeTab === "overview" && <OverviewPane task={task} detail={detail} project={project} candidates={candidates} externalApprovals={externalApprovals} onDownloadReference={file => taskExecutionApi.downloadTaskReference(projectId, task.id, file.id)}
+      projectId={projectId} canManageReferences={canAddTasks(user) && !["completed", "cancelled"].includes(detail.lifecycle_status)} onReferencesChanged={load}/>}
 
     {activeTab === "actions" && <ActionFormsPane
       projectId={projectId} project={project} task={task} detail={detail} user={user} roles={roles} candidates={candidates}

@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { projectsApi } from "../../../api/projectsApi";
 import { Button, Field, Input, Modal, Pill, Select, Textarea } from "../../../components/ui";
 import { TaskScopeChoice, templateOutcome } from "./TaskScope";
+import { ReferenceFilePicker, uploadChosenFiles } from "../../../components/ReferenceFilePicker";
 
 const initialForm = { title: "", phase: "", category: "", planned_start_day: "", planned_end_day: "", reason: "", scope: "project" };
 
@@ -17,6 +18,7 @@ export function ProjectManualTaskModal({ projectId, onClose, onCreated, phaseOpt
   const [saving, setSaving] = useState(false);
   // Shown instead of closing when the template step didn't go through.
   const [templateNotice, setTemplateNotice] = useState(null);
+  const [files, setFiles] = useState([]);
   const duration = useMemo(() => {
     const start = Number(form.planned_start_day);
     const end = Number(form.planned_end_day);
@@ -53,9 +55,11 @@ export function ProjectManualTaskModal({ projectId, onClose, onCreated, phaseOpt
         planned_start_day: Number(form.planned_start_day), planned_end_day: Number(form.planned_end_day), reason: form.reason.trim(),
         add_to_template: form.scope === "template",
       });
+      const failed = await uploadChosenFiles(files, item => projectsApi.addProjectTaskReference(projectId, created.task_id, item));
       onCreated?.(created);
       const outcome = templateOutcome(created?.template);
-      if (outcome) setTemplateNotice(outcome);
+      const notices = [outcome, failed.length ? { ok: false, text: `The task was added, but these reference files weren't uploaded: ${failed.join(", ")}.` } : null].filter(Boolean);
+      if (notices.length) setTemplateNotice({ ok: notices.every(n => n.ok), text: notices.map(n => n.text).join(" ") });
       else onClose();
     } catch (error) { setApiError(apiMessage(error)); } finally { setSaving(false); }
   }
@@ -76,6 +80,7 @@ export function ProjectManualTaskModal({ projectId, onClose, onCreated, phaseOpt
       <div className="grid gap-4 sm:grid-cols-2"><Field label="Phase" htmlFor="manual-task-phase" error={errors.phase}><Select id="manual-task-phase" value={form.phase} onChange={e => update("phase", e.target.value)} disabled={saving || !phaseOptions.length}><option value="">{phaseOptions.length ? "Select phase" : "No project phases available"}</option>{phaseOptions.map(option => <option key={option} value={option}>{option}</option>)}</Select></Field><Field label="Category" htmlFor="manual-task-category" error={errors.category}><Select id="manual-task-category" value={form.category} onChange={e => update("category", e.target.value)} disabled={saving || !form.phase || !categoryOptions.length}><option value="">{!form.phase ? "Select phase first" : categoryOptions.length ? "Select category" : "No categories available"}</option>{categoryOptions.map(option => <option key={option} value={option}>{option}</option>)}</Select></Field></div>
       <div className="grid gap-4 sm:grid-cols-2"><Field label="Start day" htmlFor="manual-task-start" error={errors.planned_start_day}><Input id="manual-task-start" type="number" min="1" value={form.planned_start_day} onChange={e => update("planned_start_day", e.target.value)} disabled={saving}/></Field><Field label="End day" htmlFor="manual-task-end" error={errors.planned_end_day} hint={duration ? `${duration} day${duration === 1 ? "" : "s"}` : undefined}><Input id="manual-task-end" type="number" min="1" value={form.planned_end_day} onChange={e => update("planned_end_day", e.target.value)} disabled={saving}/></Field></div>
       <Field label="Reason" htmlFor="manual-task-reason" error={errors.reason}><Textarea id="manual-task-reason" value={form.reason} onChange={e => update("reason", e.target.value)} maxLength={2000} placeholder="Why is this project-specific task required?" disabled={saving}/></Field>
+      <div className="grid gap-2"><span className="text-sm font-bold text-slate-700">Reference material</span><ReferenceFilePicker id="manual-task-reference-files" files={files} onChange={setFiles} disabled={saving}/></div>
       <TaskScopeChoice value={form.scope} onChange={value => update("scope", value)} canTemplate={canTemplate} disabled={saving}/>
       {apiError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{apiError}</div>}
       <div className="grid gap-2 sm:grid-cols-2"><Button type="button" variant="secondary" disabled={saving} onClick={onClose}>Cancel</Button><Button type="submit" loading={saving} disabled={saving}><Plus size={16}/> Add manual task</Button></div>

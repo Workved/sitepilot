@@ -17,7 +17,9 @@ against a real execution task produced by the baseline-lock activation flow
   report's `schedule_revisions`.
 """
 
+
 from __future__ import annotations
+from app.execution_models import ProjectTaskReferenceFile  # noqa: E402
 
 import unittest
 import uuid
@@ -119,6 +121,7 @@ class TaskRescheduleApiTests(unittest.TestCase):
             ProjectBaseline.__table__,
             BaselineTask.__table__,
             Task.__table__,
+            ProjectTaskReferenceFile.__table__,
             ProjectExternalApproval.__table__,
             ProjectExternalApprovalTask.__table__,
             TaskDependency.__table__,
