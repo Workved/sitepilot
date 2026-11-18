@@ -455,6 +455,9 @@ function OverviewPane({ task, detail, project, candidates, externalApprovals, on
 
       <Card title="Instructions">
         <p className="text-sm leading-6 text-slate-600">{detail.description || "No specific instructions added."}</p>
+        {detail.added_after_start && <p className="mt-3 flex items-start gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-800">
+          <CalendarClock size={13} className="mt-0.5 shrink-0"/> Added after the project started{detail.added_by_name ? ` by ${detail.added_by_name}` : ""}{detail.added_reason ? `: ${detail.added_reason}` : ""}
+        </p>}
         {detail.early_start_reason && <p className="mt-3 flex items-start gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
           <CalendarClock size={13} className="mt-0.5 shrink-0"/> Started early: {detail.early_start_reason}
         </p>}

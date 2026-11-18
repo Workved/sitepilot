@@ -149,7 +149,7 @@ describe("Project template review", () => {
     expect((await screen.findAllByTestId("review-task"))[0]).toHaveClass("lg:grid-cols-[76px_minmax(0,1fr)_104px_100px_104px_minmax(220px,auto)]");
   });
 
-  it("gives the assigned PM a read-only view: scope decisions belong to Admin", async () => {
+  it("gives the assigned PM no include/exclude decisions, but lets them add a task", async () => {
     const includedConditional = { ...tasks[2], included: true, decision_state: "included" };
     projectsApi.templateReviewTasks.mockResolvedValue(page([includedConditional]));
     render(<ProjectTemplateReview projectId="p1" user={{ role: "project_manager" }} projectStatus="draft" debounceMs={0}/>);
@@ -157,7 +157,8 @@ describe("Project template review", () => {
     const row = (await screen.findAllByTestId("review-task"))[0];
     expect(within(row).queryByRole("button", { name: "Include" })).not.toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "Exclude" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /add manual task/i })).not.toBeInTheDocument();
+    // The project's own PM can add a task (to this project only).
+    expect(screen.getByRole("button", { name: /add manual task/i })).toBeInTheDocument();
     // They can still see the list and why anything was excluded.
     expect(within(row).getByRole("button", { name: /history/i })).toBeInTheDocument();
   });
@@ -238,7 +239,7 @@ describe("Project template review", () => {
     fireEvent.change(screen.getByLabelText("End day"), { target: { value: "11" } });
     fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Client-specific shutdown window." } });
     fireEvent.click(screen.getByRole("button", { name: /add manual task/i }));
-    await waitFor(() => expect(projectsApi.createManualTask).toHaveBeenCalledWith("p1", { title: "Coordinate weekend shutdown", phase: "Execution", category: "Site setup", planned_start_day: 10, planned_end_day: 11, reason: "Client-specific shutdown window." }));
+    await waitFor(() => expect(projectsApi.createManualTask).toHaveBeenCalledWith("p1", { title: "Coordinate weekend shutdown", phase: "Execution", category: "Site setup", planned_start_day: 10, planned_end_day: 11, reason: "Client-specific shutdown window.", add_to_template: false }));
     await waitFor(() => expect(projectsApi.templateReviewSummary).toHaveBeenCalledTimes(2));
   });
 

@@ -694,6 +694,16 @@ def _render_rescheduled(db: Session, payload: dict, recipient_employee_id: uuid.
     return _message(ctx, "Task Rescheduled", rows, _FYI)
 
 
+def _render_task_added(db: Session, payload: dict, recipient_employee_id: uuid.UUID | None) -> TelegramMessage:
+    ctx = _Ctx(db, payload, recipient_employee_id)
+    rows = ctx.rows(
+        ("Planned", f"{_date(payload.get('planned_start_date'))} -> {_date(payload.get('planned_end_date'))}"),
+        ("Added by", _user_name(db, payload.get("added_by"))),
+        ("Reason", payload.get("reason") or "Not given"),
+    )
+    return _message(ctx, "New Task Added", rows, _FYI)
+
+
 # ---- daily prompts and follow-ups ----------------------------------------------
 
 
@@ -834,6 +844,7 @@ TASK_RENDERERS: dict[str, Callable[[Session, dict, uuid.UUID | None], TelegramMe
     "task.blocker_resolved": _render_blocker_resolved,
     "task.delay_recorded": _render_delay_recorded,
     "task.rescheduled": _render_rescheduled,
+    "task.added": _render_task_added,
     "task.prestart_warning": _render_prestart_warning,
     "task.readiness_check": _render_readiness_check,
     "task.start_check": _render_start_check,

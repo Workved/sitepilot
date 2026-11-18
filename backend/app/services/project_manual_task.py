@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.models import EmployeeProfile, User
 from app.project_models import V2AuditEvent, V2Project, V2ProjectMembership, V2ProjectTask
 from app.schemas.project_manual_task import ProjectManualTaskCreateIn, ProjectManualTaskCreateOut
-from app.services.access_control import is_org_admin
+from app.services.project_task_addition import TemplateTaskPromotion, require_task_adder, require_template_adder
 from app.template_models import V2TemplateVersion
 
 
@@ -27,11 +27,9 @@ class ProjectManualTaskService:
         )
         if not project:
             raise HTTPException(404, "Project not found.")
-        # Adding a task changes what is in scope, so it sits with the same
-        # authority that decides applicability: Admin. The assigned PM keeps
-        # read access to the task list, they just cannot extend it.
-        if not is_org_admin(actor):
-            raise HTTPException(403, "Only Admin can add project tasks.")
+        # Admin, or the project's own PM / Supervisor (the same rule as
+        # adding a task once the project is running).
+        require_task_adder(self.db, project, actor)
         if project.status != "draft":
             raise HTTPException(409, "Project-specific tasks can only be added while the project is Draft.")
         if not project.template_version_id:
@@ -63,6 +61,10 @@ class ProjectManualTaskService:
     ) -> ProjectManualTaskCreateOut:
         try:
             project = self._require_draft_access(project_id, actor)
+            promotion = TemplateTaskPromotion(self.db)
+            if payload.add_to_template:
+                require_template_adder(actor)
+                promotion.check(project, payload.planned_start_day, payload.planned_end_day)
             template_duration = self.db.scalar(
                 select(V2TemplateVersion.duration_days).where(
                     V2TemplateVersion.id == project.template_version_id
@@ -99,6 +101,7 @@ class ProjectManualTaskService:
                 lifecycle_status="draft",
                 included=True,
                 decision_state="included",
+                added_by=actor.id,
             )
             self.db.add(task)
             self.db.flush()
@@ -135,6 +138,12 @@ class ProjectManualTaskService:
             self.db.rollback()
             raise
 
+        template_result = None
+        if payload.add_to_template:
+            template_result = promotion.add(
+                actor, project, title=task.title, description=None, phase=task.phase, category=task.category,
+                start_day=task.planned_start_day, end_day=task.planned_end_day, evidence_required=False, reason=payload.reason,
+            )
         return ProjectManualTaskCreateOut(
             project_id=project.id,
             task_id=task.id,
@@ -151,4 +160,5 @@ class ProjectManualTaskService:
             included=task.included,
             decision_state=task.decision_state,
             audit_event_id=audit.id,
+            template=template_result,
         )
