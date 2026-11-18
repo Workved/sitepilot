@@ -180,6 +180,10 @@ class ProjectBaselineService:
             project_task_id: task_by_baseline_task_id[baseline_task.id]
             for project_task_id, baseline_task in baseline_task_by_project_task_id.items()
         }
+        # Reference files added to draft tasks follow them onto the live tasks.
+        from app.services.project_task_references import link_draft_files_to_live_tasks
+
+        link_draft_files_to_live_tasks(self.db, task_by_project_task_id)
 
         for dependency in included_dependencies:
             predecessor = task_by_project_task_id.get(dependency.predecessor_project_task_id)

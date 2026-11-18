@@ -10,7 +10,9 @@ test_task_progress_evidence_v2.py: every template task in both is authored
 and a green run there proves nothing about this unit.
 """
 
+
 from __future__ import annotations
+from app.execution_models import ProjectTaskReferenceFile  # noqa: E402
 
 import unittest
 import uuid
@@ -128,6 +130,7 @@ class TaskEvidenceRequiredApiTests(unittest.TestCase):
             ProjectBaseline.__table__,
             BaselineTask.__table__,
             Task.__table__,
+            ProjectTaskReferenceFile.__table__,
             ProjectExternalApproval.__table__,
             ProjectExternalApprovalTask.__table__,
             TaskDependency.__table__,

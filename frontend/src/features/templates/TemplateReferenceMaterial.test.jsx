@@ -80,13 +80,35 @@ describe("task reference material", () => {
     expect(templatesApi.addReferenceFile).not.toHaveBeenCalled();
   });
 
-  it("asks to save a new task before adding files", async () => {
+  it("attaches files while creating a task and uploads them as part of Save", async () => {
+    const created = { ...task, id: "task-2", code: "T002", title: "Ceiling grid", reference_files: [] };
+    templatesApi.createTask.mockResolvedValue({ task: created, revision_token: "rev-2" });
     view();
     await screen.findByTestId("draft-task-T001");
     fireEvent.click(screen.getByRole("button", { name: /add task/i }));
     const dialog = screen.getByRole("dialog", { name: /add task/i });
-    expect(within(dialog).getByText(/save the task first/i)).toBeInTheDocument();
-    expect(within(dialog).queryByLabelText("Reference file")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/save the task first/i)).not.toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Task name"), { target: { value: "Ceiling grid" } });
+    fireEvent.change(within(dialog).getByLabelText("Starts on day"), { target: { value: "3" } });
+    fireEvent.change(within(dialog).getByLabelText("Ends on day"), { target: { value: "4" } });
+    fireEvent.change(within(dialog).getByLabelText(/attach reference files/i), { target: { files: [pdf("grid-layout.pdf")] } });
+    fireEvent.change(within(dialog).getByLabelText("Note for grid-layout.pdf"), { target: { value: "Approved layout" } });
+    const buttons = within(dialog).getAllByRole("button", { name: /^add task$/i });
+    fireEvent.click(buttons[buttons.length - 1]);
+    await waitFor(() => expect(templatesApi.createTask).toHaveBeenCalled());
+    // Uploaded to the new task, with the revision the create returned.
+    await waitFor(() => expect(templatesApi.addReferenceFile).toHaveBeenCalledWith("draft-1", "tasks", "task-2",
+      expect.objectContaining({ description: "Approved layout", revisionToken: "rev-2" })));
+  });
+
+  it("won't take an unsupported file in the new-task picker", async () => {
+    view();
+    await screen.findByTestId("draft-task-T001");
+    fireEvent.click(screen.getByRole("button", { name: /add task/i }));
+    const dialog = screen.getByRole("dialog", { name: /add task/i });
+    fireEvent.change(within(dialog).getByLabelText(/attach reference files/i), { target: { files: [new File(["x"], "tool.exe")] } });
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/tool.exe: Reference files must be PDF/);
+    expect(within(dialog).queryByLabelText("Note for tool.exe")).not.toBeInTheDocument();
   });
 });
 

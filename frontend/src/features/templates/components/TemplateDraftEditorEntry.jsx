@@ -5,6 +5,7 @@ import { Alert, Button, EmptyState, LoadingSpinner, Modal, Pill } from "../../..
 import { formatTemplateDate, statusTone } from "./TemplateCard";
 import { formatPlannedDays } from "./TemplateTaskCard";
 import { TemplateTaskEditorModal } from "./TemplateTaskEditorModal";
+import { uploadChosenFiles } from "../../../components/ReferenceFilePicker";
 import { TemplateDependencyEditorModal } from "./TemplateDependencyEditorModal";
 import { dependencyTypeLabel } from "./TemplateDependencyCard";
 import { TemplateGateEditorModal } from "./TemplateGateEditorModal";
@@ -249,7 +250,7 @@ export function TemplateDraftEditorEntry({ summary: initialSummary, user, onBack
   // saved closes the dialog (its link list would be stale) and is reported on
   // the page; when nothing was saved, the error stays in the dialog.
   async function saveTask(payload,task,links={}) {
-    const { taskChanged=true, addPredecessorIds=[], removeDependencyIds=[] }=links;
+    const { taskChanged=true, addPredecessorIds=[], removeDependencyIds=[], pendingFiles=[] }=links;
     let token=summary.revision_token, saved=task, taskSaved=false, linkSaved=false, linkFailure=null;
     if(taskChanged){
       const response=task ? await templatesApi.updateTask(summary.version_id,task.id,payload) : await templatesApi.createTask(summary.version_id,payload);
@@ -278,6 +279,19 @@ export function TemplateDraftEditorEntry({ summary: initialSummary, user, onBack
         : `Some changes were saved, but not all "can't start until" links were: ${linkErrorCopy(error)}`};
     } finally {
       setSummary(current=>({...current,revision_token:token}));
+    }
+    // Reference files chosen while creating the task, uploaded as part of the
+    // same Save. Each upload is a draft change, so the token is chained.
+    if(saved&&pendingFiles.length){
+      const failed=await uploadChosenFiles(pendingFiles, async item=>{
+        const response=await templatesApi.addReferenceFile(summary.version_id,"tasks",saved.id,{file:item.file,description:item.description.trim(),revisionToken:token});
+        token=response.revision_token;
+      });
+      setSummary(current=>({...current,revision_token:token}));
+      if(failed.length){
+        const message=`The task was saved, but these reference files weren't uploaded: ${failed.join(", ")}. Open the task to add them again.`;
+        linkFailure=linkFailure?{message:`${linkFailure.message} ${message}`}:{message};
+      }
     }
     setEditorOpen(false);setFormDirty(false);
     await refresh();

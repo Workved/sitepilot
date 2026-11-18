@@ -19,6 +19,9 @@ class TemplateReferenceFileItem(BaseModel):
     size_bytes: int
     description: str | None
     created_at: datetime | None = None
+    # "template" (copied from the template, can't be removed on a project)
+    # or "project" (added on this project).
+    source: str = "template"
 
 
 class TemplateReferenceFileMutationResponse(BaseModel):

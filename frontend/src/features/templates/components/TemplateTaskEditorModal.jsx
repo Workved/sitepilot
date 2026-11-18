@@ -4,6 +4,7 @@ import { Alert, Button, Field, Input, Modal, Select, Textarea } from "../../../c
 import { APPROVED_CATEGORIES, APPROVED_PHASES, LEGACY_PHASES, TASK_CLASS_OPTIONS, TASK_KIND_LABELS } from "./templateAuthoringOptions";
 import { TemplateChoiceGroup, TemplateEditorSection as Section } from "./TemplateChoiceGroup";
 import { TemplateReferenceFiles } from "./TemplateReferenceFiles";
+import { ReferenceFilePicker } from "../../../components/ReferenceFilePicker";
 
 const emptyTask = { code:"", sequence_no:"", title:"", description:"", schedule_classification:"execution", planned_start_day:"", planned_end_day:"", phase:"", category:"", applicability:"mandatory", task_class:"", task_kind:"", evidence_required:false, evidence_instructions:"", duration_days:"" };
 const asForm = (task, nextSequence, suggestedCode) => task ? Object.fromEntries(Object.keys(emptyTask).map(key => [key, task[key] ?? (key === "evidence_required" ? false : "")])) : { ...emptyTask, sequence_no:nextSequence ?? "", code:suggestedCode ?? "" };
@@ -54,6 +55,8 @@ export function TemplateTaskEditorModal({ task, tasks=[], dependencies=[], versi
   const ownLinks=useMemo(()=>task?dependencies.filter(dependency=>dependency.successor?.id===task.id):[],[dependencies,task]);
   const savedWaitFor=useMemo(()=>ownLinks.filter(isSimpleLink).map(dependency=>dependency.predecessor.id),[ownLinks]);
   const [waitFor,setWaitFor]=useState(savedWaitFor);
+  // New task only: files chosen now, uploaded right after the task is created.
+  const [pendingFiles,setPendingFiles]=useState([]);
   const blocked=useMemo(()=>task?tasksWaitingOn(task.id,dependencies):new Set(),[dependencies,task]);
   const linksChanged=[...waitFor].sort().join("|")!==[...savedWaitFor].sort().join("|");
   const dirty=taskChanged||linksChanged;
@@ -79,6 +82,7 @@ export function TemplateTaskEditorModal({ task, tasks=[], dependencies=[], versi
       taskChanged:!task||taskChanged,
       addPredecessorIds:waitFor.filter(id=>!savedWaitFor.includes(id)),
       removeDependencyIds:ownLinks.filter(dependency=>isSimpleLink(dependency)&&!waitFor.includes(dependency.predecessor.id)).map(dependency=>dependency.id),
+      pendingFiles:task?[]:pendingFiles,
     };
   }
   async function submit(event){event.preventDefault();if(saving)return;if(task&&!dirty){onClose();return;}if(!validate())return;setSaving(true);setRequestError("");const duration=preActivation?(form.duration_days===""?null:Number(form.duration_days)):Number(derivedDuration(form));try{await onSaved({code:form.code.trim(),sequence_no:Number(form.sequence_no),title:form.title.trim(),description:optional(form.description),schedule_classification:form.schedule_classification,planned_start_day:preActivation?null:Number(form.planned_start_day),planned_end_day:preActivation?null:Number(form.planned_end_day),phase:optional(form.phase),category:optional(form.category),applicability:form.applicability,task_class:nonWork?null:optional(form.task_class),task_kind:optional(form.task_kind),evidence_required:Boolean(form.evidence_required),evidence_instructions:optional(form.evidence_instructions),duration_days:Number.isInteger(duration)?duration:null,revision_token:revisionToken},task,linkChanges())}catch(error){setRequestError(errorCopy(error));setSaving(false)}}
@@ -113,7 +117,7 @@ export function TemplateTaskEditorModal({ task, tasks=[], dependencies=[], versi
     <Section title="Reference material">
       {task
         ? <TemplateReferenceFiles versionId={versionId} kind="tasks" ownerId={task.id} files={task.reference_files} revisionToken={revisionToken} onChanged={onReferencesChanged}/>
-        : <p className="text-sm font-semibold text-slate-500">Save the task first, then add reference files such as an approved spec.</p>}
+        : <ReferenceFilePicker id="template-task-reference-files" files={pendingFiles} onChange={setPendingFiles} disabled={saving}/>}
     </Section>
     <Section title="Can't start until">
       <WaitsForSection task={task} tasks={tasks} waitFor={waitFor} advancedLinks={ownLinks.filter(dependency=>!isSimpleLink(dependency))} blocked={blocked}

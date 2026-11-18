@@ -22,6 +22,8 @@ class ProjectTemplateReviewTaskOut(BaseModel):
     included: bool
     source: str
     decision_state: str
+    # Files added on this project (template files aren't listed here).
+    reference_files: list[dict] = []
 
 
 class ProjectTemplateReviewTaskPage(BaseModel):

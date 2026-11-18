@@ -81,6 +81,15 @@ class ProjectTemplateReviewService:
                 # breaking the complete project review page.
                 continue
 
+        from app.services.project_task_references import project_files_by_project_task
+
+        added = project_files_by_project_task(self.db, [item.id for item in items])
+        for item in items:
+            item.reference_files = [
+                {**ref, "id": str(ref["id"]), "file_id": str(ref["file_id"]), "created_at": ref["created_at"].isoformat() if ref["created_at"] else None}
+                for ref in added.get(item.id, [])
+            ]
+
         return ProjectTemplateReviewTaskPage(
             project_id=project_id,
             items=items,

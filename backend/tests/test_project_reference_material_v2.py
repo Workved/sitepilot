@@ -2,7 +2,9 @@
 show the reference material and "what proof is needed?" instructions of the
 template version the project is pinned to, downloadable only by people who
 can open that project. Runs the real create -> generate -> activate flow."""
+
 from __future__ import annotations
+from app.execution_models import ProjectTaskReferenceFile  # noqa: E402
 
 import unittest
 import uuid
@@ -108,7 +110,7 @@ class ProjectReferenceMaterialTests(unittest.TestCase):
             V2TemplateGateReferenceFile.__table__, V2Project.__table__, V2ProjectMembership.__table__,
             V2ProjectTask.__table__, V2ProjectTaskDependency.__table__, V2ProjectExternalGate.__table__,
             V2ProjectExternalGateTask.__table__, V2ProjectExternalGateApplicabilityDecision.__table__,
-            V2AuditEvent.__table__, ProjectBaseline.__table__, BaselineTask.__table__, Task.__table__,
+            V2AuditEvent.__table__, ProjectBaseline.__table__, BaselineTask.__table__, Task.__table__, ProjectTaskReferenceFile.__table__,
             ProjectExternalApproval.__table__, ProjectExternalApprovalTask.__table__,
             ProjectExternalApprovalSubmission.__table__, ProjectExternalApprovalEvidence.__table__,
             TaskDependency.__table__, TaskSupportAssignment.__table__, TaskProgressUpdate.__table__,
