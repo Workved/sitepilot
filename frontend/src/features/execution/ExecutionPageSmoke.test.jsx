@@ -82,8 +82,9 @@ describe("ExecutionPage smoke - realistic mixed task shapes render without throw
     // reachable somewhere on screen (grid or checklist), nothing silently
     // dropped or thrown away rendering.
     fireEvent.click(screen.getByRole("button", { name: /pre-activation checklist/i }));
+    // A task's name shows in the table and inside its bar.
     for (const fixture of tasks) {
-      expect(screen.getByText(new RegExp(fixture.title))).toBeInTheDocument();
+      expect(screen.getAllByText(new RegExp(fixture.title)).length).toBeGreaterThan(0);
     }
     fireEvent.click(screen.getByText("Site mobilisation"));
     expect(await screen.findByText("Smoke-test task detail.")).toBeInTheDocument();

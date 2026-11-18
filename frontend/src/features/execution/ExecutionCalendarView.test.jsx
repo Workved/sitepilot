@@ -3,291 +3,205 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { projectsApi } from "../../api/projectsApi";
 import { taskExecutionApi } from "../../api/taskExecutionApi";
 import { ExecutionCalendarView } from "./components/ExecutionCalendarView";
+import { dayEvents, ganttSpan, groupByPhase, monthGrid, taskState, ticks } from "./components/calendar/calendarModel";
+import { toGanttData } from "./components/calendar/ProjectGantt";
+import { toPortfolioData } from "./components/calendar/PortfolioTimeline";
+import { toCalendarEvents } from "./components/calendar/MonthCalendar";
 
-vi.mock("../../api/projectsApi", () => ({ projectsApi: { detail: vi.fn() } }));
+vi.mock("../../api/projectsApi", () => ({ projectsApi: { detail: vi.fn(), timeline: vi.fn() } }));
 vi.mock("../../api/taskExecutionApi", () => ({ taskExecutionApi: { list: vi.fn(), detail: vi.fn(), listExternalApprovals: vi.fn() } }));
 
 const admin = { id: "u-adm", role: "admin" };
-
+const day = iso => new Date(`${iso}T00:00:00Z`);
 const todayIso = new Date().toISOString().slice(0, 10);
+const shift = (iso, n) => new Date(day(iso).getTime() + n * 86400000).toISOString().slice(0, 10);
 
-// Dated by default - the grid is the calendar's primary surface, and the
-// Pre-Activation Checklist (undated tasks) is now collapsed by default, so
-// tests that aren't specifically about the checklist should exercise the
-// grid. Tests that need an undated task override planned_start_date/
-// planned_end_date back to null explicitly.
 const task = (overrides = {}) => ({
-  id: "t1", project_id: "p1", baseline_id: "b1", original_code: "T001", template_sequence: 1,
-  title: "Pour slab", task_kind: "work", task_class: "standard", lifecycle_status: "planned",
-  schedule_classification: "execution", planned_start_day: 1, planned_end_day: 1,
-  planned_start_date: todayIso, planned_end_date: todayIso, phase: "Civil", category: "Structure",
-  evidence_required: false, open_blocker_count: 0, active_support_count: 0,
-  readiness: { state: "ready", reasons: [], advisories: [] },
-  variance: null,
-  created_at: "2026-08-01T00:00:00Z", updated_at: "2026-08-01T00:00:00Z",
+  id: "t1", project_id: "p1", original_code: "T001", template_sequence: 1, title: "Pour slab",
+  task_kind: "work", task_class: "standard", lifecycle_status: "planned", schedule_classification: "execution",
+  planned_start_date: todayIso, planned_end_date: shift(todayIso, 2), phase: "Civil", category: "Structure",
+  open_blocker_count: 0, readiness: { state: "ready", reasons: [], advisories: [] }, variance: null,
+  predecessor_ids: [], vendor_name: null, added_after_start: false,
   ...overrides,
 });
 
+const tasks = [
+  task(),
+  task({ id: "t2", original_code: "T002", title: "Wiring", phase: "Electrical", lifecycle_status: "in_progress", actual_start_at: `${shift(todayIso, -3)}T09:00:00Z`, planned_start_date: shift(todayIso, -5), planned_end_date: shift(todayIso, -2), variance: { status: "late", variance_days: 2, days: 2 }, vendor_name: "Bright Electricals" }),
+  task({ id: "t3", original_code: "T003", title: "Ceiling grid", phase: "Electrical", predecessor_ids: ["t2"], planned_start_date: shift(todayIso, 120), planned_end_date: shift(todayIso, 125) }),
+  task({ id: "t4", original_code: "P001", title: "Site survey", phase: null, planned_start_date: null, planned_end_date: null, schedule_classification: "pre_activation" }),
+];
+
 beforeEach(() => {
   vi.clearAllMocks();
-  projectsApi.detail.mockResolvedValue({ id: "p1", memberships: [] });
+  try { window.localStorage.clear(); } catch { /* ignore */ }
+  projectsApi.detail.mockResolvedValue({ id: "p1", memberships: [], start_date: shift(todayIso, -10), target_handover_date: shift(todayIso, 30) });
+  taskExecutionApi.list.mockResolvedValue(tasks);
   taskExecutionApi.listExternalApprovals.mockResolvedValue([]);
 });
 
-// U19's invariant, carried forward from the old flat board: the summary
-// tiles and the rows on screen must count the same set of tasks.
+describe("calendar model", () => {
+  const today = day("2026-11-18");
+
+  it("names each task's state, with days late from the variance", () => {
+    expect(taskState(task({ lifecycle_status: "completed" }), today).label).toBe("Completed");
+    expect(taskState(task({ readiness: { state: "blocked" } }), today)).toMatchObject({ tone: "blocked", label: "Blocked", blocked: true });
+    expect(taskState(task({ lifecycle_status: "in_progress", variance: { status: "late", variance_days: 3 } }), today)).toMatchObject({ label: "In progress", late: 3 });
+    expect(taskState(task({ lifecycle_status: "submitted" }), today).label).toBe("Needs review");
+  });
+
+  it("spans the tasks, today and the project dates with padding", () => {
+    const span = ganttSpan([task({ planned_start_date: "2026-11-20", planned_end_date: "2026-11-22" })], today, { start_date: "2026-11-01", target_handover_date: "2026-12-15" });
+    expect(span.start.toISOString().slice(0, 10)).toBe("2026-10-29");
+    expect(span.end.toISOString().slice(0, 10)).toBe("2026-12-22");
+  });
+
+  it("labels Mondays at week zoom and months at month zoom", () => {
+    const span = { start: day("2026-11-16"), days: 20 };
+    expect(ticks(span, "week").map(t => t.label)).toEqual(["16 Nov", "23 Nov", "30 Nov"]);
+    expect(ticks(span, "month").map(t => t.label)).toEqual(["Nov 2026", "Dec 2026"]);
+    // A span starting late in a month doesn't label that month (it would
+    // overlap the next one).
+    expect(ticks({ start: day("2026-10-27"), days: 40 }, "month").map(t => t.label)).toEqual(["Nov 2026", "Dec 2026"]);
+  });
+
+  it("groups by phase with a percent done", () => {
+    const groups = groupByPhase([task({ phase: "A", lifecycle_status: "completed" }), task({ id: "x", phase: "A" }), task({ id: "y", phase: "B" })]);
+    expect(groups.map(g => [g.phase, g.tasks.length, g.pct])).toEqual([["A", 2, 50], ["B", 1, 0]]);
+  });
+
+  it("lists starts, dues, finishes and (today only) late work for a day", () => {
+    const list = [
+      task({ id: "a", title: "Starts", planned_start_date: "2026-11-18", planned_end_date: "2026-11-20" }),
+      task({ id: "b", title: "Due", planned_start_date: "2026-11-10", planned_end_date: "2026-11-18" }),
+      task({ id: "c", title: "Late", lifecycle_status: "in_progress", planned_start_date: "2026-11-01", planned_end_date: "2026-11-10", variance: { status: "late", variance_days: 8 } }),
+    ];
+    expect(dayEvents(list, today, today, [{ date: "2026-11-18", label: "Handover" }]).map(e => e.kind)).toEqual(["late", "due", "start", "milestone"]);
+    expect(monthGrid(today)[0].toISOString().slice(0, 10)).toBe("2026-10-26");
+  });
+});
+
+describe("library data", () => {
+  const today = new Date(2026, 10, 18);
+
+  it("turns tasks into SVAR rows: key dates, phase summaries, task bars and links", () => {
+    const { rows, links } = toGanttData(tasks, today);
+    expect(rows.some(r => r.isKey)).toBe(false);
+    expect(rows.filter(r => r.isPhase).map(r => [r.text, r.count])).toEqual([["Civil", 1], ["Electrical", 2]]);
+    const wiring = rows.find(r => r.id === "t2");
+    expect(wiring).toMatchObject({ parent: "phase:Electrical", tone: "active", late: 2, code: "T002" });
+    // Exclusive end: a task planned to the 3rd ends at the start of the 4th.
+    expect(wiring.end - wiring.start).toBe(4 * 86400000);
+    expect(links).toEqual([{ id: "t2>t3", source: "t2", target: "t3", type: "e2s" }]);
+    expect(rows.find(r => r.id === "t4")).toBeUndefined();
+  });
+
+  it("turns projects into portfolio rows with the late share and approval milestones", () => {
+    const rows = toPortfolioData([{ project_id: "p1", name: "HQ", status: "active", start_date: "2026-11-01", target_handover_date: "2026-11-30", forecast_finish_date: "2026-12-10", progress_pct: 40, days_late: 10, health: "delayed", approvals: [{ name: "Fire NOC", due_date: "2026-11-20", status: "assigned" }] }], today);
+    const project = rows.find(r => r.id === "p1");
+    expect(project.end.getDate()).toBe(11);
+    expect(project.lateShare).toBe(25);
+    expect(rows.find(r => r.isApproval)).toMatchObject({ parent: "p1", text: "Fire NOC" });
+  });
+
+  it("turns tasks into calendar events coloured by state, plus milestones", () => {
+    const events = toCalendarEvents(tasks, { start_date: "2026-11-01", target_handover_date: "2026-12-20" }, today);
+    expect(events.find(e => e.id === "t2")).toMatchObject({ title: "Wiring · 2d late", backgroundColor: "#fff1f2", borderColor: "#f43f5e" });
+    expect(events.find(e => e.id === "t1").borderColor).toBe("#94a3b8");
+    expect(events.filter(e => String(e.id).startsWith("key:")).map(e => e.title)).toEqual(["⚑ Project start", "⚑ Handover"]);
+  });
+});
+
 describe("ExecutionCalendarView", () => {
-  it("counts tasks into the 6 summary tiles from the same array it renders", async () => {
-    taskExecutionApi.list.mockResolvedValue([
-      task({ id: "t1", lifecycle_status: "ready", readiness: { state: "ready", reasons: [], advisories: [] } }),
-      task({ id: "t2", lifecycle_status: "in_progress", readiness: { state: "in_progress", reasons: [], advisories: [] } }),
-      task({ id: "t3", lifecycle_status: "planned", readiness: { state: "blocked", reasons: [], advisories: [] } }),
-      task({ id: "t4", lifecycle_status: "completed", readiness: { state: "completed", reasons: [], advisories: [] } }),
+  it("shows the Gantt by default with phases, key dates, late work and links", async () => {
+    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
+    const wiring = await screen.findByTestId("gantt-row-T002");
+    expect(screen.getByRole("tab", { name: /gantt/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("gantt-row-phase:Electrical")).toHaveTextContent("2 tasks");
+    expect(screen.queryByTestId("gantt-row-key:today")).toBeNull();
+    expect(screen.getByText(/Today ·/)).toBeInTheDocument();
+    expect(within(wiring).getByText("In progress · 2d late")).toBeInTheDocument();
+    expect(within(wiring).getByText("+2d")).toBeInTheDocument();
+    expect(screen.getByTestId("gantt-stub")).toHaveAttribute("data-links", "1");
+  });
+
+  it("puts undated tasks in a collapsed pre-activation checklist", async () => {
+    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
+    const toggle = await screen.findByRole("button", { name: /pre-activation checklist/i });
+    expect(screen.queryByText("Site survey")).toBeNull();
+    fireEvent.click(toggle);
+    expect(screen.getByText("Site survey")).toBeInTheDocument();
+  });
+
+  it("filters by search, status chip and vendor, and resets", async () => {
+    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
+    await screen.findByTestId("gantt-row-T001");
+    fireEvent.change(screen.getByPlaceholderText(/search code/i), { target: { value: "wiring" } });
+    expect(screen.queryByTestId("gantt-row-T001")).toBeNull();
+    expect(screen.getByTestId("gantt-row-T002")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /reset/i }));
+    fireEvent.click(within(screen.getByRole("group", { name: /execution summary/i })).getByRole("button", { name: /delayed/i }));
+    expect(screen.queryByTestId("gantt-row-T001")).toBeNull();
+    expect(screen.getByTestId("gantt-row-T002")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /reset/i }));
+    fireEvent.change(screen.getByLabelText("Vendor"), { target: { value: "Bright Electricals" } });
+    expect(screen.queryByTestId("gantt-row-T001")).toBeNull();
+  });
+
+  it("opens the task drawer when a task is clicked, but not for a phase", async () => {
+    taskExecutionApi.detail.mockResolvedValue({ ...tasks[0], audit_trail: [], predecessors: [], progress_updates: [], blockers: [], delays: [], support_assignments: [], verifications: [], approvals: [] });
+    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
+    fireEvent.click(await screen.findByTestId("gantt-row-phase:Civil"));
+    expect(taskExecutionApi.detail).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("gantt-row-T001"));
+    await waitFor(() => expect(taskExecutionApi.detail).toHaveBeenCalledWith("p1", "t1"));
+  });
+
+  it("offers Day to Year zoom, Week by default", async () => {
+    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
+    await screen.findByTestId("gantt-row-T001");
+    const zoom = screen.getByRole("group", { name: "Zoom" });
+    expect(within(zoom).getAllByRole("button").map(b => b.textContent)).toEqual(["Day", "Week", "Month", "Quarter", "Year"]);
+    expect(within(zoom).getByRole("button", { name: "Week" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("switches to the month calendar and opens a task from it", async () => {
+    taskExecutionApi.detail.mockResolvedValue({ ...tasks[0], audit_trail: [], predecessors: [], progress_updates: [], blockers: [], delays: [], support_assignments: [], verifications: [], approvals: [] });
+    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
+    await screen.findByTestId("gantt-row-T001");
+    fireEvent.click(screen.getByRole("tab", { name: /month/i }));
+    expect(await screen.findByRole("button", { name: "Wiring · 2d late" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "⚑ Handover" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /today/i, hidden: false })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Pour slab" }));
+    await waitFor(() => expect(taskExecutionApi.detail).toHaveBeenCalledWith("p1", "t1"));
+  });
+
+  it("shows the portfolio and opens a running project's Gantt", async () => {
+    projectsApi.timeline.mockResolvedValue([
+      { project_id: "p1", code: "PRJ-1", name: "Head Office", status: "active", start_date: shift(todayIso, -10), target_handover_date: shift(todayIso, 30), forecast_finish_date: shift(todayIso, 40), pm_name: "Piyush", progress_pct: 40, completed_count: 2, task_count: 5, days_late: 10, health: "delayed", approvals: [{ name: "Fire NOC", due_date: shift(todayIso, 5), status: "assigned", overdue: false }] },
+      { project_id: "p2", code: "PRJ-2", name: "Lobby", status: "draft", start_date: shift(todayIso, 20), target_handover_date: shift(todayIso, 60), forecast_finish_date: null, pm_name: null, progress_pct: 0, completed_count: 0, task_count: 0, days_late: 0, health: "on_track", approvals: [] },
     ]);
-    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-    const group = await screen.findByRole("group", { name: /execution summary/i });
-    expect(within(group).getByText("4")).toBeInTheDocument(); // Total
-    expect(within(group).getAllByText("1").length).toBeGreaterThanOrEqual(3); // ready/in progress/blocked each 1
+    const onSelectProject = vi.fn();
+    render(<ExecutionCalendarView projectId="p1" user={admin} onSelectProject={onSelectProject}/>);
+    await screen.findByTestId("gantt-row-T001");
+    fireEvent.click(screen.getByRole("tab", { name: /portfolio/i }));
+    const row = await screen.findByTestId("gantt-row-p1");
+    expect(within(row).getByText("10d late")).toBeInTheDocument();
+    expect(within(row).getByText("Head Office · 40%")).toBeInTheDocument();
+    expect(screen.getByText("1 delayed")).toBeInTheDocument();
+    expect(within(screen.getByTestId("gantt-row-p2")).getByText("Lobby · not started")).toBeInTheDocument();
+    expect(screen.getByTestId("gantt-row-p1:a0")).toHaveTextContent("Fire NOC");
+    fireEvent.click(screen.getByTestId("gantt-row-p2"));
+    expect(onSelectProject).not.toHaveBeenCalled();
+    fireEvent.click(row);
+    expect(onSelectProject).toHaveBeenCalledWith("p1");
+    expect(screen.getByRole("tab", { name: /gantt/i })).toHaveAttribute("aria-selected", "true");
   });
 
-  it("narrows the list by the status filter", async () => {
-    taskExecutionApi.list.mockResolvedValue([
-      task({ id: "t1", title: "Pour slab", readiness: { state: "blocked", reasons: [], advisories: [] } }),
-      task({ id: "t2", title: "Fit ceiling", readiness: { state: "ready", reasons: [], advisories: [] } }),
-    ]);
-    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-    await screen.findByText("Pour slab");
-    fireEvent.change(screen.getByLabelText(/filter by status/i), { target: { value: "blocked" } });
-    await waitFor(() => expect(screen.queryByText("Fit ceiling")).not.toBeInTheDocument());
-    expect(screen.getByText("Pour slab")).toBeInTheDocument();
-  });
-
-  it("narrows the list by search", async () => {
-    taskExecutionApi.list.mockResolvedValue([
-      task({ id: "t1", title: "Pour slab" }),
-      task({ id: "t2", title: "Fit ceiling" }),
-    ]);
-    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-    await screen.findByText("Pour slab");
-    fireEvent.change(screen.getByPlaceholderText(/search task code/i), { target: { value: "ceiling" } });
-    await waitFor(() => expect(screen.queryByText("Pour slab")).not.toBeInTheDocument());
-    expect(screen.getByText("Fit ceiling")).toBeInTheDocument();
-  });
-
-  it("opens the task detail drawer when a task is clicked, and closes it", async () => {
-    taskExecutionApi.list.mockResolvedValue([task({ title: "Pour slab" })]);
-    taskExecutionApi.detail.mockResolvedValue({
-      ...task({ title: "Pour slab" }), description: "Structural slab pour.",
-      predecessors: [], progress_updates: [], verifications: [], approvals: [],
-      blockers: [], delays: [], support_assignments: [], audit_events: [],
-    });
-    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-    fireEvent.click(await screen.findByText("Pour slab"));
-    expect(await screen.findByText("Structural slab pour.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /close task detail/i }));
-    await waitFor(() => expect(screen.queryByText("Structural slab pour.")).not.toBeInTheDocument());
-  });
-
-  it("renders dated tasks on the day-grid with a today marker", async () => {
-    const todayIso = new Date().toISOString().slice(0, 10);
-    taskExecutionApi.list.mockResolvedValue([task({ title: "Pour slab", planned_start_date: todayIso, planned_end_date: todayIso })]);
-    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-    expect(await screen.findByLabelText("Today")).toBeInTheDocument();
-    expect(screen.getByText(/Pour slab/)).toBeInTheDocument();
-  });
-
-  // Regression: a task dated only by its actuals (no planned_start_date) is
-  // "dated" by isDated's definition, but the grid draws PLANNED bars and
-  // must not treat it as gridworthy - it belongs in the Pre-Activation
-  // Checklist instead, not crash `gridColumnFor` on a null planned range.
-  it("renders a task with only an actual start date in the Pre-Activation Checklist, not the grid, collapsed by default", async () => {
-    taskExecutionApi.list.mockResolvedValue([task({
-      title: "Site setup", planned_start_date: null, planned_end_date: null,
-      actual_start_at: "2026-08-01T09:00:00Z", actual_finish_at: null,
-      lifecycle_status: "in_progress",
-    })]);
-    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-    expect(await screen.findByText("Pre-Activation Checklist")).toBeInTheDocument();
-    expect(screen.getByText("1 task waiting to be scheduled")).toBeInTheDocument();
-    // Collapsed by default - only the header and its summary chips show, not
-    // the task list itself.
-    expect(screen.queryByText("Site setup")).not.toBeInTheDocument();
-    expect(screen.queryByText(/not yet dated/i)).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /pre-activation checklist/i }));
-    expect(await screen.findByText("Site setup")).toBeInTheDocument();
-  });
-
-  it("shows a Ready/Blocked/In Progress status breakdown on the Pre-Activation Checklist header", async () => {
-    const undatedTasks = Array.from({ length: 7 }, (_, index) => task({
-      id: `u${index}`, title: `Undated task ${index}`, planned_start_date: null, planned_end_date: null,
-      readiness: { state: index < 2 ? "blocked" : "ready", reasons: [], advisories: [] },
-    }));
-    taskExecutionApi.list.mockResolvedValue(undatedTasks);
-    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-    expect(await screen.findByText("7 tasks waiting to be scheduled")).toBeInTheDocument();
-    expect(screen.getByText("2 Blocked")).toBeInTheDocument();
-    expect(screen.getByText("5 Ready")).toBeInTheDocument();
-    expect(screen.getByText("0 In Progress")).toBeInTheDocument();
-  });
-
-  it("shows an empty state when the project has no execution tasks", async () => {
+  it("shows an empty state when the project has no tasks", async () => {
     taskExecutionApi.list.mockResolvedValue([]);
     render(<ExecutionCalendarView projectId="p1" user={admin}/>);
     expect(await screen.findByText("No execution tasks yet")).toBeInTheDocument();
-  });
-
-  // The task title must live in the fixed left table, never inside the
-  // timeline bar itself (which has no visible text, only a tooltip) - the
-  // exact complaint that drove this rewrite: titles getting cut off inside
-  // tiny rounded pills.
-  it("puts the task title in the left table, not as visible text on the bar", async () => {
-    const todayIso = new Date().toISOString().slice(0, 10);
-    taskExecutionApi.list.mockResolvedValue([task({ title: "Install door frames and hardware", planned_start_date: todayIso, planned_end_date: todayIso })]);
-    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-    const titleEl = await screen.findByText("Install door frames and hardware");
-    expect(titleEl.closest("button")).toHaveAttribute("title", expect.stringContaining("Install door frames and hardware"));
-    // Exactly one visible occurrence - the left-table row, not duplicated
-    // inside a bar.
-    expect(screen.getAllByText("Install door frames and hardware")).toHaveLength(1);
-  });
-
-  it("groups tasks by phase with a collapsible header shared by both panes", async () => {
-    const todayIso = new Date().toISOString().slice(0, 10);
-    taskExecutionApi.list.mockResolvedValue([
-      task({ id: "t1", title: "Pour slab", phase: "Civil", planned_start_date: todayIso, planned_end_date: todayIso }),
-    ]);
-    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-    const groupHeader = await screen.findByRole("button", { name: /civil \(1\)/i });
-    expect(screen.getByText("Pour slab")).toBeInTheDocument();
-    fireEvent.click(groupHeader);
-    await waitFor(() => expect(screen.queryByText("Pour slab")).not.toBeInTheDocument());
-    fireEvent.click(groupHeader);
-    expect(await screen.findByText("Pour slab")).toBeInTheDocument();
-  });
-
-  // The whole point of this indicator: a user should be able to tell WHY a
-  // task is blocked without opening the drawer, and tell "blocked by both"
-  // apart from either single cause.
-  describe("blocking-reason badges", () => {
-    const blockedBy = kinds => ({
-      readiness: {
-        state: "blocked",
-        reasons: kinds.map(kind => ({ kind, subject_id: `s-${kind}`, detail: `Waiting on ${kind}.`, blocking: true })),
-        advisories: [],
-      },
-    });
-
-    // A dated task renders twice - once as a TaskListRow (left table) and
-    // once as a TaskBarRow (right grid) - so badge titles are asserted with
-    // getAllByTitle/queryAllByTitle rather than the single-match getByTitle.
-    it("shows only the dependency badge when blocked solely by a predecessor", async () => {
-      taskExecutionApi.list.mockResolvedValue([task({ title: "Pour slab", ...blockedBy(["dependency"]) })]);
-      render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-      await screen.findByText("Pour slab");
-      expect(screen.getAllByTitle("Blocked by a dependent task").length).toBeGreaterThan(0);
-      expect(screen.queryAllByTitle("Blocked by an external approval")).toHaveLength(0);
-    });
-
-    it("shows only the approval badge when blocked solely by an external approval", async () => {
-      taskExecutionApi.list.mockResolvedValue([task({ title: "Pour slab", ...blockedBy(["approval"]) })]);
-      render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-      await screen.findByText("Pour slab");
-      expect(screen.getAllByTitle("Blocked by an external approval").length).toBeGreaterThan(0);
-      expect(screen.queryAllByTitle("Blocked by a dependent task")).toHaveLength(0);
-    });
-
-    it("shows both badges when a task is blocked by both a dependency and an approval", async () => {
-      taskExecutionApi.list.mockResolvedValue([task({ title: "Pour slab", ...blockedBy(["dependency", "approval"]) })]);
-      render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-      await screen.findByText("Pour slab");
-      expect(screen.getAllByTitle("Blocked by a dependent task").length).toBeGreaterThan(0);
-      expect(screen.getAllByTitle("Blocked by an external approval").length).toBeGreaterThan(0);
-    });
-
-    it("shows no reason badge for a task that isn't blocked", async () => {
-      taskExecutionApi.list.mockResolvedValue([task({ title: "Pour slab", readiness: { state: "ready", reasons: [], advisories: [] } })]);
-      render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-      await screen.findByText("Pour slab");
-      expect(screen.queryAllByTitle("Blocked by a dependent task")).toHaveLength(0);
-      expect(screen.queryAllByTitle("Blocked by an external approval")).toHaveLength(0);
-    });
-  });
-
-  it("resets search, phase, status and date-range filters on Reset", async () => {
-    taskExecutionApi.list.mockResolvedValue([
-      task({ id: "t1", title: "Pour slab" }),
-      task({ id: "t2", title: "Fit ceiling" }),
-    ]);
-    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-    await screen.findByText("Pour slab");
-    fireEvent.change(screen.getByPlaceholderText(/search task code/i), { target: { value: "ceiling" } });
-    await waitFor(() => expect(screen.queryByText("Pour slab")).not.toBeInTheDocument());
-    fireEvent.change(screen.getByLabelText(/from date/i), { target: { value: "2026-01-01" } });
-    fireEvent.click(screen.getByRole("button", { name: /reset/i }));
-    expect(await screen.findByText("Pour slab")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/search task code/i)).toHaveValue("");
-    expect(screen.getByLabelText(/from date/i)).toHaveValue("");
-  });
-
-  it("excludes a dated task whose planned range falls outside the selected date range", async () => {
-    taskExecutionApi.list.mockResolvedValue([
-      task({ id: "t1", title: "Pour slab", planned_start_date: "2026-08-01", planned_end_date: "2026-08-02" }),
-      task({ id: "t2", title: "Fit ceiling", planned_start_date: "2026-09-15", planned_end_date: "2026-09-16" }),
-    ]);
-    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-    await screen.findByText("Pour slab");
-    fireEvent.change(screen.getByLabelText(/from date/i), { target: { value: "2026-09-01" } });
-    await waitFor(() => expect(screen.queryByText("Pour slab")).not.toBeInTheDocument());
-    expect(screen.getByText("Fit ceiling")).toBeInTheDocument();
-  });
-
-  it("offers Week/Month/Full zoom presets, defaulting to Month", async () => {
-    const todayIso = new Date().toISOString().slice(0, 10);
-    taskExecutionApi.list.mockResolvedValue([task({ title: "Pour slab", planned_start_date: todayIso, planned_end_date: todayIso })]);
-    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-    await screen.findByText("Pour slab");
-    expect(screen.getByRole("button", { name: "Month" })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Week" }));
-    expect(screen.getByRole("button", { name: "Week" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Month" })).toHaveAttribute("aria-pressed", "false");
-  });
-
-  it("scrolls the date grid when Previous/Next/Today are clicked", async () => {
-    const todayIso = new Date().toISOString().slice(0, 10);
-    taskExecutionApi.list.mockResolvedValue([task({ title: "Pour slab", planned_start_date: todayIso, planned_end_date: todayIso })]);
-    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-    await screen.findByText("Pour slab");
-    const scrollBySpy = vi.fn();
-    const scrollToSpy = vi.fn();
-    // jsdom implements neither scrollBy nor scrollTo on elements - stub them
-    // so the click handlers (real navigation, not fake data) can be observed.
-    Element.prototype.scrollBy = scrollBySpy;
-    Element.prototype.scrollTo = scrollToSpy;
-    fireEvent.click(screen.getByRole("button", { name: /scroll forward a week/i }));
-    expect(scrollBySpy).toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /^today$/i }));
-    expect(scrollToSpy).toHaveBeenCalled();
-  });
-
-  it("filters by task type, and never counts a milestone as Standard", async () => {
-    taskExecutionApi.list.mockResolvedValue([
-      task({ id: "s1", original_code: "T001", title: "Plain work", task_class: "standard" }),
-      task({ id: "s2", original_code: "T002", title: "Unclassified work", task_class: null }),
-      task({ id: "a1", original_code: "T003", title: "Pressure test", task_class: "class_a" }),
-      task({ id: "g1", original_code: "T004", title: "Society permission", task_kind: "approval_gate", task_class: null }),
-      task({ id: "m1", original_code: "T005", title: "Handover milestone", task_kind: "milestone", task_class: null }),
-    ]);
-    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
-    const filter = await screen.findByLabelText("Filter by task type");
-    const visible = () => ["Plain work", "Unclassified work", "Pressure test", "Society permission", "Handover milestone"]
-      .filter(title => screen.queryAllByText(title).length > 0);
-    await waitFor(() => expect(visible()).toHaveLength(5));
-    fireEvent.change(filter, { target: { value: "standard" } });
-    await waitFor(() => expect(visible()).toEqual(["Plain work", "Unclassified work"]));
-    fireEvent.change(filter, { target: { value: "class_a" } });
-    await waitFor(() => expect(visible()).toEqual(["Pressure test"]));
-    fireEvent.change(filter, { target: { value: "approval_gate" } });
-    await waitFor(() => expect(visible()).toEqual(["Society permission"]));
   });
 });

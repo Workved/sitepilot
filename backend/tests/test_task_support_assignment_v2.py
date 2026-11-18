@@ -1,5 +1,6 @@
 from __future__ import annotations
 from app.execution_models import ProjectTaskReferenceFile  # noqa: E402
+from app.vendor_models import TaskVendorAssignment, V2Vendor  # noqa: E402,F811
 
 import unittest
 import uuid
@@ -105,6 +106,8 @@ class TaskSupportAssignmentApiTests(unittest.TestCase):
             BaselineTask.__table__,
             Task.__table__,
             ProjectTaskReferenceFile.__table__,
+            V2Vendor.__table__,
+            TaskVendorAssignment.__table__,
             ProjectExternalApproval.__table__,
             ProjectExternalApprovalTask.__table__,
             TaskDependency.__table__,
