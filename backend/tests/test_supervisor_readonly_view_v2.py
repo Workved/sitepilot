@@ -304,14 +304,16 @@ class SupervisorReadOnlyViewApiTests(unittest.TestCase):
         )
         self.assertEqual(task_decision.status_code, 403, task_decision.text)
 
-    def test_supervisor_cannot_create_manual_task_or_gate(self):
+    def test_supervisor_can_add_a_task_to_their_project_but_not_a_gate(self):
+        """The project's own Supervisor may add a task (product decision,
+        same as a running project); manual gates stay Admin-only."""
         project = self.create_draft()
         self.as_supervisor()
         manual_task = self.client.post(
             f"/api/v2/projects/{project['id']}/tasks",
-            json={"title": "Extra scope item", "phase": "Setup", "category": "Site", "planned_start_day": 1, "planned_end_day": 1, "reason": "Attempt."},
+            json={"title": "Extra scope item", "phase": "Setup", "category": "Site", "planned_start_day": 1, "planned_end_day": 1, "reason": "Needed on site."},
         )
-        self.assertEqual(manual_task.status_code, 403, manual_task.text)
+        self.assertEqual(manual_task.status_code, 201, manual_task.text)
         manual_gate = self.client.post(
             f"/api/v2/projects/{project['id']}/gates",
             json={

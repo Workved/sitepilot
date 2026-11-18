@@ -156,6 +156,10 @@ class Task(Base):
         CheckConstraint("early_start_reason is null or actual_start_at is not null", name="ck_v2_tasks_early_start_reason_requires_start"),
         CheckConstraint("actual_finish_at is null or actual_start_at is null or actual_finish_at >= actual_start_at", name="ck_v2_tasks_actual_finish_after_start"),
         CheckConstraint("planned_end_date is null or planned_start_date is null or planned_end_date >= planned_start_date", name="ck_v2_tasks_planned_end_after_start"),
+        CheckConstraint(
+            "(created_from_baseline and baseline_task_id is not null) or (not created_from_baseline and baseline_task_id is null)",
+            name="ck_v2_tasks_baseline_source",
+        ),
         Index("ix_v2_tasks_project_sequence", "project_id", "template_sequence"),
         Index("ix_v2_tasks_baseline", "baseline_id"),
         Index("ix_v2_tasks_project_status", "project_id", "lifecycle_status"),
@@ -165,7 +169,9 @@ class Task(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.projects.id", ondelete="RESTRICT"), nullable=False)
     baseline_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.project_baselines.id", ondelete="RESTRICT"), nullable=False)
-    baseline_task_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.baseline_tasks.id", ondelete="RESTRICT"), nullable=False)
+    baseline_task_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.baseline_tasks.id", ondelete="RESTRICT"))
+    """Null only for a task added after the project started
+    (`created_from_baseline` false): it is not part of the locked plan."""
     original_code: Mapped[str] = mapped_column(Text, nullable=False)
     template_sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
@@ -182,6 +188,8 @@ class Task(Base):
     duration_days: Mapped[int | None] = mapped_column(Integer)
     lifecycle_status: Mapped[str] = mapped_column(Text, nullable=False, default="planned")
     created_from_baseline: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    added_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    added_reason: Mapped[str | None] = mapped_column(Text)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     """Phase 3 U1: when set, a task not `completed`/`cancelled` past this
     timestamp counts toward the `overdue` derived condition. Nullable -

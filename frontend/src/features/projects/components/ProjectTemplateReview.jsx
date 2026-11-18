@@ -4,6 +4,7 @@ import { Button, EmptyState, Input, LoadingSpinner, Pill, Select } from "../../.
 import { projectsApi } from "../../../api/projectsApi";
 import { TaskApplicabilityControls } from "./TaskApplicabilityDecisionModal";
 import { ProjectManualTaskModal } from "./ProjectManualTaskModal";
+import { canAddTasks, canAddToTemplate } from "./TaskScope";
 import { ProjectTaskClassification } from "./ProjectTaskClassification";
 import { isOrgAdmin } from "../../../utils/constants";
 
@@ -134,8 +135,8 @@ export function ProjectTemplateReview({ projectId, user, projectStatus = "draft"
   if (!canReview) return <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5" role="status"><h3 className="font-black text-amber-950">Task review is role restricted</h3><p className="mt-1 text-sm leading-6 text-amber-800">Generated-task review is available to Admin and the assigned Project Manager. Existing task generation access is unchanged.</p></section>;
 
   return <section className="grid gap-4" aria-label="Generated task review">
-    {manualTaskOpen && <ProjectManualTaskModal projectId={projectId} phaseOptions={taskTaxonomy.phases} categoriesByPhase={taskTaxonomy.categoriesByPhase} onClose={() => setManualTaskOpen(false)} onCreated={refreshAfterManualTask}/>}
-    <header className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-5 text-white sm:p-6"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-600"><Layers3 size={18}/></span><div><span className="text-[10px] font-black uppercase tracking-[.2em] text-blue-300">Controlled scope review</span><h3 className="mt-1 text-xl font-black tracking-tight">Generated project tasks</h3><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-300">Review the project-owned task snapshot by phase and category before inclusion decisions progress.</p></div></div>{canDecide && projectStatus === "draft" && !manualTaskOpen && <Button className="w-full sm:w-auto" onClick={() => setManualTaskOpen(true)}><Plus size={16}/> Add manual task</Button>}</div></header>
+    {manualTaskOpen && <ProjectManualTaskModal projectId={projectId} phaseOptions={taskTaxonomy.phases} categoriesByPhase={taskTaxonomy.categoriesByPhase} onClose={() => setManualTaskOpen(false)} onCreated={refreshAfterManualTask} canTemplate={canAddToTemplate(user)}/>}
+    <header className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-5 text-white sm:p-6"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-600"><Layers3 size={18}/></span><div><span className="text-[10px] font-black uppercase tracking-[.2em] text-blue-300">Controlled scope review</span><h3 className="mt-1 text-xl font-black tracking-tight">Generated project tasks</h3><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-300">Review the project-owned task snapshot by phase and category before inclusion decisions progress.</p></div></div>{canAddTasks(user) && projectStatus === "draft" && !manualTaskOpen && <Button className="w-full sm:w-auto" onClick={() => setManualTaskOpen(true)}><Plus size={16}/> Add manual task</Button>}</div></header>
     {projectStatus === "draft" && <ProjectTaskClassification projectId={projectId}/>}
 
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Review summary">{[

@@ -118,6 +118,11 @@ TEMPLATE_REGISTRY: dict[str, TemplateSpec] = {
         # later product review per the plan's Decisions section.
         "task_readiness_declared", "en", ("task_id", "status", "note"),
     ),
+    "task.added": TemplateSpec(
+        # New event: a task added to a project after it was created. Needs
+        # its own approved Meta template before WhatsApp can send it.
+        "task_added", "en", ("task_id", "planned_start_date", "planned_end_date", "reason"),
+    ),
     "task.rescheduled": TemplateSpec(
         # Plan Phase 4: no doc template covers a planned-date replan
         # specifically - the closest doc-aligned name is used, flagged for

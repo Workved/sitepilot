@@ -313,19 +313,20 @@ class ProjectManualTaskApiTests(unittest.TestCase):
                 0,
             )
 
-    def test_only_admin_can_add_tasks_and_active_project_is_locked(self):
-        """Adding a task changes project scope, so it follows the same
-        authority as applicability decisions: Admin only."""
+    def test_admin_or_the_projects_own_pm_can_add_tasks_and_active_project_is_locked(self):
+        """Admin, or the project's own PM / Supervisor, can add a task while
+        it is Draft. Only Admin can also add it to the template."""
         self.actor = self.users["pm"]
-        denied = self.create_task()
-        self.assertEqual(denied.status_code, 403, denied.text)
-        self.assertIn("Only Admin", denied.json()["detail"])
+        self.assertEqual(self.create_task(title="PM task").status_code, 201)
+        to_template = self.create_task(title="PM template task", add_to_template=True)
+        self.assertEqual(to_template.status_code, 403, to_template.text)
+        self.assertIn("Only Admin can add a task to the template", to_template.json()["detail"])
 
+        # Not on this project: no.
         self.actor = self.users["other_pm"]
         self.assertEqual(self.create_task(title="Other PM task").status_code, 403)
         self.actor = self.users["supervisor"]
         self.assertEqual(self.create_task(title="Supervisor task").status_code, 403)
-        # Super Admin holds Admin's project authority.
         self.actor = self.users["super_admin"]
         self.assertEqual(self.create_task(title="Super Admin task").status_code, 201)
 

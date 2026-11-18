@@ -16,7 +16,7 @@ from app.template_models import V2Template, V2TemplateTask, V2TemplateVersion
 from app.schemas.projects import ProjectActivateIn, ProjectCreateIn, ProjectDeleteIn, ProjectMembershipEndIn, ProjectMembershipIn, ProjectRestoreIn, ProjectRoleChangeRejectIn, ProjectRoleChangeRequestIn, ProjectStatusIn, ProjectUpdateIn
 from app.schemas.project_template_review import ProjectTemplateReviewSummaryOut, ProjectTemplateReviewTaskPage
 from app.schemas.project_task_applicability import ProjectTaskApplicabilityDecisionIn, ProjectTaskApplicabilityDecisionOut, ProjectTaskApplicabilityHistoryItem
-from app.schemas.project_manual_task import ProjectManualTaskCreateIn, ProjectManualTaskCreateOut
+from app.schemas.project_manual_task import ProjectManualTaskCreateIn, ProjectManualTaskCreateOut, RunningProjectTaskAddIn
 from app.services.project_manual_task import ProjectManualTaskService
 from app.services.project_task_applicability import ProjectTaskApplicabilityService
 from app.services.project_template_review import ProjectTemplateReviewService
@@ -720,6 +720,21 @@ def create_project_manual_task(
     db: Session = Depends(get_db),
 ):
     return ProjectManualTaskService(db).create(project_id, actor, payload)
+
+
+@router.post("/{project_id}/running-tasks", status_code=201)
+def add_task_to_running_project(
+    project_id: uuid.UUID,
+    payload: RunningProjectTaskAddIn,
+    actor: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    """Add a task to a project that has started - to this project only, or
+    (Admin) to this project and its template. See
+    app/services/project_task_addition.py."""
+    from app.services.project_task_addition import ProjectTaskAdditionService
+
+    return ProjectTaskAdditionService(db).add_to_running(project_id, actor, payload)
 
 
 @router.post(

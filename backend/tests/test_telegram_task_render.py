@@ -160,6 +160,7 @@ class TelegramTaskRenderTests(unittest.TestCase):
                 "before_planned_start_date": "2026-09-24", "planned_start_date": "2026-09-28",
                 "before_planned_end_date": "2026-09-26", "planned_end_date": "2026-09-30", "reason": "Client delay",
             },
+            "task.added": {"planned_start_date": "2026-09-24", "planned_end_date": "2026-09-26", "reason": "Client asked for it"},
             "task.readiness_check": {"lifecycle_status": "planned", "planned_start_date": "2026-09-24"},
             "task.start_check": {"lifecycle_status": "ready", "planned_start_date": "2026-09-24"},
             "task.midday_check": {"lifecycle_status": "in_progress", "planned_start_date": "2026-09-24"},

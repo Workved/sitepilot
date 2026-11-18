@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarCheck, CalendarRange, ClipboardList, FolderKanban, GitBranch, ShieldCheck } from "lucide-react";
+import { CalendarCheck, CalendarRange, ClipboardList, FolderKanban, GitBranch, Plus, ShieldCheck } from "lucide-react";
 import { projectsApi } from "../../api/projectsApi";
 import { EmptyState, LoadingSpinner, RefreshButton, Select } from "../../components/ui";
 import { readRoute } from "../../lib/route";
+import { canAddTasks } from "../projects/components/TaskScope";
+import { AddRunningTaskModal } from "./components/AddRunningTaskModal";
 import { DependencyControlView } from "./components/DependencyControlView";
 import { ExecutionCalendarView } from "./components/ExecutionCalendarView";
 import { ExternalApprovalsPanel } from "./components/ExternalApprovalsPanel";
@@ -54,6 +56,7 @@ export function ExecutionPage({ user }) {
   // it remounts and refetches too (each role view owns its own task fetch -
   // see the module comment above).
   const [reloadToken, setReloadToken] = useState(0);
+  const [addingTask, setAddingTask] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -144,9 +147,12 @@ export function ExecutionPage({ user }) {
               {projects.map(project => <option key={project.id} value={project.id}>{project.name} ({project.code})</option>)}
             </Select>
           </label>
+          {canAddTasks(user) && projectId && project && <button type="button" onClick={() => setAddingTask(true)} className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-black text-white hover:bg-blue-700"><Plus size={16}/> Add task</button>}
           <RefreshButton loading={projectsLoading || detailLoading} onClick={() => setReloadToken(token => token + 1)}/>
         </div>
       </header>
+
+      {addingTask && <AddRunningTaskModal projectId={projectId} project={project} user={user} onClose={() => setAddingTask(false)} onAdded={() => setReloadToken(token => token + 1)}/>}
 
       {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">{error}</div>}
 

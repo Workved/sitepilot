@@ -200,6 +200,7 @@ def list_project_tasks(
             # caller had chosen this instead.
             variance=TaskVarianceOut.from_variance(variance_for_task(task, today=today)),
             project_unresolved_approvals=unresolved_approvals,
+            added_after_start=not task.created_from_baseline,
             created_at=task.created_at,
             updated_at=task.updated_at,
         )
@@ -304,6 +305,7 @@ def get_project_task(
         + [event.actor_user_id for event in audit_rows if event.actor_user_id],
     )
 
+    added_by_user = db.get(User, task.added_by) if task.added_by else None
     return TaskDetailOut(
         id=task.id,
         project_id=task.project_id,
@@ -311,6 +313,9 @@ def get_project_task(
         original_code=task.original_code,
         template_sequence=task.template_sequence,
         title=task.title,
+        added_after_start=not task.created_from_baseline,
+        added_by_name=added_by_user.name if added_by_user else None,
+        added_reason=task.added_reason,
         description=task.description,
         task_kind=task.task_kind,
         task_class=task.task_class,

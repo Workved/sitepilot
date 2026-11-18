@@ -462,6 +462,7 @@ class TaskListItemOut(BaseModel):
     readiness: TaskReadinessOut
     variance: TaskVarianceOut
     project_unresolved_approvals: list[UnresolvedApprovalOut] = Field(default_factory=list)
+    added_after_start: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -532,6 +533,10 @@ class TaskDetailOut(BaseModel):
     original_code: str
     template_sequence: int
     title: str
+    # A task added after the project started (not in the original plan).
+    added_after_start: bool = False
+    added_by_name: str | None = None
+    added_reason: str | None = None
     description: str | None
     task_kind: str | None
     task_class: str | None
