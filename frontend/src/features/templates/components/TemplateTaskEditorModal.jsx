@@ -5,6 +5,7 @@ import { APPROVED_CATEGORIES, APPROVED_PHASES, LEGACY_PHASES, TASK_CLASS_OPTIONS
 import { TemplateChoiceGroup, TemplateEditorSection as Section } from "./TemplateChoiceGroup";
 import { TemplateReferenceFiles } from "./TemplateReferenceFiles";
 import { ReferenceFilePicker } from "../../../components/ReferenceFilePicker";
+import { vendorAssignmentApi } from "../../../api/vendorAssignmentApi";
 
 const emptyTask = { code:"", sequence_no:"", title:"", description:"", schedule_classification:"execution", planned_start_day:"", planned_end_day:"", phase:"", category:"", applicability:"mandatory", task_class:"", task_kind:"", evidence_required:false, evidence_instructions:"", duration_days:"" };
 const asForm = (task, nextSequence, suggestedCode) => task ? Object.fromEntries(Object.keys(emptyTask).map(key => [key, task[key] ?? (key === "evidence_required" ? false : "")])) : { ...emptyTask, sequence_no:nextSequence ?? "", code:suggestedCode ?? "" };
@@ -61,11 +62,16 @@ export function TemplateTaskEditorModal({ task, tasks=[], dependencies=[], versi
   const linksChanged=[...waitFor].sort().join("|")!==[...savedWaitFor].sort().join("|");
   const dirty=taskChanged||linksChanged;
   // Retired options stay visible only on a task that already uses them, so legacy data still reads truthfully.
+  // Phases are the Admin-managed vendor categories (one shared list, so a
+  // vendor can always match a task's phase). Falls back to the standard list
+  // if it can't be loaded.
+  const [sharedPhases,setSharedPhases]=useState(null);
+  useEffect(()=>{let active=true;Promise.resolve(vendorAssignmentApi.listCapabilityCategories?.()).then(items=>{if(active&&Array.isArray(items)&&items.length)setSharedPhases(items.map(item=>item.name));}).catch(()=>{});return()=>{active=false};},[]);
   const phaseOptions=useMemo(()=>{
-    const values=new Set([...APPROVED_PHASES,...tasks.map(item=>item.phase).filter(Boolean)].filter(value=>!LEGACY_PHASES.includes(value)));
+    const values=new Set([...(sharedPhases||APPROVED_PHASES),...tasks.map(item=>item.phase).filter(Boolean)].filter(value=>!LEGACY_PHASES.includes(value)));
     if(task?.phase)values.add(task.phase);
     return [...values].sort();
-  },[task,tasks]);
+  },[task,tasks,sharedPhases]);
   const categoryOptions=useMemo(()=>Array.from(new Set([...APPROVED_CATEGORIES,...tasks.map(item=>item.category).filter(Boolean)])).sort(),[tasks]);
   // Any stored type other than ordinary work - including an unknown one - can be changed here.
   const storedKind=task?.task_kind&&task.task_kind!=="work"?task.task_kind:"";

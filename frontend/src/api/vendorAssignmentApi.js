@@ -5,7 +5,11 @@ import { api } from "./client";
 // since these endpoints live under a separate backend router.
 export const vendorAssignmentApi = {
   listVendors: () => api("/api/v2/vendors"),
-  listCapabilityCategories: () => api("/api/v2/vendors/capability-categories"),
+  // Admin-managed; also the template phase list. Hidden ones only on request.
+  listCapabilityCategories: ({ includeHidden = false } = {}) => api(`/api/v2/vendors/capability-categories${includeHidden ? "?include_hidden=true" : ""}`),
+  addCapabilityCategory: name => api("/api/v2/vendors/capability-categories", { method: "POST", body: JSON.stringify({ name }) }),
+  updateCapabilityCategory: (categoryId, changes) => api(`/api/v2/vendors/capability-categories/${categoryId}`, { method: "PATCH", body: JSON.stringify(changes) }),
+  removeCapabilityCategory: categoryId => api(`/api/v2/vendors/capability-categories/${categoryId}`, { method: "DELETE" }),
   setVendorCapabilities: (vendorId, categoryIds) => api(`/api/v2/vendors/${vendorId}/capabilities`, { method: "POST", body: JSON.stringify({ category_ids: categoryIds }) }),
   listProjectVendors: (projectId, { includeEnded = false } = {}) => api(`/api/v2/projects/${projectId}/vendors${includeEnded ? "?include_ended=true" : ""}`),
   mapVendor: (projectId, payload) => api(`/api/v2/projects/${projectId}/vendors`, { method: "POST", body: JSON.stringify(payload) }),

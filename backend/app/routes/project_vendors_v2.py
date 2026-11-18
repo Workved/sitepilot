@@ -25,7 +25,9 @@ from app.execution_models import Task
 from app.models import User, UserRole
 from app.routes.projects_v2 import get_project
 from app.schemas.vendor_assignment import (
+    CapabilityCategoryIn,
     CapabilityCategoryOut,
+    CapabilityCategoryUpdateIn,
     ProjectContactAttachmentOut,
     ProjectVendorContactOut,
     ProjectVendorMapIn,
@@ -107,16 +109,65 @@ def _ensure_phase_categories(db: Session) -> None:
 
 @vendors_router.get("/capability-categories", response_model=list[CapabilityCategoryOut])
 def list_capability_categories(
+    include_hidden: bool = False,
     actor: User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
-    """Full capability-category vocabulary a vendor can be assigned into -
-    auto-seeded from published templates' task phases (see
-    `_ensure_phase_categories`) so it always matches what delegation's
-    phase-matching check actually looks for."""
+    """The vendor-category list, which is also the template phase list.
+    Admin-managed (see app/services/vendor_categories.py); phases used by
+    published templates are still added if missing. Hidden categories are
+    left out unless `include_hidden`."""
+    from app.services.vendor_categories import vendor_counts
+
     _ensure_phase_categories(db)
-    categories = db.scalars(select(V2CapabilityCategory).order_by(V2CapabilityCategory.name)).all()
-    return [CapabilityCategoryOut.model_validate(category) for category in categories]
+    query = select(V2CapabilityCategory).order_by(V2CapabilityCategory.name)
+    if not include_hidden:
+        query = query.where(V2CapabilityCategory.active.is_(True))
+    counts = vendor_counts(db)
+    return [
+        CapabilityCategoryOut(id=category.id, name=category.name, active=category.active, vendor_count=counts.get(category.id, 0))
+        for category in db.scalars(query).all()
+    ]
+
+
+CATEGORY_ADMIN_ROLES = (UserRole.super_admin, UserRole.admin)
+
+
+@vendors_router.post("/capability-categories", response_model=CapabilityCategoryOut, status_code=201)
+def add_capability_category(
+    payload: CapabilityCategoryIn,
+    actor: User = Depends(require_roles(*CATEGORY_ADMIN_ROLES)),
+    db: Session = Depends(get_db),
+):
+    from app.services.vendor_categories import VendorCategoryService, vendor_counts
+
+    category, _created = VendorCategoryService(db).create(payload.name, actor)
+    return CapabilityCategoryOut(id=category.id, name=category.name, active=category.active, vendor_count=vendor_counts(db).get(category.id, 0))
+
+
+@vendors_router.patch("/capability-categories/{category_id}", response_model=CapabilityCategoryOut)
+def update_capability_category(
+    category_id: uuid.UUID,
+    payload: CapabilityCategoryUpdateIn,
+    actor: User = Depends(require_roles(*CATEGORY_ADMIN_ROLES)),
+    db: Session = Depends(get_db),
+):
+    from app.services.vendor_categories import VendorCategoryService, vendor_counts
+
+    category = VendorCategoryService(db).update(category_id, actor, name=payload.name, active=payload.active)
+    return CapabilityCategoryOut(id=category.id, name=category.name, active=category.active, vendor_count=vendor_counts(db).get(category.id, 0))
+
+
+@vendors_router.delete("/capability-categories/{category_id}")
+def remove_capability_category(
+    category_id: uuid.UUID,
+    actor: User = Depends(require_roles(*CATEGORY_ADMIN_ROLES)),
+    db: Session = Depends(get_db),
+):
+    """Deletes an unused category; hides one that vendors or tasks use."""
+    from app.services.vendor_categories import VendorCategoryService
+
+    return VendorCategoryService(db).remove(category_id, actor)
 
 
 @vendors_router.post("/{vendor_id}/capabilities", response_model=V2VendorOut)

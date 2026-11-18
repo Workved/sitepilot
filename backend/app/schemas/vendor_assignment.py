@@ -56,6 +56,19 @@ class V2VendorOut(BaseModel):
 class CapabilityCategoryOut(BaseModel):
     id: uuid.UUID
     name: str
+    active: bool = True
+    vendor_count: int = 0
+
+
+class CapabilityCategoryIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str
+
+
+class CapabilityCategoryUpdateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = None
+    active: bool | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
