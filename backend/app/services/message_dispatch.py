@@ -843,6 +843,11 @@ class MessageDispatchService:
             if event.event_type in _EXECUTION_OUTCOME_EVENTS:
                 recipients.extend(self._resolve_execution_participants(task))
             recipients = self._only_active_project_members(task.project_id, recipients)
+            if event.event_type == "task.added":
+                # Whoever added the task already knows about it.
+                adder = self._resolve_user_id_recipient((event.payload or {}).get("added_by"))
+                adder_ids = {r.employee_id for r in adder}
+                recipients = [r for r in recipients if r.employee_id not in adder_ids]
             if event.event_type in _ADMIN_CC_TASK_EVENTS:
                 # Added after the membership filter: Admin has no project
                 # membership, and this copy is visibility, not authority.

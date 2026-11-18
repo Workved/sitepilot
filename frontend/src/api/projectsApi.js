@@ -40,6 +40,7 @@ export const projectsApi = {
   decideTaskApplicability: (projectId, taskId, payload) => api(`/api/v2/projects/${projectId}/tasks/${taskId}/applicability-decisions`, { method: "POST", body: JSON.stringify(payload) }),
   taskApplicabilityHistory: (projectId, taskId) => api(`/api/v2/projects/${projectId}/tasks/${taskId}/applicability-decisions`),
   createManualTask: (projectId, payload) => api(`/api/v2/projects/${projectId}/tasks`, { method: "POST", body: JSON.stringify(payload) }),
+  addRunningTask: (projectId, payload) => api(`/api/v2/projects/${projectId}/running-tasks`, { method: "POST", body: JSON.stringify(payload) }),
   createManualGate: (projectId, payload) => api(`/api/v2/projects/${projectId}/gates`, { method: "POST", body: JSON.stringify(payload) }),
   update: (projectId, payload) => api(`/api/v2/projects/${projectId}`, { method: "PATCH", body: JSON.stringify(payload) }),
   setMembership: (projectId, payload) => api(`/api/v2/projects/${projectId}/memberships`, { method: "POST", body: JSON.stringify(payload) }),
