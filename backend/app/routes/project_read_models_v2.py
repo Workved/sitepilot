@@ -33,3 +33,13 @@ def project_summaries(actor: User = Depends(current_user), db: Session = Depends
 @router.get("/attention", response_model=list[AttentionItemOut])
 def project_attention(actor: User = Depends(current_user), db: Session = Depends(get_db)):
     return ProjectReadModelService(db).attention(actor)
+
+
+@router.get("/timeline")
+def portfolio_timeline(actor: User = Depends(current_user), db: Session = Depends(get_db)):
+    """One row per visible project for the calendar's portfolio view: dates,
+    progress, forecast finish, days late, health and approval markers. See
+    app/services/portfolio_timeline.py."""
+    from app.services.portfolio_timeline import PortfolioTimelineService
+
+    return PortfolioTimelineService(db).rows(actor)

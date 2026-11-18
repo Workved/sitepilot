@@ -463,6 +463,10 @@ class TaskListItemOut(BaseModel):
     variance: TaskVarianceOut
     project_unresolved_approvals: list[UnresolvedApprovalOut] = Field(default_factory=list)
     added_after_start: bool = False
+    # For the calendar: the tasks this one waits on (dependency lines) and
+    # the vendor currently delegated it (hover card).
+    predecessor_ids: list[uuid.UUID] = Field(default_factory=list)
+    vendor_name: str | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -154,6 +154,20 @@ def list_project_tasks(
     ).all():
         active_support_counts[task_id] = count
 
+    predecessors_by_task: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for predecessor_id, successor_id in db.execute(
+        select(TaskDependency.predecessor_task_id, TaskDependency.successor_task_id).where(TaskDependency.project_id == project.id)
+    ).all():
+        predecessors_by_task.setdefault(successor_id, []).append(predecessor_id)
+    from app.vendor_models import TaskVendorAssignment, V2Vendor
+
+    vendor_by_task = dict(db.execute(
+        select(TaskVendorAssignment.task_id, V2Vendor.name)
+        .join(V2Vendor, V2Vendor.id == TaskVendorAssignment.vendor_id)
+        .where(TaskVendorAssignment.project_id == project.id, TaskVendorAssignment.ends_at.is_(None),
+               TaskVendorAssignment.status != "declined")
+    ).all())
+
     project_readiness = TaskReadinessService(db).for_project(project.id)
     # A project fact, not a per-task one (R10), but the response is a JSON
     # array and has nowhere else to carry it. Built once and shared by
@@ -201,6 +215,8 @@ def list_project_tasks(
             variance=TaskVarianceOut.from_variance(variance_for_task(task, today=today)),
             project_unresolved_approvals=unresolved_approvals,
             added_after_start=not task.created_from_baseline,
+            predecessor_ids=predecessors_by_task.get(task.id, []),
+            vendor_name=vendor_by_task.get(task.id),
             created_at=task.created_at,
             updated_at=task.updated_at,
         )

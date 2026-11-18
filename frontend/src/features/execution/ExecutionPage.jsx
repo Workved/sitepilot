@@ -168,6 +168,8 @@ export function ExecutionPage({ user }) {
                 ? [[viewMeta.key, viewMeta.label, viewMeta.Icon], ["approvals", "External Approvals", ShieldCheck]]
                 : [
                     [viewMeta.key, viewMeta.label, viewMeta.Icon],
+                    // Supervisors keep their 3-day board and get the calendar too.
+                    ...(user.role === "supervisor" ? [["calendar", "Calendar", CalendarCheck]] : []),
                     ["dependencies", "Dependencies", GitBranch],
                     ["approvals", "External Approvals", ShieldCheck],
                   ]
@@ -196,7 +198,9 @@ export function ExecutionPage({ user }) {
 
           {activeTab === viewMeta.key && user.role === "supervisor" && <SupervisorOperationsBoard key={reloadToken} projectId={projectId} user={user}/>}
 
-          {activeTab === viewMeta.key && !["internal_employee", "supervisor"].includes(user.role) && <ExecutionCalendarView key={reloadToken} projectId={projectId} user={user}/>}
+          {activeTab === viewMeta.key && !["internal_employee", "supervisor"].includes(user.role) && <ExecutionCalendarView key={reloadToken} projectId={projectId} user={user} onSelectProject={setProjectId}/>}
+
+          {activeTab === "calendar" && user.role === "supervisor" && <ExecutionCalendarView key={reloadToken} projectId={projectId} user={user} onSelectProject={setProjectId}/>}
 
           {activeTab === "dependencies" && <DependencyControlView key={reloadToken} projectId={projectId} project={project} user={user} dependencies={dependencies}/>}
 

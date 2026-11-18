@@ -22,6 +22,8 @@ export const projectsApi = {
   // phase and attention affordances rather than failing the page. Remove the
   // fallbacks once the endpoints ship.
   summaries: () => api("/api/v2/projects/summaries"),
+  // Portfolio calendar: one row per visible project (dates, progress, health).
+  timeline: () => api("/api/v2/projects/timeline"),
   attention: () => api("/api/v2/projects/attention"),
   references: () => api("/api/v2/projects/reference-data"),
   publishedTemplates: () => api("/api/v2/projects/published-template-versions"),
