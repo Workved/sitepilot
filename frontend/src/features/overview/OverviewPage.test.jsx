@@ -140,3 +140,20 @@ describe("standingOf", () => {
     expect(sortRows(rows, "behind").map(item => item.name)).toEqual(["B", "A"]);
   });
 });
+
+describe("Open work", () => {
+  it("splits open tasks by status and lists the sites carrying the most", async () => {
+    projectsApi.timeline.mockResolvedValue(TIMELINE);
+    projectsApi.attention.mockResolvedValue([]);
+    render(<OverviewPage user={{ name: "A" }} tabs={[]} />);
+    const card = await screen.findByRole("region", { name: "Open work" });
+    // Meridian: 80 open, 6 overdue. Harbourview: 50 open, 2 blocked.
+    expect(within(card).getByText("130")).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Meridian Tower: 80 open, 6 overdue" })).toBeInTheDocument();
+    expect(within(card).getByText(/70/).closest("p")).toHaveTextContent("70 completed so far, 35% of all tasks");
+  });
+
+  it("never calls a draft behind plan", () => {
+    expect(cardStatus({ status: "draft", health: "on_track", days_late: 0, overdue_count: 0, blocked_count: 0, behind: false }).text).toBe("Not activated");
+  });
+});
