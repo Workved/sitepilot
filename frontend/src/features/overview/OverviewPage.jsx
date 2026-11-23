@@ -5,9 +5,9 @@ import { projectsApi } from "../../api/projectsApi";
 import { Alert, EmptyState, LoadingSpinner } from "../../components/ui";
 import { cn } from "../../utils/cn";
 import { formatDateShort, initials } from "../../utils/format";
-import { BEHIND_TOLERANCE, plannedPercent } from "../../utils/schedule";
+import { BEHIND_TOLERANCE, plannedPercent, standingOf } from "../../utils/schedule";
 
-export { plannedPercent };
+export { plannedPercent, standingOf };
 
 /*
  * Overview: the home screen, built only from read models every role can
@@ -30,19 +30,6 @@ const RUNNING = new Set(["active", "on_hold"]);
 // the "See all" panel.
 export const CHART_LIMIT = 6;
 const HANDOVER_LIMIT = 5;
-
-// One answer to "is this project OK?", used by every panel on the page.
-// The backend's health covers late forecasts, overdue and blocked work and
-// approvals at risk; it cannot see a project whose tasks are all on time
-// but whose completed work trails the calendar. That case is "at risk"
-// here too, so the ring, the summary and the cards never disagree.
-export function standingOf(row, planned) {
-  if (row.status === "completed" || row.health === "completed") return "completed";
-  if (row.health === "delayed") return "delayed";
-  if (row.health === "at_risk") return "at_risk";
-  if (planned != null && planned - row.progress_pct > BEHIND_TOLERANCE) return "at_risk";
-  return "on_track";
-}
 
 const SORTS = [
   ["behind", "Most behind"],
