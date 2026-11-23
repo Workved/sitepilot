@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { projectsApi } from "../../api/projectsApi";
-import { cardStatus, OverviewPage, plannedPercent } from "./OverviewPage";
+import { CHART_LIMIT, cardStatus, OverviewPage, plannedPercent, sortRows, standingOf } from "./OverviewPage";
 
 vi.mock("../../api/projectsApi", () => ({
   projectsApi: { timeline: vi.fn(), attention: vi.fn() },
@@ -95,5 +95,48 @@ describe("cardStatus", () => {
     expect(cardStatus({ health: "at_risk", days_late: 0, overdue_count: 0, blocked_count: 1 }).text).toBe("1 blocked");
     expect(cardStatus({ health: "on_track", days_late: 0, overdue_count: 0, blocked_count: 0, behind: true }).text).toBe("Behind plan");
     expect(cardStatus({ health: "on_track", days_late: 0, overdue_count: 0, blocked_count: 0 }).text).toBe("On plan");
+  });
+});
+
+describe("Overview at portfolio scale", () => {
+  const many = Array.from({ length: 14 }, (_, index) => row({
+    code: `WV-${100 + index}`, name: `Site ${String(index).padStart(2, "0")}`,
+    progress_pct: index * 7, completed_count: index * 7,
+  }));
+
+  it("caps the chart at a fixed number of rows and points to the rest", async () => {
+    projectsApi.timeline.mockResolvedValue(many);
+    projectsApi.attention.mockResolvedValue([]);
+    render(<OverviewPage user={{ name: "A" }} tabs={[]} />);
+    const chart = await screen.findByRole("region", { name: "Progress against plan" });
+    expect(within(chart).getAllByRole("button", { name: /planned \d+%, completed/ })).toHaveLength(CHART_LIMIT);
+    expect(within(chart).getByText(`Showing ${CHART_LIMIT} of 14`)).toBeInTheDocument();
+  });
+
+  it("opens every running project in a searchable side panel", async () => {
+    projectsApi.timeline.mockResolvedValue(many);
+    projectsApi.attention.mockResolvedValue([]);
+    render(<OverviewPage user={{ name: "A" }} tabs={[]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "See all 14 projects" }));
+    const panel = screen.getByRole("dialog", { name: "All running projects" });
+    expect(within(panel).getAllByRole("button", { name: /planned \d+%, completed/ })).toHaveLength(14);
+    fireEvent.change(within(panel).getByLabelText("Search running projects"), { target: { value: "Site 03" } });
+    expect(within(panel).getAllByRole("button", { name: /planned \d+%, completed/ })).toHaveLength(1);
+    fireEvent.click(within(panel).getByRole("button", { name: "Close panel" }));
+    expect(screen.queryByRole("dialog", { name: "All running projects" })).toBeNull();
+  });
+});
+
+describe("standingOf", () => {
+  it("treats a project whose work trails the calendar as at risk, even when the backend says on track", () => {
+    expect(standingOf({ status: "active", health: "on_track", progress_pct: 0 }, 30)).toBe("at_risk");
+    expect(standingOf({ status: "active", health: "on_track", progress_pct: 28 }, 30)).toBe("on_track");
+    expect(standingOf({ status: "active", health: "delayed", progress_pct: 90 }, 30)).toBe("delayed");
+    expect(standingOf({ status: "completed", health: "completed", progress_pct: 100 }, 100)).toBe("completed");
+  });
+
+  it("sorts most behind first by default", () => {
+    const rows = [{ name: "A", planned: 50, progress_pct: 45 }, { name: "B", planned: 60, progress_pct: 10 }];
+    expect(sortRows(rows, "behind").map(item => item.name)).toEqual(["B", "A"]);
   });
 });

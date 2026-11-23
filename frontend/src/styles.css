@@ -83,14 +83,15 @@ body {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
 
-/* Overview dashboard: chart and today panel on top, health spanning down
-   the left, open work beside it, and the project rail under both. */
-.ov-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, .86fr); }
+/* Overview dashboard. Two fixed bands: chart + today, then health, open
+   work and handovers. Panels reserve space for a fixed number of rows, so
+   the bands keep their height however many projects exist. */
+.ov-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, .9fr); align-items: stretch; }
 .ov-chart { grid-column: 1 / 3; grid-row: 1; }
-.ov-today { grid-column: 3; grid-row: 1 / 3; }
-.ov-health { grid-column: 1; grid-row: 2 / 4; }
+.ov-today { grid-column: 3; grid-row: 1; }
+.ov-health { grid-column: 1; grid-row: 2; }
 .ov-open { grid-column: 2; grid-row: 2; }
-.ov-projects { grid-column: 2 / 4; grid-row: 3; }
+.ov-projects { grid-column: 3; grid-row: 2; }
 @media (max-width: 1279px) {
   .ov-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .ov-chart, .ov-today, .ov-projects { grid-column: 1 / 3; grid-row: auto; }

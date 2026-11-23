@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { ArrowRight, ChevronDown, Search, X } from "lucide-react";
 import { projectsApi } from "../../api/projectsApi";
 import { Alert, EmptyState, LoadingSpinner } from "../../components/ui";
 import { cn } from "../../utils/cn";
@@ -22,8 +23,40 @@ const HEALTH = {
   delayed: { label: "Delayed", pill: "bg-rose-50 text-rose-800", tile: "bg-rose-50 text-rose-800" },
   completed: { label: "Completed", pill: "bg-blue-50 text-blue-800", tile: "bg-blue-50 text-blue-800" },
 };
-const HEALTH_TABS = [["all", "All"], ["on_track", "On track"], ["at_risk", "At risk"], ["delayed", "Delayed"], ["completed", "Completed"]];
+const HEALTH_TABS = [["all", "All"], ["at_risk", "At risk"], ["delayed", "Delayed"]];
 const RUNNING = new Set(["active", "on_hold"]);
+// The chart and the handover list hold a fixed number of rows so the page
+// keeps its shape whether there are 3 projects or 300; the rest live in
+// the "See all" panel.
+export const CHART_LIMIT = 6;
+const HANDOVER_LIMIT = 5;
+
+// One answer to "is this project OK?", used by every panel on the page.
+// The backend's health covers late forecasts, overdue and blocked work and
+// approvals at risk; it cannot see a project whose tasks are all on time
+// but whose completed work trails the calendar. That case is "at risk"
+// here too, so the ring, the summary and the cards never disagree.
+export function standingOf(row, planned) {
+  if (row.status === "completed" || row.health === "completed") return "completed";
+  if (row.health === "delayed") return "delayed";
+  if (row.health === "at_risk") return "at_risk";
+  if (planned != null && planned - row.progress_pct > BEHIND_TOLERANCE) return "at_risk";
+  return "on_track";
+}
+
+const SORTS = [
+  ["behind", "Most behind"],
+  ["progress", "Least progress"],
+  ["handover", "Handover soonest"],
+];
+const gapOf = row => row.planned - row.progress_pct;
+const handoverTime = row => (row.target_handover_date ? new Date(`${row.target_handover_date}T00:00:00`).getTime() : Infinity);
+export function sortRows(rows, sort) {
+  const list = [...rows];
+  if (sort === "progress") return list.sort((a, b) => a.progress_pct - b.progress_pct || a.name.localeCompare(b.name));
+  if (sort === "handover") return list.sort((a, b) => handoverTime(a) - handoverTime(b) || a.name.localeCompare(b.name));
+  return list.sort((a, b) => gapOf(b) - gapOf(a) || a.name.localeCompare(b.name));
+}
 function greeting(now = new Date()) {
   const hour = now.getHours();
   if (hour < 12) return "Good morning";
@@ -47,34 +80,92 @@ function Legend({ items }) {
   </div>;
 }
 
-// Up to this many projects, one labelled horizontal bar each reads far
-// better than a few thin columns stranded at the left of a wide chart.
-const ROW_LAYOUT_MAX = 12;
+const ROW_HEIGHT = 48;
 
-function ProgressRows({ rows, onOpenProject }) {
-  return <ul className="grid gap-1">
-    {rows.map(row => <li key={row.project_id}>
-      <button type="button" onClick={() => onOpenProject?.(row.code)} aria-label={`${row.name}: planned ${row.planned}%, completed ${row.progress_pct}%`} className="grid w-full grid-cols-1 items-center gap-x-5 gap-y-2 rounded-xl px-2 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 sm:grid-cols-[minmax(140px,220px)_minmax(0,1fr)_auto]">
-        <span className="min-w-0"><span className="block truncate text-sm text-slate-950">{row.name}</span><span className="block truncate text-xs text-slate-500">{row.code}</span></span>
-        <span className="relative block h-3.5 rounded-full bg-slate-100" aria-hidden="true">
-          <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${row.planned}%`, background: row.behind ? "var(--color-behind-soft)" : "var(--color-blue-100)" }} />
-          {row.progress_pct > 0 && <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.max(row.progress_pct, 2)}%`, background: row.behind ? "var(--color-behind)" : "var(--color-blue-600)" }} />}
-          <span className="absolute -top-1 h-[22px] w-0.5 rounded bg-slate-950" style={{ left: `calc(${row.planned}% - 1px)` }} />
-        </span>
-        <span className="whitespace-nowrap text-[13px] tabular-nums text-slate-500"><span className="text-slate-950">{row.progress_pct}% done</span>, {row.planned}% of time used</span>
-      </button>
-    </li>)}
-  </ul>;
+function ProgressRow({ row, onOpenProject }) {
+  return <li>
+    <button type="button" onClick={() => onOpenProject?.(row.code)} aria-label={`${row.name}: planned ${row.planned}%, completed ${row.progress_pct}%`} style={{ minHeight: ROW_HEIGHT }} className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600 md:grid-cols-[minmax(120px,190px)_minmax(0,1fr)_9.5rem]">
+      <span className="min-w-0"><span className="block truncate text-sm text-slate-950">{row.name}</span><span className="block truncate text-xs text-slate-500">{row.code}</span></span>
+      <span className="relative order-3 col-span-2 block h-2.5 rounded-full bg-slate-100 md:order-none md:col-span-1" aria-hidden="true">
+        <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${row.planned}%`, background: row.behind ? "var(--color-behind-soft)" : "var(--color-blue-100)" }} />
+        {row.progress_pct > 0 && <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.max(row.progress_pct, 2)}%`, background: row.behind ? "var(--color-behind)" : "var(--color-blue-600)" }} />}
+        <span className="absolute -top-1 h-[18px] w-0.5 rounded bg-slate-950" style={{ left: `calc(${row.planned}% - 1px)` }} />
+      </span>
+      <span className="whitespace-nowrap text-right text-xs tabular-nums text-slate-500"><span className="text-slate-950">{row.progress_pct}% done</span>, {row.planned}% time</span>
+    </button>
+  </li>;
+}
+
+function SortMenu({ sort, onChange }) {
+  const [open, setOpen] = useState(false);
+  const holder = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = event => { if (!holder.current?.contains(event.target)) setOpen(false); };
+    const onKey = event => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+  const label = SORTS.find(([key]) => key === sort)?.[1];
+  return <div ref={holder} className="relative">
+    <button type="button" onClick={() => setOpen(value => !value)} aria-haspopup="true" aria-expanded={open} aria-label={`Sorted by ${label}. Change sort`} className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white pl-3 pr-2 text-[13px] text-slate-800 hover:border-slate-300">
+      {label}<ChevronDown size={15} className="text-slate-500" aria-hidden="true" />
+    </button>
+    {open && <div role="menu" className="absolute right-0 top-[calc(100%+6px)] z-30 w-48 rounded-xl border border-line bg-white p-1 shadow-[0_18px_50px_rgba(21,23,26,.12)]">
+      {SORTS.map(([key, text]) => <button key={key} type="button" role="menuitemradio" aria-checked={sort === key} onClick={() => { onChange(key); setOpen(false); }} className={cn("block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50", sort === key ? "text-slate-950" : "text-slate-600")}>{text}</button>)}
+    </div>}
+  </div>;
+}
+
+// Every running project, searchable, in a side panel - the chart only ever
+// shows the top few, so this is where a large portfolio is browsed.
+function AllProjectsPanel({ rows, initialSort, onOpenProject, onClose }) {
+  const [sort, setSort] = useState(initialSort);
+  const [query, setQuery] = useState("");
+  const inputRef = useRef(null);
+  // Held in a ref so the mount-only effect below always calls the latest
+  // handler without re-running (and re-locking scroll) on every render.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    inputRef.current?.focus();
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = event => { if (event.key === "Escape") closeRef.current(); };
+    document.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = previous; document.removeEventListener("keydown", onKey); };
+  }, []);
+  const term = query.trim().toLowerCase();
+  const shown = sortRows(rows, sort).filter(row => !term || [row.name, row.code, row.client_name, row.pm_name].some(value => String(value || "").toLowerCase().includes(term)));
+  return createPortal(<div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30" role="presentation" onMouseDown={event => event.target === event.currentTarget && onClose()}>
+    <section role="dialog" aria-modal="true" aria-label="All running projects" className="flex h-full w-full max-w-[620px] flex-col bg-white shadow-[-16px_0_50px_rgba(21,23,26,.14)]">
+      <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
+        <div><h2 className="text-lg font-normal text-slate-950">All running projects</h2><p className="text-[13px] text-slate-500">{rows.length} projects, time used against work done</p></div>
+        <button type="button" onClick={onClose} aria-label="Close panel" className="grid size-10 place-items-center rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50"><X size={18} /></button>
+      </header>
+      <div className="flex items-center gap-2 border-b border-line px-5 py-3">
+        <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 focus-within:border-blue-600 focus-within:bg-white">
+          <Search size={15} className="text-slate-500" aria-hidden="true" />
+          <input ref={inputRef} value={query} onChange={event => setQuery(event.target.value)} placeholder="Search name, code, client or PM" aria-label="Search running projects" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400" />
+        </label>
+        <SortMenu sort={sort} onChange={setSort} />
+      </div>
+      <ul className="so-scroll min-h-0 flex-1 overflow-y-auto px-3 py-2">
+        {shown.map(row => <ProgressRow key={row.project_id} row={row} onOpenProject={code => { onClose(); onOpenProject?.(code); }} />)}
+        {shown.length === 0 && <li className="px-2 py-10 text-center text-sm text-slate-500">No running project matches “{query}”.</li>}
+      </ul>
+    </section>
+  </div>, document.body);
 }
 
 function ProgressChart({ rows, onOpenProject }) {
-  const [filter, setFilter] = useState("all");
-  const [hover, setHover] = useState(null);
-  const shown = filter === "behind" ? rows.filter(row => row.behind) : rows;
+  const [sort, setSort] = useState("behind");
+  const [allOpen, setAllOpen] = useState(false);
   const totals = rows.reduce((acc, row) => ({ done: acc.done + row.completed_count, all: acc.all + row.task_count }), { done: 0, all: 0 });
   const overall = totals.all ? Math.round(totals.done / totals.all * 100) : 0;
   const behindCount = rows.filter(row => row.behind).length;
-  const active = hover != null ? shown[hover] : null;
+  const shown = sortRows(rows, sort).slice(0, CHART_LIMIT);
 
   return <Panel id="ov-progress" className="ov-chart">
     <div className="flex flex-wrap items-start justify-between gap-4">
@@ -83,38 +174,29 @@ function ProgressChart({ rows, onOpenProject }) {
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="text-[42px] font-light leading-none tracking-[-0.03em] text-slate-950">{overall}%</span>
           <span className="text-sm text-slate-500">{totals.done.toLocaleString()} of {totals.all.toLocaleString()} tasks complete across {rows.length} running {rows.length === 1 ? "project" : "projects"}</span>
+          {behindCount > 0 && <span className="rounded-md bg-orange-50 px-2 py-0.5 text-xs text-orange-800">{behindCount} behind plan</span>}
         </div>
       </div>
-      <div role="tablist" aria-label="Projects shown" className="flex gap-0.5 rounded-[10px] bg-slate-100 p-[3px]">
-        {[["all", "All"], ["behind", `Behind plan ${behindCount}`]].map(([key, label]) => <button key={key} type="button" role="tab" aria-selected={filter === key} onClick={() => { setFilter(key); setHover(null); }} className={cn("h-8 rounded-lg px-3 text-[13px] transition", filter === key ? "bg-white text-slate-950 shadow-[0_1px_3px_rgba(21,23,26,.12)]" : "text-slate-500 hover:text-slate-950")}>{label}</button>)}
-      </div>
+      {rows.length > 1 && <SortMenu sort={sort} onChange={setSort} />}
     </div>
     <Legend items={[["Completed", "var(--color-blue-600)"], ["Time elapsed", "var(--color-blue-100)"], ["Behind plan", "var(--color-behind)"], ["Today", "var(--color-slate-950)"]]} />
 
-    {shown.length === 0
-      ? <EmptyState title={filter === "behind" ? "Nothing is behind plan" : "No running projects"} description={filter === "behind" ? "Every running project has completed at least as much work as the calendar expects." : "Projects show here once they are activated and have dated tasks."} />
-      : shown.length <= ROW_LAYOUT_MAX
-        ? <ProgressRows rows={shown} onOpenProject={onOpenProject} />
-        : <div>
-          <div className="relative h-[240px]">
-            <div aria-hidden="true" className="absolute inset-0 grid grid-rows-4">
-              {[0, 1, 2, 3].map(line => <div key={line} className="border-t border-dashed border-slate-200" />)}
-            </div>
-            {active && <div className="pointer-events-none absolute -top-2 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-[10px] border border-line bg-white px-3 py-2 text-xs shadow-[0_8px_24px_rgba(21,23,26,.08)]">
-              <span className="font-medium text-slate-950">{active.name}</span>
-              <span className="ml-2 text-slate-500">Planned {active.planned}%, done {active.progress_pct}%</span>
-            </div>}
-            <div className="absolute inset-0 flex items-end gap-[3px] sm:gap-1.5">
-              {shown.map((row, index) => <button key={row.project_id} type="button" onClick={() => onOpenProject?.(row.code)} onMouseEnter={() => setHover(index)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(index)} onBlur={() => setHover(null)} aria-label={`${row.name}: planned ${row.planned}%, completed ${row.progress_pct}%`} className="group relative h-full min-w-0 flex-1 rounded-t-[4px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600" style={{ maxWidth: 56 }}>
-                <span className="absolute inset-x-0 bottom-0 rounded-t-[4px] transition-colors" style={{ height: `${Math.max(row.planned, 2)}%`, background: row.behind ? "var(--color-behind-soft)" : "var(--color-blue-100)" }} />
-                <span className="absolute inset-x-0 bottom-0 rounded-t-[4px] transition-opacity group-hover:opacity-85" style={{ height: `${Math.max(row.progress_pct, 1.5)}%`, background: row.behind ? "var(--color-behind)" : "var(--color-blue-600)" }} />
-              </button>)}
-            </div>
-          </div>
-          <div className="mt-2 flex gap-[3px] border-t border-line pt-2 sm:gap-1.5" aria-hidden="true">
-            {shown.map(row => <span key={row.project_id} className="min-w-0 flex-1 truncate text-center text-[11px] text-slate-500" style={{ maxWidth: 56 }}>{shown.length > 18 ? "" : row.code.split("-").pop()}</span>)}
-          </div>
-        </div>}
+    {/* Space for CHART_LIMIT rows is always reserved, so the card - and
+        everything laid out after it - holds still as projects come and go. */}
+    <div style={{ minHeight: CHART_LIMIT * (ROW_HEIGHT + 2) }}>
+      {rows.length === 0
+        ? <EmptyState className="h-full" title="No running projects" description="Projects show here once they are activated and have dated tasks." />
+        : <ul className="grid gap-0.5">{shown.map(row => <ProgressRow key={row.project_id} row={row} onOpenProject={onOpenProject} />)}</ul>}
+    </div>
+
+    {rows.length > 0 && <div className="mt-auto flex items-center justify-between gap-3 border-t border-line pt-3 text-[13px]">
+      <span className="text-slate-500">Showing {shown.length} of {rows.length}</span>
+      {rows.length > CHART_LIMIT
+        ? <button type="button" onClick={() => setAllOpen(true)} className="text-blue-700 hover:text-blue-900">See all {rows.length} projects</button>
+        : <span className="text-slate-400">All running projects shown</span>}
+    </div>}
+
+    {allOpen && <AllProjectsPanel rows={rows} initialSort={sort} onOpenProject={onOpenProject} onClose={() => setAllOpen(false)} />}
   </Panel>;
 }
 
@@ -139,22 +221,24 @@ const SEVERITY_DOT = { critical: "bg-rose-600", warning: "bg-behind", decision: 
 const SEVERITY_ORDER = { critical: 0, warning: 1, decision: 2 };
 
 function TodayPanel({ user, rows, attention, tabs, onOpenProject, onTabChange }) {
-  const onTrack = rows.filter(row => row.health === "on_track").length;
-  const late = rows.filter(row => row.health === "delayed");
+  const onTrack = rows.filter(row => row.standing === "on_track").length;
+  const late = rows.filter(row => row.standing === "delayed");
+  const atRisk = rows.filter(row => row.standing === "at_risk");
   const decisions = attention.filter(item => item.group === "Needs a decision");
   const runningLate = attention.filter(item => item.group === "Running late");
-  const top = [...attention].sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 3) - (SEVERITY_ORDER[b.severity] ?? 3)).slice(0, 4);
+  const top = [...attention].sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 3) - (SEVERITY_ORDER[b.severity] ?? 3)).slice(0, 3);
   const canOpenExecution = tabs?.some(([key]) => key === "execution");
   const firstName = (user?.name || "").split(" ")[0];
 
   const sentences = [];
   if (late.length) sentences.push(`${late.length} ${late.length === 1 ? "project is" : "projects are"} running late${late.length <= 2 ? `: ${late.map(row => row.name).join(" and ")}` : ""}.`);
+  if (atRisk.length) sentences.push(`${atRisk.length} ${atRisk.length === 1 ? "project is" : "projects are"} at risk${atRisk.length <= 2 ? `: ${atRisk.map(row => row.name).join(" and ")}` : ""}.`);
   if (decisions.length) sentences.push(`${decisions.length} ${decisions.length === 1 ? "decision is" : "decisions are"} waiting on you.`);
   if (!sentences.length) sentences.push(rows.length ? "Every running project is moving to plan and nothing is waiting on you." : "No running projects yet. Activated projects and their alerts show up here.");
 
   return <aside aria-labelledby="ov-today" className="ov-today flex min-w-0 flex-col gap-4 rounded-[22px] border border-line bg-slate-50 p-5 sm:p-6">
     <div className="flex flex-col items-center gap-1 pt-1 text-center">
-      <div className="mb-2"><Ring value={onTrack} total={rows.length} /></div>
+      <div className="mb-1"><Ring value={onTrack} total={rows.length} /></div>
       <p className="text-sm text-slate-500">{greeting()}{firstName ? `, ${firstName}` : ""}</p>
       <h2 id="ov-today" className="text-[22px] font-normal tracking-[-0.01em] text-slate-950">Here is what needs you today</h2>
     </div>
@@ -162,11 +246,12 @@ function TodayPanel({ user, rows, attention, tabs, onOpenProject, onTabChange })
     <div className="grid gap-3 rounded-2xl border border-line bg-white p-4">
       <h3 className="text-sm font-medium text-slate-950">Today's summary</h3>
       <p className="text-[13px] leading-relaxed text-slate-600">{sentences.join(" ")}</p>
-      {top.length > 0 && <ul className="grid gap-1">
+      {attention.length > top.length && <p className="text-xs text-slate-500">{attention.length - top.length} more in Projects, Needs attention</p>}
+      {top.length > 0 && <ul className="grid gap-0.5">
         {top.map(item => <li key={item.id}>
           <button type="button" onClick={() => onOpenProject?.(item.project_code, item.pane)} className="flex w-full items-start gap-2.5 rounded-xl px-1.5 py-1.5 text-left text-[13px] hover:bg-slate-50">
             <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", SEVERITY_DOT[item.severity] || "bg-slate-400")} />
-            <span className="min-w-0"><span className="block text-slate-950">{item.title}</span><span className="block truncate text-slate-500">{item.project_code}{item.due_label ? `, ${item.due_label}` : ""}{item.subtitle ? `, ${item.subtitle}` : ""}</span></span>
+            <span className="min-w-0"><span className="block truncate text-slate-950">{item.title}</span><span className="block truncate text-slate-500">{[item.subtitle, item.due_label].filter(Boolean).join(", ").replaceAll(" · ", ", ")}</span></span>
           </button>
         </li>)}
       </ul>}
@@ -190,13 +275,13 @@ function TodayPanel({ user, rows, attention, tabs, onOpenProject, onTabChange })
 function Gauge({ percent }) {
   // Semicircle: arc length of r=120 half circle is ~377.
   const arc = 377 * percent / 100;
-  return <div className="relative mx-auto mt-2 w-full max-w-[280px]">
+  return <div className="relative mx-auto mt-1 w-full max-w-[210px]">
     <svg viewBox="0 0 280 160" className="w-full" role="img" aria-label={`${percent}% of open tasks on schedule`}>
       <path d="M 20 150 A 120 120 0 0 1 260 150" fill="none" stroke="var(--color-line)" strokeWidth="18" strokeLinecap="round" />
       {percent > 0 && <path d="M 20 150 A 120 120 0 0 1 260 150" fill="none" stroke="var(--color-ok)" strokeWidth="18" strokeLinecap="round" strokeDasharray={`${arc} 377`} />}
     </svg>
     <div className="absolute inset-x-0 bottom-1 flex flex-col items-center gap-1.5">
-      <span className="text-[44px] font-light leading-none tracking-[-0.03em] text-slate-950">{percent}%</span>
+      <span className="text-[34px] font-light leading-none tracking-[-0.03em] text-slate-950">{percent}%</span>
       <span className="rounded-md bg-emerald-50 px-2.5 py-0.5 text-xs text-emerald-800">On schedule</span>
     </div>
   </div>;
@@ -217,8 +302,8 @@ function SiteHealth({ rows }) {
   ];
   return <Panel title="Site health" id="ov-health" className="ov-health">
     <div className="grid">
-      {items.map(item => <div key={item.label} className="flex items-center gap-3.5 border-b border-slate-100 py-3 last:border-b-0">
-        <span className="h-9 w-2.5 shrink-0 rounded" style={{ background: item.color }} />
+      {items.map(item => <div key={item.label} className="flex items-center gap-3.5 border-b border-slate-100 py-2.5 last:border-b-0">
+        <span className="h-8 w-2 shrink-0 rounded" style={{ background: item.value ? item.color : "var(--color-slate-200)" }} />
         <span className="min-w-0 flex-1"><span className="block text-[15px] text-slate-950">{item.label}</span><span className="block truncate text-[13px] text-slate-500">{item.hint}</span></span>
         <span className="text-[22px] font-light tabular-nums text-slate-950">{item.value}</span>
       </div>)}
@@ -260,47 +345,53 @@ export function cardStatus(row) {
   return { text: "On plan", tone: "text-emerald-700" };
 }
 
-function ProjectCard({ row, onOpenProject }) {
-  const meta = HEALTH[row.health] || HEALTH.on_track;
-  const status = cardStatus(row);
-  return <button type="button" onClick={() => onOpenProject?.(row.code)} aria-label={`Open ${row.name}`} className="flex w-[212px] shrink-0 flex-col gap-2.5 rounded-2xl border border-line bg-white p-3.5 text-left transition-colors hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
-    <span className="flex items-center gap-2.5">
-      <span className={cn("grid size-9 shrink-0 place-items-center rounded-[10px] text-xs font-medium", meta.tile)}>{initials(row.name)}</span>
-      <span className="min-w-0"><span className="block truncate text-sm font-medium text-slate-950">{row.name}</span><span className="block truncate text-xs text-slate-500">{row.code}</span></span>
-    </span>
-    <span className="flex items-baseline justify-between gap-2">
-      <span className="text-[26px] font-light tracking-[-0.02em] text-slate-950">{row.progress_pct}%</span>
-      <span className={cn("text-xs font-medium", status.tone)}>{status.text}</span>
-    </span>
-    <span className="relative block h-1.5 rounded-full bg-slate-100" aria-hidden="true">
-      <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${row.progress_pct}%`, background: row.behind ? "var(--color-behind)" : "var(--color-blue-600)" }} />
-      {row.planned != null && row.health !== "completed" && <span className="absolute -top-1 h-3.5 w-0.5 rounded bg-slate-950" style={{ left: `calc(${row.planned}% - 1px)` }} />}
-    </span>
-    <span className="text-xs text-slate-500">{row.target_handover_date ? `Handover ${formatDateShort(row.target_handover_date)}` : "No handover date set"}</span>
-    <span className={cn("w-fit rounded-md px-2 py-0.5 text-xs", meta.pill)}>{meta.label}</span>
-  </button>;
+function daysUntil(date) {
+  if (!date) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return Math.round((new Date(`${date}T00:00:00`) - today) / 86400000);
 }
 
-function ProjectRail({ rows, onOpenProject, onTabChange, tabs }) {
+function HandoverRow({ row, onOpenProject }) {
+  const meta = HEALTH[row.standing] || HEALTH.on_track;
+  const status = cardStatus(row);
+  const days = daysUntil(row.target_handover_date);
+  const when = days == null ? "No handover date" : days < 0 ? `${-days} days past handover` : days === 0 ? "Handover today" : `In ${days} ${days === 1 ? "day" : "days"}`;
+  return <li>
+    <button type="button" onClick={() => onOpenProject?.(row.code)} aria-label={`Open ${row.name}`} className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+      <span className={cn("grid size-9 shrink-0 place-items-center rounded-[10px] text-xs font-medium", meta.tile)}>{initials(row.name)}</span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline justify-between gap-2"><span className="truncate text-sm text-slate-950">{row.name}</span><span className="shrink-0 text-xs tabular-nums text-slate-700">{row.progress_pct}%</span></span>
+        <span className="flex items-baseline justify-between gap-2 text-xs"><span className="truncate text-slate-500">{row.target_handover_date ? `${formatDateShort(row.target_handover_date)}, ${when.toLowerCase()}` : when}</span><span className={cn("shrink-0", status.tone)}>{status.text}</span></span>
+      </span>
+    </button>
+  </li>;
+}
+
+// Upcoming handovers, nearest first: a different cut of the portfolio from
+// the progress chart above, rather than the same projects a second time.
+function Handovers({ rows, onOpenProject, onTabChange, tabs }) {
   const [tab, setTab] = useState("all");
-  const shown = tab === "all" ? rows : rows.filter(row => row.health === tab);
+  const upcoming = sortRows(rows.filter(row => row.standing !== "completed"), "handover");
+  const filtered = tab === "all" ? upcoming : upcoming.filter(row => row.standing === tab);
+  const shown = filtered.slice(0, HANDOVER_LIMIT);
   const canOpenProjects = tabs?.some(([key]) => key === "projects");
-  return <section aria-labelledby="ov-projects" className="ov-projects flex min-w-0 flex-col gap-3.5 rounded-[22px] border border-line bg-white px-4 pb-4 pt-2 sm:px-5">
-    <h2 id="ov-projects" className="sr-only">Projects</h2>
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line">
-      <div role="tablist" aria-label="Filter projects by health" className="so-scroll flex gap-1 overflow-x-auto">
-        {HEALTH_TABS.map(([key, label]) => {
-          const count = key === "all" ? rows.length : rows.filter(row => row.health === key).length;
-          return <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)} className={cn("h-11 shrink-0 px-2.5 text-sm transition-colors", tab === key ? "text-slate-950 shadow-[inset_0_-2px_0_var(--color-slate-950)]" : "text-slate-500 hover:text-slate-950")}>{label} <span className="text-slate-400">{count}</span></button>;
-        })}
-      </div>
-      {canOpenProjects && <button type="button" onClick={() => onTabChange?.("projects")} className="py-2 text-[13px] text-blue-700 hover:text-blue-900">All projects</button>}
+  return <section aria-labelledby="ov-projects" className="ov-projects flex min-w-0 flex-col gap-3 rounded-[22px] border border-line bg-white p-5 sm:p-6">
+    <div className="flex items-center justify-between gap-3">
+      <h2 id="ov-projects" className="text-[17px] font-medium text-slate-950">Handovers coming up</h2>
+      {canOpenProjects && <button type="button" onClick={() => onTabChange?.("projects")} className="text-[13px] text-blue-700 hover:text-blue-900">All projects</button>}
     </div>
-    <div className="so-scroll flex gap-3 overflow-x-auto pb-1">
+    <div role="tablist" aria-label="Filter handovers by health" className="flex w-fit gap-0.5 rounded-[10px] bg-slate-100 p-[3px]">
+      {HEALTH_TABS.map(([key, label]) => {
+        const count = key === "all" ? upcoming.length : upcoming.filter(row => row.standing === key).length;
+        return <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)} className={cn("h-7 rounded-lg px-2.5 text-[13px] transition", tab === key ? "bg-white text-slate-950 shadow-[0_1px_3px_rgba(21,23,26,.12)]" : "text-slate-500 hover:text-slate-950")}>{label} <span className="text-slate-400">{count}</span></button>;
+      })}
+    </div>
+    <ul className="-mx-2 grid content-start" style={{ minHeight: HANDOVER_LIMIT * 56 }}>
       {shown.length === 0
-        ? <p className="py-6 text-sm text-slate-500">No projects in this group right now.</p>
-        : shown.map(row => <ProjectCard key={row.project_id} row={row} onOpenProject={onOpenProject} />)}
-    </div>
+        ? <li className="px-2 py-6 text-sm text-slate-500">No projects in this group right now.</li>
+        : shown.map(row => <HandoverRow key={row.project_id} row={row} onOpenProject={onOpenProject} />)}
+    </ul>
+    {filtered.length > shown.length && <p className="mt-auto border-t border-line pt-3 text-[13px] text-slate-500">{filtered.length - shown.length} more after {formatDateShort(shown[shown.length - 1].target_handover_date)}</p>}
   </section>;
 }
 
@@ -328,7 +419,12 @@ export function OverviewPage({ user, tabs, onOpenProject, onTabChange }) {
 
   const rows = useMemo(() => timeline.map(row => {
     const planned = plannedPercent(row);
-    return { ...row, planned: planned ?? 0, behind: planned != null && row.status !== "completed" && planned - row.progress_pct > BEHIND_TOLERANCE };
+    return {
+      ...row,
+      planned: planned ?? 0,
+      behind: planned != null && row.status !== "completed" && planned - row.progress_pct > BEHIND_TOLERANCE,
+      standing: standingOf(row, planned),
+    };
   }), [timeline]);
   const running = useMemo(() => rows.filter(row => RUNNING.has(row.status) && row.task_count > 0), [rows]);
 
@@ -341,7 +437,7 @@ export function OverviewPage({ user, tabs, onOpenProject, onTabChange }) {
       <TodayPanel user={user} rows={running} attention={attention} tabs={tabs} onOpenProject={onOpenProject} onTabChange={onTabChange} />
       <SiteHealth rows={running} />
       <OpenWork rows={running} />
-      <ProjectRail rows={rows} onOpenProject={onOpenProject} onTabChange={onTabChange} tabs={tabs} />
+      <Handovers rows={rows} onOpenProject={onOpenProject} onTabChange={onTabChange} tabs={tabs} />
     </div>
   </div>;
 }
