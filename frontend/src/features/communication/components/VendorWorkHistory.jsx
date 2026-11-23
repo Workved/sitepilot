@@ -11,7 +11,7 @@ export const canAddWorkHistory = user => HISTORY_ROLES.has(user?.role);
 export const canEditWorkHistory = (user, entry) => HISTORY_ADMIN_ROLES.has(user?.role) || (Boolean(entry.created_by) && entry.created_by === user?.id);
 
 const inputClass = "min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-50";
-const labelClass = "grid gap-2 text-sm font-black text-slate-700";
+const labelClass = "grid gap-2 text-sm font-medium text-slate-700";
 
 function monthLabel(value) {
   if (!value) return "";
@@ -55,7 +55,7 @@ function PastProjectForm({ entry, categories, saving, onClose, onSubmit }) {
     title={entry ? "Edit past project" : "Add past project"}
     subtitle="Work this vendor did before or outside SiteOps."
     onClose={onClose}
-    footer={<div className="flex justify-end"><button type="submit" form={formId} disabled={saving} className="min-h-12 rounded-xl bg-slate-950 px-6 font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">{saving ? "Saving..." : entry ? "Save changes" : "Add past project"}</button></div>}
+    footer={<div className="flex justify-end"><button type="submit" form={formId} disabled={saving} className="min-h-12 rounded-xl bg-slate-950 px-6 font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">{saving ? "Saving..." : entry ? "Save changes" : "Add past project"}</button></div>}
   >
     <form id={formId} onSubmit={submit} className="grid grid-cols-2 gap-4 max-[720px]:grid-cols-1">
       <label className={`${labelClass} col-span-full max-[720px]:col-span-1`}>Project name<input className={inputClass} name="project_name" defaultValue={entry?.project_name || ""} placeholder="e.g. Skyline Towers interior fit-out" required/></label>
@@ -75,16 +75,16 @@ function PastProjectForm({ entry, categories, saving, onClose, onSubmit }) {
 function PastProjectCard({ entry, canEdit, onEdit, onDelete }) {
   const period = periodLabel(entry.start_month, entry.end_month);
   const value = valueLabel(entry.approx_value);
-  return <article className="rounded-2xl border border-slate-200 bg-white p-4">
+  return <article className="rounded-[20px] border border-line bg-white p-4">
     <div className="flex items-start gap-4">
-      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-amber-50 text-amber-700"><Briefcase size={19}/></span>
+      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-orange-50 text-orange-700"><Briefcase size={19}/></span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2"><strong className="text-slate-950">{entry.project_name}</strong>{entry.category_name && <Pill tone="blue">{entry.category_name}</Pill>}</div>
         {(entry.client_name || entry.location) && <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">{entry.client_name && <span>{entry.client_name}</span>}{entry.location && <span className="flex items-center gap-1"><MapPin size={13}/>{entry.location}</span>}</span>}
         {(period || value) && <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-slate-600">{period && <span className="flex items-center gap-1"><CalendarRange size={13}/>{period}</span>}{value && <span>{value}</span>}</span>}
         {entry.work_description && <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">{entry.work_description}</p>}
         {entry.notes && <p className="mt-2 whitespace-pre-line rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">{entry.notes}</p>}
-        {entry.created_by_name && <span className="mt-2 flex items-center gap-1 text-[11px] font-bold text-slate-400"><UserRound size={12}/>Added by {entry.created_by_name}</span>}
+        {entry.created_by_name && <span className="mt-2 flex items-center gap-1 text-xs font-bold text-slate-400"><UserRound size={12}/>Added by {entry.created_by_name}</span>}
       </div>
       {canEdit && <div className="flex shrink-0 gap-1">
         <button type="button" aria-label={`Edit ${entry.project_name}`} onClick={onEdit} className="grid size-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"><Pencil size={15}/></button>
@@ -114,13 +114,13 @@ export function VendorWorkHistory({ user, pastProjects = [], projectHistory = []
 
   return <section className="grid gap-3" aria-label="Work history">
     <header className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
-      <div><h3 className="text-lg font-black text-slate-950">Work history</h3><p className="mt-1 text-sm text-slate-500">Projects this vendor has worked on before.</p></div>
-      {canAdd && <button type="button" onClick={() => setEditing("new")} className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white"><Plus size={17}/> Add past project</button>}
+      <div><h3 className="text-lg font-medium text-slate-950">Work history</h3><p className="mt-1 text-sm text-slate-500">Projects this vendor has worked on before.</p></div>
+      {canAdd && <button type="button" onClick={() => setEditing("new")} className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-medium text-white"><Plus size={17}/> Add past project</button>}
     </header>
 
     {projectHistory.length > 0 && <div className="grid gap-2">
       <p className="text-xs font-medium text-slate-500">In SiteOps</p>
-      {projectHistory.map(item => <article key={item.id} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4">
+      {projectHistory.map(item => <article key={item.id} className="flex items-center gap-4 rounded-[20px] border border-line bg-white p-4">
         <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600"><FolderKanban size={19}/></span>
         <div className="min-w-0 flex-1"><strong className="block truncate text-slate-950">{item.project_name}</strong><span className="mt-1 block text-xs text-slate-500">{dateLabel(item.started_at)} - {dateLabel(item.ended_at)}</span></div>
         <Pill tone="gray">Ended</Pill>
@@ -134,7 +134,7 @@ export function VendorWorkHistory({ user, pastProjects = [], projectHistory = []
 
     {!projectHistory.length && !pastProjects.length && <div className="grid place-items-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-8 text-center">
       <span className="grid size-12 place-items-center rounded-2xl bg-white text-slate-400 shadow-sm"><History/></span>
-      <h4 className="mt-4 font-black text-slate-900">No work history yet</h4>
+      <h4 className="mt-4 font-medium text-slate-900">No work history yet</h4>
       <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">{canAdd ? "Add projects this vendor has done before so the team can judge their experience." : "Past projects added by your team will show here."}</p>
     </div>}
 

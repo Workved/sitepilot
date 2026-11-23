@@ -24,13 +24,13 @@ function formatDate(iso) {
 export function BlacklistBanner({ vendor, parentVendor }) {
   if (vendor?.blacklisted) {
     const who = [vendor.blacklisted_by_name && `by ${vendor.blacklisted_by_name}`, vendor.blacklisted_at && `on ${formatDate(vendor.blacklisted_at)}`].filter(Boolean).join(" ");
-    return <div role="status" className="mt-3 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+    return <div role="status" className="mt-4 flex items-start gap-3 rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-900">
       <Ban className="mt-0.5 shrink-0" size={18}/>
       <div><strong className="block">Blacklisted{who ? ` ${who}` : ""}</strong><span className="mt-1 block whitespace-pre-line">Reason: {vendor.blacklist_reason}</span><span className="mt-1 block text-xs text-rose-700">Can't be added to projects or tasks.</span></div>
     </div>;
   }
   if (vendor?.blocked_by_parent) {
-    return <div role="status" className="mt-3 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
+    return <div role="status" className="mt-4 flex items-start gap-3 rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-900">
       <Ban className="mt-0.5 shrink-0" size={18}/>
       <span>Its main vendor{parentVendor ? ` ${parentVendor.name}` : ""} is blacklisted, so this sub-vendor can't be added to projects or tasks.</span>
     </div>;
@@ -55,13 +55,13 @@ export function BlacklistModal({ vendor, mode, projectCount = 0, subVendorCount 
   return <Modal className="max-w-lg" title={removing ? `Remove ${vendor.name} from the blacklist?` : `Blacklist ${vendor.name}?`} onClose={onClose}>
     <form onSubmit={event => { event.preventDefault(); if (!tooShort) onSubmit(reason.trim()); }} className="grid gap-4">
       <ul className="grid gap-1.5 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">{effects.map(item => <li key={item} className="flex gap-2"><span aria-hidden="true">•</span>{item}</li>)}</ul>
-      <label className="grid gap-2 text-sm font-black text-slate-700">{removing ? "Why remove them from the blacklist?" : "Reason for blacklisting"}
+      <label className="grid gap-2 text-sm font-medium text-slate-700">{removing ? "Why remove them from the blacklist?" : "Reason for blacklisting"}
         <textarea autoFocus value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} className="min-h-24 w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50" placeholder={removing ? "e.g. Issue resolved after meeting" : "e.g. Repeated delays and poor workmanship on site"} required/>
       </label>
       {error && <p role="alert" className="text-sm font-bold text-rose-700">{error}</p>}
       <div className="flex justify-end gap-2">
-        <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-black text-slate-700 hover:bg-slate-50">Cancel</button>
-        <button type="submit" disabled={tooShort || saving} className={`flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60 ${removing ? "bg-slate-950 hover:bg-slate-800" : "bg-rose-700 hover:bg-rose-800"}`}>
+        <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
+        <button type="submit" disabled={tooShort || saving} className={`flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60 ${removing ? "bg-slate-950 hover:bg-slate-800" : "bg-rose-700 hover:bg-rose-800"}`}>
           {removing ? <ShieldOff size={16}/> : <Ban size={16}/>}{saving ? "Saving..." : removing ? "Remove from blacklist" : "Blacklist vendor"}
         </button>
       </div>

@@ -48,16 +48,16 @@ export function CategorySelector({ categories = [], selected = [], onChange, err
       {selected.map(id => <input key={id} type="hidden" name="category_ids" value={id}/>) }
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
         <div>
-          <div className="flex items-center gap-2 text-sm font-black text-slate-950"><Boxes size={18} className="text-blue-700"/> Categories and capabilities</div>
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-950"><Boxes size={18} className="text-blue-700"/> Categories and capabilities</div>
           <p className="mt-1 text-xs leading-5 text-slate-500">Choose a main capability or a more precise subcategory.</p>
         </div>
-        <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-black text-white">{selectedSummary.length} selected</span>
+        <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-medium text-white">{selectedSummary.length} selected</span>
       </header>
 
       <div className="grid gap-4 p-5">
         <label className="flex min-h-11 min-w-56 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-slate-500 focus-within:border-blue-400 focus-within:bg-white"><Search size={16}/><input className="min-h-0 w-full border-0 bg-transparent p-0 text-sm outline-none" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search categories"/></label>
 
-        {selectedSummary.length > 0 && <div className="flex flex-wrap gap-2 rounded-xl bg-slate-50 p-3">{selectedSummary.map(category => <button type="button" key={category.id} onClick={() => toggle(category)} className="flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1.5 text-xs font-black text-blue-900">{category.name}<X size={13}/></button>)}</div>}
+        {selectedSummary.length > 0 && <div className="flex flex-wrap gap-2 rounded-xl bg-slate-50 p-3">{selectedSummary.map(category => <button type="button" key={category.id} onClick={() => toggle(category)} className="flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1.5 text-xs font-medium text-blue-900">{category.name}<X size={13}/></button>)}</div>}
 
         <div className="grid grid-cols-2 gap-3 max-[720px]:grid-cols-1">
           {roots.map(root => {

@@ -50,8 +50,9 @@ describe("who can blacklist", () => {
     expect(onBlacklist).toHaveBeenCalled();
     unmount();
 
+    // With nothing this user may do to the row, there is no empty menu at all.
     render(<VendorRow vendor={blacklisted} projectCount={0} onSelect={vi.fn()} canBlacklist/>);
-    fireEvent.click(screen.getByRole("button", { name: /Vendor row actions/i }));
+    expect(screen.queryByRole("button", { name: /Vendor row actions/i })).toBeNull();
     expect(screen.queryByRole("button", { name: "Blacklist vendor" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Remove from blacklist" })).toBeNull();
   });

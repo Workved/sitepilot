@@ -25,7 +25,7 @@ function CategoryRow({ category, busy, onRename, onRemove, onShow }) {
 
   return <li className={`flex items-center gap-3 rounded-xl border p-3 ${category.active ? "border-slate-200 bg-white" : "border-dashed border-slate-200 bg-slate-50"}`}>
     <div className="min-w-0 flex-1">
-      <p className={`truncate text-sm font-black ${category.active ? "text-slate-900" : "text-slate-500"}`}>{category.name}</p>
+      <p className={`truncate text-sm font-medium ${category.active ? "text-slate-900" : "text-slate-500"}`}>{category.name}</p>
       <p className="text-xs font-semibold text-slate-500">{used ? `${used} vendor${used === 1 ? "" : "s"}` : "No vendors yet"}{category.active ? "" : " · hidden"}</p>
     </div>
     {category.active
@@ -33,7 +33,7 @@ function CategoryRow({ category, busy, onRename, onRemove, onShow }) {
           <button type="button" aria-label={`Rename ${category.name}`} disabled={busy} onClick={() => setEditing(true)} className="grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"><Pencil size={15}/></button>
           <button type="button" aria-label={`Remove ${category.name}`} disabled={busy} onClick={() => onRemove(category)} className="grid size-9 place-items-center rounded-lg text-slate-500 hover:bg-rose-50 hover:text-rose-700">{used ? <EyeOff size={15}/> : <Trash2 size={15}/>}</button>
         </>
-      : <button type="button" aria-label={`Show ${category.name} again`} disabled={busy} onClick={() => onShow(category)} className="flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-black text-slate-700 hover:bg-white"><Undo2 size={14}/> Show again</button>}
+      : <button type="button" aria-label={`Show ${category.name} again`} disabled={busy} onClick={() => onShow(category)} className="flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-700 hover:bg-white"><Undo2 size={14}/> Show again</button>}
   </li>;
 }
 
@@ -102,7 +102,7 @@ export function VendorCategoryManager({ onClose, onChanged }) {
       <form onSubmit={add} className="flex gap-2">
         <input aria-label="New category name" value={newName} maxLength={80} onChange={event => setNewName(event.target.value)} placeholder="e.g. Glass Works"
           className="min-h-11 flex-1 rounded-xl border border-slate-200 px-4 text-sm font-semibold outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-50"/>
-        <button type="submit" disabled={busy || !newName.trim()} className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-black text-white hover:bg-slate-800 disabled:opacity-50"><Plus size={16}/> Add</button>
+        <button type="submit" disabled={busy || !newName.trim()} className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"><Plus size={16}/> Add</button>
       </form>
       {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{notice}</p>}
       {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</p>}
