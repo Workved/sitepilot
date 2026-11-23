@@ -5,7 +5,7 @@ import { Button, EmptyState, Field, Modal, Pill, Textarea } from "../../../compo
 import { GateApplicabilityControls } from "./GateApplicabilityDecisionModal";
 import { ProjectManualGateModal } from "./ProjectManualGateModal";
 import { isOrgAdmin } from "../../../utils/constants";
-import { PaneHeader, PaneLoading } from "./PaneKit";
+import { PaneHeader, PaneLoading } from "../../../components/layout/PaneKit";
 
 const mappingLabel = { exact: "Exact", broad_text: "Broad text", unmapped: "Unmapped" };
 

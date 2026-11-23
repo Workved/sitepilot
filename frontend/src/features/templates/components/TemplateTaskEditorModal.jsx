@@ -129,8 +129,8 @@ export function TemplateTaskEditorModal({ task, tasks=[], dependencies=[], versi
       <WaitsForSection task={task} tasks={tasks} waitFor={waitFor} advancedLinks={ownLinks.filter(dependency=>!isSimpleLink(dependency))} blocked={blocked}
         onAdd={id=>{setWaitFor(current=>[...current,id]);setRequestError("");}} onRemove={id=>{setWaitFor(current=>current.filter(item=>item!==id));setRequestError("");}}/>
     </Section>
-    <details className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-      <summary className="cursor-pointer text-sm font-black text-slate-700">Advanced</summary>
+    <details className="rounded-[20px] border border-line bg-white p-4 sm:p-5">
+      <summary className="cursor-pointer text-sm font-medium text-slate-700">Advanced</summary>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <Field label="Task code" error={errors.code} hint="Filled in automatically. Must be unique in this template."><Input aria-label="Task code" value={form.code} onChange={e=>change("code",e.target.value)}/></Field>
         {storedKind&&<Field label="Task type" hint="Older task type. Choose ordinary work to use Standard / Class A."><Select aria-label="Task type" value={form.task_kind} onChange={e=>change("task_kind",e.target.value)}><option value="">Ordinary work</option><option value={storedKind}>{storedKindLabel}</option></Select></Field>}

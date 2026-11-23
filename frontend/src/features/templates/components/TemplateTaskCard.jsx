@@ -13,8 +13,8 @@ export function TemplateTaskCard({ task }) {
   return <article data-testid={`task-card-${task.code}`} className={`rounded-2xl border bg-white p-4 ${invalid ? "border-amber-300" : "border-slate-200"}`}>
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <span className="font-mono text-[11px] font-black tracking-[.12em] text-blue-700">{task.code}</span>
-        <h4 className="mt-1 text-sm font-black leading-5 text-slate-950">{task.title || "Untitled task"}</h4>
+        <span className="tabular-nums text-xs font-medium text-slate-600">{task.code}</span>
+        <h4 className="mt-1 text-sm font-medium leading-5 text-slate-950">{task.title || "Untitled task"}</h4>
       </div>
       <Pill tone={task.applicability === "conditional" ? "orange" : "blue"}>{task.applicability || "Unknown"}</Pill>
     </div>
@@ -26,6 +26,6 @@ export function TemplateTaskCard({ task }) {
       <span className="inline-flex items-center gap-1.5 text-slate-600"><CalendarRange size={15}/>{formatPlannedDays(task)}</span>
       <span className={`inline-flex items-center gap-1 ${invalid ? "text-amber-700" : "text-emerald-700"}`}>{invalid ? <AlertTriangle size={14}/> : <CheckCircle2 size={14}/>} {invalid ? "Review" : "Valid"}</span>
     </div>
-    {invalid && <p className="mt-3 text-xs font-semibold leading-5 text-amber-800">{task.validation_issues.join(", ").replaceAll("_", " ")}</p>}
+    {invalid && <p className="mt-3 text-xs font-semibold leading-5 text-orange-800">{task.validation_issues.join(", ").replaceAll("_", " ")}</p>}
   </article>;
 }

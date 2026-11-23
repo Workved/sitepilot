@@ -61,12 +61,12 @@ function taskTypePill(task) {
 
 function TaskRow({ task, index, count, disableMove, onEdit, onDelete, onMove }) {
   const typePill = taskTypePill(task);
-  return <article data-testid={"draft-task-" + task.code} className="rounded-2xl border border-slate-200 bg-white p-4">
+  return <article data-testid={"draft-task-" + task.code} className="rounded-[20px] border border-line bg-white p-4">
     <div className="flex items-start gap-3">
       <span className="mt-0.5 hidden text-slate-300 sm:block"><GripVertical size={18}/></span>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-xs font-black text-blue-700">{task.code}</span><Pill tone={typePill.tone}>{typePill.label}</Pill>{task.applicability === "conditional" && <Pill tone="orange">Only when it applies</Pill>}</div>
-        <h3 className="mt-2 text-sm font-black leading-5 text-slate-950">{task.title}</h3>
+        <div className="flex flex-wrap items-center gap-2"><span className="tabular-nums text-xs font-medium text-slate-600">{task.code}</span><Pill tone={typePill.tone}>{typePill.label}</Pill>{task.applicability === "conditional" && <Pill tone="orange">Only when it applies</Pill>}</div>
+        <h3 className="mt-2 text-sm font-medium leading-5 text-slate-950">{task.title}</h3>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-slate-500"><span>{formatPlannedDays(task)}</span><span>{task.phase || "No phase"}</span><span>{task.category || "No category"}</span></div>
       </div>
       <div className="hidden items-center gap-1 sm:flex">
@@ -105,14 +105,14 @@ function DeleteTaskModal({ task, busy, error, onClose, onConfirm }) {
 
 
 function DependencyRow({ dependency, onEdit, onDelete }) {
-  return <article data-testid={"draft-dependency-" + dependency.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+  return <article data-testid={"draft-dependency-" + dependency.id} className="rounded-[20px] border border-line bg-white p-4">
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-medium text-cyan-700">Link {dependency.sequence_no}</span><Pill tone="blue">{dependencyTypeLabel(dependency.dependency_type)}</Pill><Pill tone={dependency.blocking ? "red" : "gray"}>{dependency.blocking ? "Enforced" : "Advisory only"}</Pill></div>
+        <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-medium text-slate-500">Link {dependency.sequence_no}</span><Pill tone="blue">{dependencyTypeLabel(dependency.dependency_type)}</Pill><Pill tone={dependency.blocking ? "red" : "gray"}>{dependency.blocking ? "Enforced" : "Advisory only"}</Pill></div>
         <div className="mt-4 grid grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] items-center gap-2">
-          <div><b className="font-mono text-xs text-blue-700">{dependency.predecessor?.code || "Missing"}</b><p className="mt-1 text-sm font-bold text-slate-950">{dependency.predecessor?.title || "Missing task"}</p></div>
+          <div><b className="tabular-nums text-xs text-slate-600">{dependency.predecessor?.code || "Missing"}</b><p className="mt-1 text-sm font-bold text-slate-950">{dependency.predecessor?.title || "Missing task"}</p></div>
           <span className="grid size-8 place-items-center rounded-full bg-slate-100 text-slate-500"><ArrowRight size={16}/></span>
-          <div><b className="font-mono text-xs text-blue-700">{dependency.successor?.code || "Missing"}</b><p className="mt-1 text-sm font-bold text-slate-950">{dependency.successor?.title || "Missing task"}</p></div>
+          <div><b className="tabular-nums text-xs text-slate-600">{dependency.successor?.code || "Missing"}</b><p className="mt-1 text-sm font-bold text-slate-950">{dependency.successor?.title || "Missing task"}</p></div>
         </div>
         <p className="mt-4 border-t border-slate-100 pt-3 text-xs font-semibold leading-5 text-slate-600">{dependency.rule_text || "No note."}</p>
       </div>
@@ -144,16 +144,16 @@ function GateRow({ gate, onEdit, onDelete }) {
     <Button size={size} variant="secondary" aria-label={`Edit approval ${gate.code}`} onClick={() => onEdit(gate)}><PencilLine size={15}/>{size === "sm" && " Edit"}</Button>
     <Button size={size} variant="danger" aria-label={`Delete approval ${gate.code}`} onClick={() => onDelete(gate)}><Trash2 size={15}/>{size === "sm" && " Delete"}</Button>
   </>;
-  return <article data-testid={`draft-gate-${gate.id}`} className="rounded-2xl border border-slate-200 bg-white p-4">
+  return <article data-testid={`draft-gate-${gate.id}`} className="rounded-[20px] border border-line bg-white p-4">
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <h3 className="text-sm font-black text-slate-950">{gate.approval_name}</h3>
+        <h3 className="text-sm font-medium text-slate-950">{gate.approval_name}</h3>
         <p className="mt-1 text-xs font-semibold text-slate-500">{gate.external_party ? `Approved by ${gate.external_party}` : "Who approves is not set"}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {linkedCount > 0 ? <Pill tone="blue">Required before {linkedCount} task{linkedCount === 1 ? "" : "s"}</Pill> : <Pill tone="orange">Not linked to any task</Pill>}
           <Pill tone={noDueDate ? "orange" : "gray"}>{dueDate}</Pill>
         </div>
-        {imported && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><strong>Imported wording</strong><p className="mt-1 font-semibold">{gate.broad_mapping_text}</p></div>}
+        {imported && <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 p-3 text-xs text-orange-900"><strong>Imported wording</strong><p className="mt-1 font-semibold">{gate.broad_mapping_text}</p></div>}
       </div>
       <div className="hidden gap-1 sm:flex">{actions("icon")}</div>
     </div>
@@ -382,18 +382,23 @@ export function TemplateDraftEditorEntry({ summary: initialSummary, user, onBack
   if(!editable) return <Alert tone="danger"><AlertTriangle size={18}/><div><strong>Draft authoring is unavailable</strong><span className="mt-1 block">Only Super Admin or Admin can edit a draft template version.</span></div></Alert>;
 
   return <section className="grid gap-5" data-testid="template-draft-editor">
-    <header className="relative overflow-hidden rounded-[26px] bg-slate-950 p-5 text-white shadow-[0_24px_70px_rgba(15,23,42,.18)] sm:p-7">
-      <div aria-hidden="true" className="absolute -right-16 -top-20 size-64 rounded-full border-[38px] border-amber-400/10"/>
-      <div className="relative">
-        <Button variant="ghost" className="-ml-3 text-slate-300 hover:bg-white/10 hover:text-white" onClick={leave}><ArrowLeft size={17}/> Back to draft details</Button>
-        <div className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div><div className="flex flex-wrap items-center gap-2"><span className="text-xs font-medium text-blue-300">{summary.template_code}</span><Pill tone={statusTone(summary.status)}>{summary.status}</Pill></div><h2 className="mt-3 text-2xl font-normal tracking-[-.04em] sm:text-4xl">{summary.template_name}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Version {summary.version_no} · Draft you can edit</p></div>
-          <div className="grid grid-cols-2 gap-2 text-xs font-bold"><span className="rounded-xl border border-white/10 bg-white/[.07] px-3.5 py-3"><b className="block text-white">{summary.updated_at ? formatTemplateDate(summary.updated_at) : "Not available"}</b><small className="text-slate-400">Last updated</small></span><span className="rounded-xl border border-white/10 bg-white/[.07] px-3.5 py-3"><b className="block text-white">{summary.duration_days} days</b><small className="text-slate-400">Template length</small></span></div>
+    <Button variant="ghost" size="sm" className="-ml-2 w-fit" onClick={leave}><ArrowLeft size={16}/> Back to draft details</Button>
+    <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 rounded-[20px] border border-line bg-white p-5">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="min-w-0 text-[24px] font-normal leading-tight tracking-[-0.02em] text-slate-950">{summary.template_name}</h2>
+          <Pill tone={statusTone(summary.status)}>{summary.status}</Pill>
         </div>
+        <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-slate-500">
+          <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">{summary.template_code}</span>
+          <span>Version {summary.version_no}, draft you can edit</span>
+          <span>{summary.duration_days} days planned</span>
+          <span>Last updated {summary.updated_at ? formatTemplateDate(summary.updated_at) : "not available"}</span>
+        </p>
       </div>
     </header>
 
-    <nav aria-label="Draft editor sections" className="grid grid-cols-1 gap-2 rounded-2xl sm:grid-cols-2 lg:grid-cols-4 border border-slate-200 bg-white p-2">
+    <nav aria-label="Draft editor sections" className="grid grid-cols-1 gap-1 rounded-[20px] border border-line bg-white p-1.5 sm:grid-cols-2 lg:grid-cols-4">
       <Button variant={activeEditorTab === "tasks" ? "primary" : "ghost"} onClick={() => setActiveEditorTab("tasks")}><BookOpenCheck size={17}/> Tasks ({tasks.length})</Button>
       <Button variant={activeEditorTab === "dependencies" ? "primary" : "ghost"} onClick={() => setActiveEditorTab("dependencies")}><GitBranch size={17}/> Dependencies · advanced ({dependencies.length})</Button>
       <Button variant={activeEditorTab === "gates" ? "primary" : "ghost"} onClick={() => setActiveEditorTab("gates")}><ShieldAlert size={17}/> Prerequisite approvals ({gates.length})</Button>
@@ -401,23 +406,23 @@ export function TemplateDraftEditorEntry({ summary: initialSummary, user, onBack
     </nav>
 
     {activeEditorTab === "tasks" ? <>
-      <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><BookOpenCheck className="mt-0.5 shrink-0 text-amber-700" size={19}/><div><strong className="text-amber-950">Tasks</strong><p className="mt-1 text-xs font-semibold leading-5 text-amber-800">Add, edit and order the tasks. Use the arrows to change the order, then save it.</p></div></div><Button className="w-full sm:w-auto" onClick={openAdd}><Plus size={17}/> Add task</Button></div>
+      <div className="flex flex-col gap-3 rounded-2xl border border-orange-200 bg-orange-50 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><BookOpenCheck className="mt-0.5 shrink-0 text-orange-700" size={19}/><div><strong className="text-orange-950">Tasks</strong><p className="mt-1 text-xs font-semibold leading-5 text-orange-800">Add, edit and order the tasks. Use the arrows to change the order, then save it.</p></div></div><Button className="w-full sm:w-auto" onClick={openAdd}><Plus size={17}/> Add task</Button></div>
       {mutationError && <Alert tone="danger" role="alert" className="items-center"><div><strong>Draft update failed</strong><span className="mt-1 block">{apiMessage(mutationError)}</span></div><Button variant="secondary" size="sm" onClick={refresh}><RefreshCw size={15}/> Refresh draft</Button></Alert>}
       {/* Approval tasks are an older task type; the filter only appears while one exists. */}
-      {gateTaskCount > 0 && <div className="grid grid-cols-1 gap-2 rounded-2xl border border-slate-200 bg-white p-2 sm:grid-cols-3" role="tablist" aria-label="Filter tasks by type">
+      {gateTaskCount > 0 && <div className="grid grid-cols-1 gap-2 rounded-[20px] border border-line bg-white p-2 sm:grid-cols-3" role="tablist" aria-label="Filter tasks by type">
         <Button variant={taskKindFilter === "all" ? "primary" : "ghost"} size="sm" onClick={() => setTaskKindFilter("all")}>All ({tasks.length})</Button>
         <Button variant={taskKindFilter === "work" ? "primary" : "ghost"} size="sm" onClick={() => setTaskKindFilter("work")}>Site work ({standardTaskCount})</Button>
         <Button variant={taskKindFilter === "approval_gate" ? "primary" : "ghost"} size="sm" onClick={() => setTaskKindFilter("approval_gate")}>Approval tasks ({gateTaskCount})</Button>
       </div>}
       {gateTaskCount > 0 && taskKindFilter !== "all" && <p className="text-xs font-semibold text-slate-500">Switch to "All" to change the task order.</p>}
-      {loading ? <div className="grid min-h-64 place-items-center rounded-2xl border border-slate-200 bg-white"><LoadingSpinner label="Loading draft tasks..."/></div> : loadError ? <Alert tone="danger" className="items-center"><div><strong>Draft tasks unavailable</strong><span className="mt-1 block">{apiMessage(loadError)}</span></div><Button variant="secondary" size="sm" onClick={refresh}><RefreshCw size={15}/> Retry</Button></Alert> : tasks.length===0 ? <EmptyState className="min-h-64 bg-white" title="This draft has no tasks" description="Add the first task." action={<Button onClick={openAdd}><Plus size={16}/> Add first task</Button>}/> : visibleTasks.length===0 ? <EmptyState className="min-h-64 bg-white" title="No tasks of this kind yet" description="Switch tabs or add a task and set its kind."/> : <div className="grid gap-3">{visibleTasks.map(task=>{const index=tasks.indexOf(task);return <TaskRow key={task.id} task={task} index={index} count={tasks.length} disableMove={taskKindFilter !== "all"} onEdit={openEdit} onDelete={task=>{setDeleteTask(task);setDeleteError(null);}} onMove={move}/>;})}</div>}
-      {!loading && tasks.length>0 && <footer className="sticky bottom-3 z-10 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-[0_18px_50px_rgba(15,23,42,.16)] backdrop-blur sm:flex-row sm:items-center sm:justify-between"><div className="px-1"><strong className="text-sm text-slate-950">{tasks.length} draft task{tasks.length===1?"":"s"}</strong><p className="mt-0.5 text-xs font-semibold text-slate-500">{reorderDirty ? "Order changed — save to create a new revision." : "Sequence is saved."}</p></div><div className="grid grid-cols-2 gap-2"><Button variant="secondary" disabled={!reorderDirty||savingOrder} onClick={()=>{const restored=savedOrder.map(id=>tasks.find(task=>task.id===id)).filter(Boolean);setTasks(restored);}}>Cancel order</Button><Button loading={savingOrder} disabled={!reorderDirty} onClick={saveOrder}><Save size={16}/> Save order</Button></div></footer>}
+      {loading ? <div className="grid min-h-64 place-items-center rounded-[20px] border border-line bg-white"><LoadingSpinner label="Loading draft tasks..."/></div> : loadError ? <Alert tone="danger" className="items-center"><div><strong>Draft tasks unavailable</strong><span className="mt-1 block">{apiMessage(loadError)}</span></div><Button variant="secondary" size="sm" onClick={refresh}><RefreshCw size={15}/> Retry</Button></Alert> : tasks.length===0 ? <EmptyState className="min-h-64 bg-white" title="This draft has no tasks" description="Add the first task." action={<Button onClick={openAdd}><Plus size={16}/> Add first task</Button>}/> : visibleTasks.length===0 ? <EmptyState className="min-h-64 bg-white" title="No tasks of this kind yet" description="Switch tabs or add a task and set its kind."/> : <div className="grid gap-3">{visibleTasks.map(task=>{const index=tasks.indexOf(task);return <TaskRow key={task.id} task={task} index={index} count={tasks.length} disableMove={taskKindFilter !== "all"} onEdit={openEdit} onDelete={task=>{setDeleteTask(task);setDeleteError(null);}} onMove={move}/>;})}</div>}
+      {!loading && tasks.length>0 && <footer className="sticky bottom-3 z-10 flex flex-col gap-3 rounded-[20px] border border-line bg-white/95 p-3 shadow-[0_18px_50px_rgba(15,23,42,.16)] backdrop-blur sm:flex-row sm:items-center sm:justify-between"><div className="px-1"><strong className="text-sm text-slate-950">{tasks.length} draft task{tasks.length===1?"":"s"}</strong><p className="mt-0.5 text-xs font-semibold text-slate-500">{reorderDirty ? "Order changed — save to create a new revision." : "Sequence is saved."}</p></div><div className="grid grid-cols-2 gap-2"><Button variant="secondary" disabled={!reorderDirty||savingOrder} onClick={()=>{const restored=savedOrder.map(id=>tasks.find(task=>task.id===id)).filter(Boolean);setTasks(restored);}}>Cancel order</Button><Button loading={savingOrder} disabled={!reorderDirty} onClick={saveOrder}><Save size={16}/> Save order</Button></div></footer>}
     </> : activeEditorTab === "dependencies" ? <>
-      <div className="flex flex-col gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><GitBranch className="mt-0.5 shrink-0 text-cyan-700" size={19}/><div><strong className="text-cyan-950">Dependencies (advanced)</strong><p className="mt-1 text-xs font-semibold leading-5 text-cyan-800">Every link between tasks. Most are easier to set with "Can't start until" in each task. Use this list for start-together or advisory links.</p></div></div><Button className="w-full sm:w-auto" onClick={openAddDependency} disabled={tasks.length < 2}><Plus size={17}/> Add link</Button></div>
-      {loading ? <div className="grid min-h-64 place-items-center rounded-2xl border border-slate-200 bg-white"><LoadingSpinner label="Loading draft dependencies..."/></div> : loadError ? <Alert tone="danger" className="items-center"><div><strong>Draft dependencies unavailable</strong><span className="mt-1 block">{apiMessage(loadError)}</span></div><Button variant="secondary" size="sm" onClick={refresh}><RefreshCw size={15}/> Retry</Button></Alert> : dependencies.length===0 ? <EmptyState className="min-h-64 bg-white" title="No links between tasks yet" description="Tasks can start on their planned day." action={tasks.length >= 2 ? <Button onClick={openAddDependency}><Plus size={16}/> Add first link</Button> : null}/> : <div className="grid gap-3">{dependencies.map(dependency => <DependencyRow key={dependency.id} dependency={dependency} onEdit={openEditDependency} onDelete={item=>{setDeleteDependency(item);setDependencyDeleteError(null);}}/>)}</div>}
+      <div className="flex flex-col gap-3 rounded-2xl border border-cyan-200 bg-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><GitBranch className="mt-0.5 shrink-0 text-slate-500" size={19}/><div><strong className="text-cyan-950">Dependencies (advanced)</strong><p className="mt-1 text-xs font-semibold leading-5 text-cyan-800">Every link between tasks. Most are easier to set with "Can't start until" in each task. Use this list for start-together or advisory links.</p></div></div><Button className="w-full sm:w-auto" onClick={openAddDependency} disabled={tasks.length < 2}><Plus size={17}/> Add link</Button></div>
+      {loading ? <div className="grid min-h-64 place-items-center rounded-[20px] border border-line bg-white"><LoadingSpinner label="Loading draft dependencies..."/></div> : loadError ? <Alert tone="danger" className="items-center"><div><strong>Draft dependencies unavailable</strong><span className="mt-1 block">{apiMessage(loadError)}</span></div><Button variant="secondary" size="sm" onClick={refresh}><RefreshCw size={15}/> Retry</Button></Alert> : dependencies.length===0 ? <EmptyState className="min-h-64 bg-white" title="No links between tasks yet" description="Tasks can start on their planned day." action={tasks.length >= 2 ? <Button onClick={openAddDependency}><Plus size={16}/> Add first link</Button> : null}/> : <div className="grid gap-3">{dependencies.map(dependency => <DependencyRow key={dependency.id} dependency={dependency} onEdit={openEditDependency} onDelete={item=>{setDeleteDependency(item);setDependencyDeleteError(null);}}/>)}</div>}
        </> : activeEditorTab === "gates" ? <>
       <div className="flex flex-col gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><ShieldAlert className="mt-0.5 shrink-0 text-violet-700" size={19}/><div><strong className="text-violet-950">Prerequisite approvals</strong><p className="mt-1 text-xs font-semibold leading-5 text-violet-800">Outside approvals, such as a Fire NOC, that related work needs first. Link each one to the tasks it is required before.</p></div></div><Button className="w-full sm:w-auto" onClick={openAddGate}><Plus size={17}/> Add approval</Button></div>
-      {loading ? <div className="grid min-h-64 place-items-center rounded-2xl border border-slate-200 bg-white"><LoadingSpinner label="Loading prerequisite approvals..."/></div> : loadError ? <Alert tone="danger"><strong>Prerequisite approvals unavailable</strong><span>{apiMessage(loadError)}</span></Alert> : gates.length===0 ? <EmptyState className="min-h-64 bg-white" title="No prerequisite approvals yet" description="Add an outside approval that related work needs first." action={<Button onClick={openAddGate}><Plus size={16}/> Add first approval</Button>}/> : <div className="grid gap-3">{gates.map(gate=><GateRow key={gate.id} gate={gate} onEdit={openEditGate} onDelete={item=>{setDeleteGate(item);setGateDeleteError(null)}}/>)}</div>}
+      {loading ? <div className="grid min-h-64 place-items-center rounded-[20px] border border-line bg-white"><LoadingSpinner label="Loading prerequisite approvals..."/></div> : loadError ? <Alert tone="danger"><strong>Prerequisite approvals unavailable</strong><span>{apiMessage(loadError)}</span></Alert> : gates.length===0 ? <EmptyState className="min-h-64 bg-white" title="No prerequisite approvals yet" description="Add an outside approval that related work needs first." action={<Button onClick={openAddGate}><Plus size={16}/> Add first approval</Button>}/> : <div className="grid gap-3">{gates.map(gate=><GateRow key={gate.id} gate={gate} onEdit={openEditGate} onDelete={item=>{setDeleteGate(item);setGateDeleteError(null)}}/>)}</div>}
     </> : null}
     <div className={activeEditorTab === "validation" ? "block" : "hidden"} aria-hidden={activeEditorTab !== "validation"}><TemplateValidationPublishPanel summary={summary} active={activeEditorTab === "validation"} tasks={tasks} gates={gates} onFix={fixIssue} onRefresh={refresh} onPublished={onPublished}/></div>
 

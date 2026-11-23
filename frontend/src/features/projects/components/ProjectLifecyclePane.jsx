@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { projectsApi } from "../../../api/projectsApi";
 import { Alert, Button, Field, Input, Select } from "../../../components/ui";
 import { isOrgAdmin } from "../../../utils/constants";
-import { PaneHeader } from "./PaneKit";
+import { PaneHeader } from "../../../components/layout/PaneKit";
 
 const actionLabel = value => value.toLowerCase().replaceAll("_", " ").replace(/(^|\s)\S/g, match => match.toUpperCase());
 

@@ -58,10 +58,10 @@ export function TemplateGateEditorModal({ gate, tasks, versionId, durationDays, 
     </Section>
     <Section title="Required before">
       <p className="text-sm font-bold text-slate-700">This approval is required before these tasks</p>
-      {importedWording&&<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><strong>Imported wording</strong><p className="mt-1 font-semibold">{saved.broad_mapping_text}</p>{form.task_ids.length>0?<p className="mt-2 font-bold">Saving replaces the imported wording with the tasks you picked.</p>:<p className="mt-1">Not linked to specific tasks. Pick tasks below to link them.</p>}</div>}
+      {importedWording&&<div className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-xs text-orange-900"><strong>Imported wording</strong><p className="mt-1 font-semibold">{saved.broad_mapping_text}</p>{form.task_ids.length>0?<p className="mt-2 font-bold">Saving replaces the imported wording with the tasks you picked.</p>:<p className="mt-1">Not linked to specific tasks. Pick tasks below to link them.</p>}</div>}
       {!form.task_ids.length&&!importedWording&&<p className="text-xs font-semibold text-slate-500">Not linked to any task yet, so no task will list it as a prerequisite.</p>}
       {tasks.length>8&&<label className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/><Input aria-label="Find a task" value={taskFilter} onChange={e=>setTaskFilter(e.target.value)} className="pl-9" placeholder="Find a task"/></label>}
-      <div className="grid max-h-72 gap-2 overflow-auto sm:grid-cols-2">{visibleTasks.map(task=><label key={task.id} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm"><input aria-label={`Required before ${task.code}`} type="checkbox" checked={form.task_ids.includes(String(task.id))} onChange={()=>toggleTask(String(task.id))} className="mt-0.5 size-4 accent-blue-700"/><span><b className="font-mono text-xs text-blue-700">{task.code}</b><span className="block text-xs font-semibold text-slate-700">{task.title}</span></span></label>)}</div>
+      <div className="grid max-h-72 gap-2 overflow-auto sm:grid-cols-2">{visibleTasks.map(task=><label key={task.id} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm"><input aria-label={`Required before ${task.code}`} type="checkbox" checked={form.task_ids.includes(String(task.id))} onChange={()=>toggleTask(String(task.id))} className="mt-0.5 size-4 accent-blue-700"/><span><b className="tabular-nums text-xs text-slate-600">{task.code}</b><span className="block text-xs font-semibold text-slate-700">{task.title}</span></span></label>)}</div>
       {form.task_ids.length>0&&<p className="text-xs font-bold text-slate-600">{form.task_ids.length} task{form.task_ids.length===1?"":"s"} selected</p>}
     </Section>
     <Section title="Proof and reference material">
@@ -70,8 +70,8 @@ export function TemplateGateEditorModal({ gate, tasks, versionId, durationDays, 
         ? <TemplateReferenceFiles versionId={versionId} kind="gates" ownerId={gate.id} files={gate.reference_files} revisionToken={revisionToken} onChanged={onReferencesChanged}/>
         : <p className="text-sm font-semibold text-slate-500">Save the approval first, then add reference files such as an application form.</p>}
     </Section>
-    <details className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-      <summary className="cursor-pointer text-sm font-black text-slate-700">Advanced</summary>
+    <details className="rounded-[20px] border border-line bg-white p-4 sm:p-5">
+      <summary className="cursor-pointer text-sm font-medium text-slate-700">Advanced</summary>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <Field label="Approval code" error={errors.code} hint="Filled in automatically. Must be unique in this template."><Input aria-label="Approval code" value={form.code} onChange={e=>change("code",e.target.value)}/></Field>
         <Field label="What's affected if it's late" hint="Shown to the team with the approval."><Textarea aria-label="What's affected if it's late" value={form.impact} onChange={e=>change("impact",e.target.value)}/></Field>

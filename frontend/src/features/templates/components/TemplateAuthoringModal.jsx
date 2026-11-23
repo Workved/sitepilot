@@ -137,13 +137,13 @@ export function TemplateAuthoringModal({ mode, source, onClose, onSuccess }) {
     className="sm:max-w-3xl"
   >
     <form className="grid gap-5" onSubmit={submit} data-testid="template-authoring-form">
-      {isClone ? <section className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-        <div className="flex items-start gap-3 border-b border-slate-200 bg-slate-950 p-4 text-white sm:p-5">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-600"><Copy size={19}/></span>
+      {isClone ? <section className="overflow-hidden rounded-[20px] border border-line bg-slate-50">
+        <div className="flex items-start gap-3 border-b border-line bg-white p-4 sm:p-5">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700"><Copy size={19}/></span>
           <div className="min-w-0">
-            <span className="text-xs font-medium text-blue-300">Source remains unchanged</span>
-            <h3 className="mt-1 truncate text-lg font-black">{source.template_name}</h3>
-            <p className="mt-1 text-xs font-semibold text-slate-300">{source.template_code} · Version {source.version_no} · {source.status}</p>
+            <span className="text-xs text-slate-500">Source remains unchanged</span>
+            <h3 className="mt-0.5 truncate text-[17px] font-normal text-slate-950">{source.template_name}</h3>
+            <p className="mt-0.5 text-xs text-slate-500">{source.template_code}, version {source.version_no}, {source.status}</p>
           </div>
         </div>
         <div className="grid gap-3 p-4 text-sm text-slate-600 sm:grid-cols-3 sm:p-5">
@@ -153,7 +153,7 @@ export function TemplateAuthoringModal({ mode, source, onClose, onSuccess }) {
         </div>
       </section> : <section className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-blue-950">
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-700 text-white"><FilePlus2 size={19}/></span>
-        <div><h3 className="font-black">Start with a clean draft</h3><p className="mt-1 text-sm leading-6 text-blue-800">No tasks are seeded automatically. The template identity and initial draft are created together.</p></div>
+        <div><h3 className="font-medium">Start with a clean draft</h3><p className="mt-1 text-sm leading-6 text-blue-800">No tasks are seeded automatically. The template identity and initial draft are created together.</p></div>
       </section>}
 
       {requestError && <Alert tone="danger"><div><strong className="block">{isClone ? "Draft could not be created" : "Template could not be created"}</strong><span className="mt-1 block font-medium">{requestError}</span></div></Alert>}
@@ -205,7 +205,7 @@ export function TemplateAuthoringModal({ mode, source, onClose, onSuccess }) {
         />
       </Field>
 
-      {isClone && <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold leading-5 text-amber-900"><Info className="mt-0.5 shrink-0" size={16}/>All tasks, dependencies and prerequisite approvals are copied into the draft. Existing projects are not affected.</div>}
+      {isClone && <div className="flex items-start gap-2 rounded-xl border border-orange-200 bg-orange-50 p-3 text-xs font-semibold leading-5 text-orange-900"><Info className="mt-0.5 shrink-0" size={16}/>All tasks, dependencies and prerequisite approvals are copied into the draft. Existing projects are not affected.</div>}
 
       <div className="sticky bottom-0 -mx-4 -mb-4 grid gap-2 border-t border-slate-100 bg-white/95 p-4 backdrop-blur sm:-mx-6 sm:-mb-6 sm:grid-cols-[auto_1fr] sm:p-6">
         <Button variant="secondary" onClick={onClose} disabled={submitting}>Cancel</Button>

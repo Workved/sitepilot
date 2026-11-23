@@ -1,4 +1,4 @@
-import { cn } from "../../../utils/cn";
+import { cn } from "../../utils/cn";
 
 /*
  * Building blocks shared by every tab inside a project workspace, so the

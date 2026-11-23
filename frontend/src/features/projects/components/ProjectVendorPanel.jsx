@@ -1,5 +1,5 @@
 import { Building2, ChevronDown, Pencil, Plus, RotateCcw, Truck, UserMinus } from "lucide-react";
-import { PaneHeader, PaneLoading } from "./PaneKit";
+import { PaneHeader, PaneLoading } from "../../../components/layout/PaneKit";
 import { useEffect, useState } from "react";
 import { vendorAssignmentApi } from "../../../api/vendorAssignmentApi";
 import { Button, EmptyState, Field, Pill, Select, Textarea } from "../../../components/ui";
