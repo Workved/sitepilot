@@ -78,7 +78,7 @@ function TaskBar({ data }) {
   return <div className="relative h-full w-full" title={name}>
     <span className="pointer-events-none absolute bottom-[calc(50%+3px)] left-0 flex items-center gap-1.5 whitespace-nowrap text-[11px] font-bold leading-4 text-slate-800">
       {name}
-      {data.late > 0 && <span className="rounded-full bg-rose-600 px-1.5 text-[10px] font-black leading-4 text-white">+{data.late}d</span>}
+      {data.late > 0 && <span className="rounded-full bg-rose-600 px-1.5 text-[10px] font-medium leading-4 text-white">+{data.late}d</span>}
     </span>
     <span className={`absolute inset-x-1 top-[calc(50%+6px)] h-1.5 -translate-y-1/2 rounded-full ${mark.line}`}/>
     <span className={`absolute left-0 top-[calc(50%+6px)] z-10 grid size-3.5 -translate-y-1/2 place-items-center rounded-full ring-2 ring-white ${mark.pin}`}>{data.blocked && <Lock size={8} className="text-white"/>}</span>
@@ -92,10 +92,10 @@ function makeTooltip(rowsById) {
 
 function TaskTooltip({ row }) {
   if (!row) return null;
-  if (row.isPhase) return <div className="rounded-lg border border-slate-200 bg-white p-2 text-xs font-bold shadow">{row.text} · {row.count} tasks · {row.progress}% done</div>;
+  if (row.isPhase) return <div className="rounded-lg border border-slate-200 bg-white p-2 text-xs font-bold shadow">{row.text}, {row.count} {row.count === 1 ? "task" : "tasks"}, {row.progress}% done</div>;
   const task = row.source;
   return <div className="w-72 rounded-xl border border-slate-200 bg-white p-3 text-xs shadow-lg">
-    <p className="font-black text-slate-900">{task.original_code} · {task.title}</p>
+    <p className="font-medium text-slate-900">{task.original_code} · {task.title}</p>
     <p className={`mt-1 font-bold ${TONES[row.tone]?.text || ""}`}>{row.label}{row.late > 0 ? ` · ${row.late} day${row.late === 1 ? "" : "s"} late` : ""}</p>
     <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-slate-600">
       <dt className="font-bold">Plan</dt><dd>{formatDay(task.planned_start_date)} - {formatDay(task.planned_end_date)}</dd>
@@ -108,8 +108,8 @@ function TaskTooltip({ row }) {
 }
 
 function StatusCell({ row }) {
-  if (row.isPhase) return <span className="text-[11px] font-bold text-slate-500">{row.count} tasks · {row.progress}%</span>;
-  return <span className={`text-[11px] font-black ${TONES[row.tone]?.text || ""}`}>{row.label}{row.late > 0 ? ` · ${row.late}d late` : ""}</span>;
+  if (row.isPhase) return <span className="text-xs text-slate-500">{row.count} {row.count === 1 ? "task" : "tasks"}, {row.progress}%</span>;
+  return <span className={`text-[11px] font-medium ${TONES[row.tone]?.text || ""}`}>{row.label}{row.late > 0 ? ` · ${row.late}d late` : ""}</span>;
 }
 
 const COLUMNS = [
@@ -118,7 +118,7 @@ const COLUMNS = [
   { id: "start", header: "Start", width: 72, align: "center", template: value => (value instanceof Date ? formatDay(isoOf(value)) : "") },
 ];
 
-export function ProjectGantt({ tasks, project, zoom = "week", todaySignal = 0, onOpenTask }) {
+export function ProjectGantt({ tasks, project, zoom = "day", todaySignal = 0, onOpenTask }) {
   const [api, setApi] = useState(null);
   const today = todayLocal();
   const { rows, links } = useMemo(() => toGanttData(tasks, today), [tasks]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -141,12 +141,7 @@ export function ProjectGantt({ tasks, project, zoom = "week", todaySignal = 0, o
   }
 
   return <div className="grid gap-3">
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-bold text-slate-500">
-      <span className="flex items-center gap-1.5"><span className="h-3 w-1 rounded-full bg-rose-500"/>Today · {formatDay(isoOf(today))}</span>
-      {project?.start_date && <span>Project start · <span className="text-slate-800">{formatDay(project.start_date)}</span></span>}
-      {project?.target_handover_date && <span>Handover · <span className="text-slate-800">{formatDay(project.target_handover_date)}</span></span>}
-    </div>
-    {rows.length > 0 && <div className="siteops-gantt overflow-hidden rounded-2xl border border-slate-200 bg-white" style={{ height: Math.min(Math.max(rows.length * 48 + 90, 320), 720) }} data-testid="svar-gantt">
+    {rows.length > 0 && <div className="siteops-gantt overflow-hidden rounded-[20px] border border-line bg-white" style={{ height: Math.min(Math.max(rows.length * 48 + 70, 200), 720) }} data-testid="svar-gantt">
       <Willow>
         <Tooltip api={api} content={tooltip}>
           <Gantt key={zoom} init={init} readonly tasks={rows} links={links} columns={COLUMNS} scales={scalesWithToday(zoom, today)} lengthUnit={config.lengthUnit}
@@ -166,14 +161,14 @@ function UnscheduledTasks({ tasks, onOpenTask }) {
   const today = todayLocal();
   const states = tasks.map(task => taskState(task, today));
   const count = label => states.filter(state => state.label === label).length;
-  return <section className="rounded-2xl border border-slate-200 bg-white">
+  return <section className="rounded-[20px] border border-line bg-white">
     <button type="button" onClick={() => setOpen(value => !value)} aria-expanded={open} className="flex w-full flex-wrap items-center justify-between gap-2 p-4 text-left">
-      <span><span className="block text-sm font-black text-slate-900">Pre-activation checklist</span><span className="text-xs font-semibold text-slate-500">{tasks.length} task{tasks.length === 1 ? "" : "s"} with no planned dates</span></span>
-      <span className="flex items-center gap-1.5 text-[11px] font-black"><span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">{count("Ready to start")} ready</span><span className="rounded-full bg-rose-50 px-2 py-0.5 text-rose-700">{count("Blocked")} blocked</span><span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">{count("In progress")} in progress</span><ChevronDown size={15} className={`text-slate-400 transition ${open ? "rotate-180" : ""}`}/></span>
+      <span><span className="block text-[15px] text-slate-950">Pre-activation checklist</span><span className="text-xs text-slate-500">{tasks.length} task{tasks.length === 1 ? "" : "s"} with no planned dates</span></span>
+      <span className="flex items-center gap-1.5 text-xs"><span className="rounded-md bg-emerald-50 px-2 py-0.5 text-emerald-800">{count("Ready to start")} ready</span><span className="rounded-md bg-rose-50 px-2 py-0.5 text-rose-800">{count("Blocked")} blocked</span><span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">{count("In progress")} in progress</span><ChevronDown size={15} className={`text-slate-400 transition ${open ? "rotate-180" : ""}`}/></span>
     </button>
     {open && <div className="grid gap-1.5 border-t border-slate-100 p-4 pt-3">{tasks.map((task, i) => <button key={task.id} type="button" onClick={() => onOpenTask(task.id)} className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-left text-sm hover:border-blue-200">
-      <span className="font-mono text-xs font-black text-blue-700">{task.original_code}</span><span className="truncate font-bold text-slate-900">{task.title}</span>
-      <span className={`ml-auto shrink-0 text-xs font-bold ${TONES[states[i].tone].text}`}>{states[i].label}</span>
+      <span className="rounded-md bg-white px-1.5 py-0.5 text-xs tabular-nums text-slate-700 ring-1 ring-slate-200">{task.original_code}</span><span className="truncate text-slate-950">{task.title}</span>
+      <span className={`ml-auto shrink-0 text-xs ${TONES[states[i].tone].text}`}>{states[i].label}</span>
     </button>)}</div>}
   </section>;
 }

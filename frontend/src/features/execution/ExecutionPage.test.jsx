@@ -48,7 +48,8 @@ describe("ExecutionPage - Internal Employee scoping", () => {
 
   it("shows the project name from the project list, not from the (skipped) whole-project fetch", async () => {
     render(<ExecutionPage user={{ role: "internal_employee", id: "u-ie" }}/>);
-    expect(await screen.findByText("Sample Fitout Project")).toBeInTheDocument();
+    // The project picker is the page title, so the name is its displayed value.
+    expect(await screen.findByDisplayValue("Sample Fitout Project")).toBeInTheDocument();
     expect(screen.getByText("Your assigned tasks")).toBeInTheDocument();
   });
 
@@ -214,10 +215,10 @@ describe("ExecutionPage - link to a project's External Approvals", () => {
 
     render(<ExecutionPage user={{ role: "admin", id: "u-adm" }}/>);
 
-    expect(await screen.findByRole("button", { name: /external approvals/i }, { timeout: 5000 })).toHaveClass("bg-blue-600");
+    expect(await screen.findByRole("button", { name: /external approvals/i }, { timeout: 5000 })).toHaveAttribute("aria-current", "page");
     await waitFor(() => expect(taskExecutionApi.listExternalApprovals).toHaveBeenCalledWith("p2"));
     expect(screen.getByRole("combobox")).toHaveValue("p2");
-    expect(screen.getByRole("button", { name: /external approvals/i })).toHaveClass("bg-blue-600");
+    expect(screen.getByRole("button", { name: /external approvals/i })).toHaveAttribute("aria-current", "page");
   });
 
   it("falls back to the first project and default tab without a link", async () => {
@@ -225,7 +226,7 @@ describe("ExecutionPage - link to a project's External Approvals", () => {
     render(<ExecutionPage user={{ role: "admin", id: "u-adm" }}/>);
 
     await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue("p1"));
-    expect(await screen.findByRole("button", { name: /execution calendar/i }, { timeout: 5000 })).toHaveClass("bg-blue-600");
+    expect(await screen.findByRole("button", { name: /execution calendar/i }, { timeout: 5000 })).toHaveAttribute("aria-current", "page");
     expect(taskExecutionApi.listExternalApprovals).not.toHaveBeenCalled();
   });
 });

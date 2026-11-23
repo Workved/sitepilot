@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarCheck, CalendarRange, ClipboardList, FolderKanban, GitBranch, Plus, ShieldCheck } from "lucide-react";
+import { CalendarCheck, CalendarRange, ChevronDown, ClipboardList, FolderKanban, GitBranch, Plus, ShieldCheck } from "lucide-react";
 import { projectsApi } from "../../api/projectsApi";
-import { EmptyState, LoadingSpinner, RefreshButton, Select } from "../../components/ui";
+import { Button, EmptyState, LoadingSpinner } from "../../components/ui";
+import { formatDateShort } from "../../utils/format";
+import { scheduleWindow } from "../../utils/schedule";
 import { readRoute } from "../../lib/route";
 import { canAddTasks } from "../projects/components/TaskScope";
 import { AddRunningTaskModal } from "./components/AddRunningTaskModal";
@@ -51,7 +53,8 @@ export function ExecutionPage({ user }) {
   // fetch of the same task.
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [myTasks, setMyTasks] = useState([]);
-  // Bumped by the header Refresh button. Included in the two effects below so
+  // Bumped by the shell's refresh (which remounts this page) and after a task
+  // is added. Included in the two effects below so
   // they rerun on demand, and in the currently-mounted role view's `key` so
   // it remounts and refetches too (each role view owns its own task fetch -
   // see the module comment above).
@@ -130,57 +133,66 @@ export function ExecutionPage({ user }) {
   }, [projectId]);
 
   const selectedMyTask = myTasks.find(task => task.id === selectedTaskId) || null;
+  const schedule = scheduleWindow(selectedProject);
+  const sections = user.role === "internal_employee"
+    ? [[viewMeta.key, viewMeta.label, viewMeta.Icon], ["approvals", "External Approvals", ShieldCheck]]
+    : [
+        [viewMeta.key, viewMeta.label, viewMeta.Icon],
+        // Supervisors keep their 3-day board and get the calendar too.
+        ...(user.role === "supervisor" ? [["calendar", "Calendar", CalendarCheck]] : []),
+        ["dependencies", "Dependencies", GitBranch],
+        ["approvals", "External Approvals", ShieldCheck],
+      ];
 
   return (
     <section className="grid gap-5">
-      <header className="flex flex-col gap-4 rounded-[24px] border border-slate-200/80 bg-white p-5 sm:p-6 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-500"><CalendarCheck size={15}/> {user.role === "internal_employee" ? "Your assigned tasks" : "Active project task view"}</div>
-          <h2 className="mt-2 text-2xl font-normal tracking-[-.035em] text-slate-950 sm:text-3xl">{view?.project_name || selectedProject?.name || "Select an active project"}</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">{user.role === "internal_employee" ? "Only tasks you're actively assigned to support appear here - update their status, log progress and upload evidence." : "Track and drive task execution for this activated project: status updates, evidence, verification/approval, blockers/delays and support assignment."}</p>
+      {/* The project picker IS the title, so the name shows once; the
+          section tabs live in the same card, like a project's workspace. */}
+      <header className="rounded-[20px] border border-line bg-white px-4 pt-4 sm:px-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            {user.role === "internal_employee" && <p className="text-[13px] text-slate-500">Your assigned tasks</p>}
+            <label className="relative flex max-w-full items-center">
+              <span className="sr-only">Active project</span>
+              <select value={projectId} onChange={event => setProjectId(event.target.value)} disabled={projectsLoading}
+                className="max-w-full cursor-pointer appearance-none truncate rounded-lg bg-transparent py-0.5 pl-1 pr-8 -ml-1 text-[24px] font-normal tracking-[-0.02em] text-slate-950 outline-none hover:bg-slate-50 focus-visible:ring-4 focus-visible:ring-blue-600/10 disabled:cursor-wait">
+                <option value="">{projectsLoading ? "Loading..." : "Select project"}</option>
+                {projects.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+              <ChevronDown size={20} className="pointer-events-none absolute right-1.5 text-slate-500" aria-hidden="true"/>
+            </label>
+            {selectedProject && <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-slate-500">
+              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">{selectedProject.code}</span>
+              {selectedProject.client_name && <span className="text-slate-700">{selectedProject.client_name}</span>}
+              {(selectedProject.start_date || selectedProject.target_handover_date) && <span>{formatDateShort(selectedProject.start_date) || "No start"} to {formatDateShort(selectedProject.target_handover_date) || "no handover"}</span>}
+              {schedule && !schedule.notStarted && <span>Day {schedule.day} of {schedule.total}</span>}
+              {schedule?.notStarted && <span>Starts in {schedule.daysToStart} {schedule.daysToStart === 1 ? "day" : "days"}</span>}
+            </p>}
+          </div>
+          {canAddTasks(user) && projectId && project && <Button onClick={() => setAddingTask(true)}><Plus size={16}/> Add task</Button>}
         </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="grid min-w-[240px] gap-2 text-sm font-bold text-slate-700">
-            <span>Active project</span>
-            <Select value={projectId} onChange={event => setProjectId(event.target.value)} disabled={projectsLoading}>
-              <option value="">{projectsLoading ? "Loading..." : "Select project"}</option>
-              {projects.map(project => <option key={project.id} value={project.id}>{project.name} ({project.code})</option>)}
-            </Select>
-          </label>
-          {canAddTasks(user) && projectId && project && <button type="button" onClick={() => setAddingTask(true)} className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-black text-white hover:bg-blue-700"><Plus size={16}/> Add task</button>}
-          <RefreshButton loading={projectsLoading || detailLoading} onClick={() => setReloadToken(token => token + 1)}/>
-        </div>
+
+        {(view || (user.role === "internal_employee" && selectedProject)) && <nav aria-label="Execution sections" className="so-scroll -mx-4 mt-3 flex gap-1 overflow-x-auto px-4 sm:-mx-6 sm:px-6">
+          {sections.map(([key, label]) => {
+            const active = activeTab === key;
+            return <button key={key} type="button" onClick={() => setActiveTab(key)} aria-current={active ? "page" : undefined}
+              className={`inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap px-2.5 text-sm transition-colors ${active ? "text-slate-950 shadow-[inset_0_-2px_0_var(--color-slate-950)]" : "text-slate-500 hover:text-slate-950"}`}>
+              {label}
+            </button>;
+          })}
+        </nav>}
       </header>
 
       {addingTask && <AddRunningTaskModal projectId={projectId} project={project} user={user} onClose={() => setAddingTask(false)} onAdded={() => setReloadToken(token => token + 1)}/>}
 
-      {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">{error}</div>}
+      {error && <div role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>}
 
       {!projectsLoading && !projects.length ? (
         <EmptyState icon={<FolderKanban size={21}/>} title="No activated projects yet" description="A task baseline appears here once Admin activates a project from its draft setup."/>
       ) : detailLoading ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-8"><LoadingSpinner label="Loading task baseline..."/></div>
+        <div className="rounded-[20px] border border-line bg-white p-8"><LoadingSpinner label="Loading task baseline..."/></div>
       ) : (view || (user.role === "internal_employee" && selectedProject)) ? (
         <>
-          <div className="rounded-2xl border border-slate-200 bg-white p-2">
-            <div className="flex flex-wrap gap-2">
-              {(user.role === "internal_employee"
-                ? [[viewMeta.key, viewMeta.label, viewMeta.Icon], ["approvals", "External Approvals", ShieldCheck]]
-                : [
-                    [viewMeta.key, viewMeta.label, viewMeta.Icon],
-                    // Supervisors keep their 3-day board and get the calendar too.
-                    ...(user.role === "supervisor" ? [["calendar", "Calendar", CalendarCheck]] : []),
-                    ["dependencies", "Dependencies", GitBranch],
-                    ["approvals", "External Approvals", ShieldCheck],
-                  ]
-              ).map(([key, label, Icon]) => (
-                <button key={key} onClick={() => setActiveTab(key)} className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${activeTab === key ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"}`}>
-                  <Icon size={16}/>{label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {activeTab === viewMeta.key && user.role === "internal_employee" && (
             selectedMyTask
               ? <TaskActionView
@@ -198,9 +210,9 @@ export function ExecutionPage({ user }) {
 
           {activeTab === viewMeta.key && user.role === "supervisor" && <SupervisorOperationsBoard key={reloadToken} projectId={projectId} user={user}/>}
 
-          {activeTab === viewMeta.key && !["internal_employee", "supervisor"].includes(user.role) && <ExecutionCalendarView key={reloadToken} projectId={projectId} user={user} onSelectProject={setProjectId}/>}
+          {activeTab === viewMeta.key && !["internal_employee", "supervisor"].includes(user.role) && <ExecutionCalendarView key={reloadToken} projectId={projectId} user={user}/>}
 
-          {activeTab === "calendar" && user.role === "supervisor" && <ExecutionCalendarView key={reloadToken} projectId={projectId} user={user} onSelectProject={setProjectId}/>}
+          {activeTab === "calendar" && user.role === "supervisor" && <ExecutionCalendarView key={reloadToken} projectId={projectId} user={user}/>}
 
           {activeTab === "dependencies" && <DependencyControlView key={reloadToken} projectId={projectId} project={project} user={user} dependencies={dependencies}/>}
 
