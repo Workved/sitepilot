@@ -43,3 +43,17 @@ export function planGap(project, progressPct, today = new Date()) {
   const gap = planned - progressPct;
   return { planned, gap, behind: gap > BEHIND_TOLERANCE };
 }
+
+// One answer to "is this project OK?", shared by every screen that shows
+// project health. The backend's health covers late forecasts, overdue and
+// blocked work and approvals at risk; it cannot see a project whose tasks
+// are all on time but whose completed work trails the calendar. That case
+// is "at risk" here too, so no two screens disagree. Pass `planned` only
+// for running (active / on hold) projects: a draft cannot be behind plan.
+export function standingOf(row, planned) {
+  if (row.status === "completed" || row.health === "completed") return "completed";
+  if (row.health === "delayed") return "delayed";
+  if (row.health === "at_risk") return "at_risk";
+  if (planned != null && planned - row.progress_pct > BEHIND_TOLERANCE) return "at_risk";
+  return "on_track";
+}
