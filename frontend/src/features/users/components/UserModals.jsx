@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
-import { Activity, AlertTriangle, ArrowLeftRight, Check, Clock3, Copy, KeyRound, MessageCircle, RotateCcw, Save, ShieldCheck, Trash2, Unlink, UserPlus, UserX } from "lucide-react";
-import { channelToggleApi } from "../../../api/channelToggleApi";
-import { telegramConnectApi } from "../../../api/telegramConnectApi";
+import { Activity, AlertTriangle, Check, Clock3, KeyRound, MessageCircle, RotateCcw, Save, ShieldCheck, Trash2, UserPlus, UserX } from "lucide-react";
 import { usersApi } from "../../../api/usersApi";
-import { MyTelegramPanel } from "./MyTelegramPanel";
 import { Button, Field, FormActions, Input, Modal, Pill, Select, Textarea } from "../../../components/ui";
 import { roles } from "../../../utils/constants";
 import { initials } from "../../../utils/format";
@@ -25,134 +22,20 @@ function CapabilityPreview({ definition }) {
   return <section className="rounded-[22px] border border-blue-100 bg-blue-50/70 p-4 sm:p-5"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-blue-600 text-white"><ShieldCheck size={19}/></span><div><p className="text-xs font-black uppercase tracking-[.16em] text-blue-700">Access preview</p><h3 className="mt-1 font-black text-slate-950">{definition.label}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{definition.summary}</p></div></div><div className="mt-4 grid gap-2 sm:grid-cols-2">{definition.capabilities.map(item => <span key={item} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm"><Check className="text-emerald-600" size={15}/>{item}</span>)}</div></section>;
 }
 
-function ChannelPanel({ profile, phone }) {
-  const [channel, setChannel] = useState(profile?.active_channel || "whatsapp");
-  const [connected, setConnected] = useState(!!profile?.telegram_connected);
-  const [chatHint, setChatHint] = useState(profile?.telegram_chat_hint || "");
-  const [copied, setCopied] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [codeBusy, setCodeBusy] = useState(false);
-  const [codeError, setCodeError] = useState("");
-  const [connectCode, setConnectCode] = useState(null);
-  const [unlinkBusy, setUnlinkBusy] = useState(false);
-  const [unlinkError, setUnlinkError] = useState("");
-
-  if (!profile?.id) return null;
-
-  const other = channel === "telegram" ? "whatsapp" : "telegram";
-  const otherLabel = other === "telegram" ? "Telegram" : "WhatsApp";
-  const canSwitchToOther = other !== "telegram" || connected;
-  // No auto-fallback: a person left on "telegram" with no connected chat
-  // is deliberately shown as not-ready rather than silently treated as
-  // reachable on WhatsApp instead (see serializers.py's messaging_ready).
-  const messagingReady = channel === "telegram" ? connected : !!phone;
-
-  async function switchTo(target) {
-    setBusy(true);
-    setError("");
-    try {
-      const response = await channelToggleApi.toggle(profile.id, target);
-      const result = response.results?.[0];
-      if (!result?.success) setError(result?.error || "Could not switch channel.");
-      else setChannel(target);
-    } catch (err) {
-      setError(err.message || "Could not switch channel.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function unlinkTelegram() {
-    // eslint-disable-next-line no-alert -- deliberately simple: this is an
-    // Admin-only, low-frequency identity action, not worth a full modal.
-    if (!window.confirm(`Unlink Telegram from this person? Messages to them stop going to that chat right away. They'll need a new link to reconnect, and the chat becomes free for someone else to link.`)) return;
-    setUnlinkBusy(true);
-    setUnlinkError("");
-    try {
-      await telegramConnectApi.unlink(profile.id);
-      setConnected(false);
-      setChatHint("");
-      setConnectCode(null);
-    } catch (err) {
-      setUnlinkError(err.message || "Could not unlink Telegram.");
-    } finally {
-      setUnlinkBusy(false);
-    }
-  }
-
-  async function generateCode() {
-    setCodeBusy(true);
-    setCodeError("");
-    setCopied(false);
-    try {
-      const response = await telegramConnectApi.generateCode(profile.id);
-      setConnectCode(response);
-    } catch (err) {
-      setCodeError(err.message || "Could not generate a connect link.");
-    } finally {
-      setCodeBusy(false);
-    }
-  }
-
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(connectCode.link || connectCode.start_command);
-      setCopied(true);
-    } catch {
-      setCodeError("Could not copy - select the link and copy it manually.");
-    }
-  }
-
+// WhatsApp is the only messaging channel: a person can be reached once a
+// mobile number is on file.
+function ChannelPanel({ phone }) {
   return <section className="rounded-[22px] border border-slate-200 bg-slate-50 p-4 sm:p-5">
     <div className="flex items-start gap-3">
       <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-blue-600 text-white"><MessageCircle size={19}/></span>
       <div className="min-w-0 flex-1">
         <h3 className="font-black text-slate-950">Messaging channel</h3>
-        <p className="mt-1 text-sm leading-6 text-slate-600">Where this person currently receives task, gate and approval notifications - and can reply with commands.</p>
+        <p className="mt-1 text-sm leading-6 text-slate-600">This person receives task, gate and approval notifications on WhatsApp - and can reply with commands.</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Pill tone={channel === "telegram" ? "blue" : "green"}>{channel === "telegram" ? "Telegram" : "WhatsApp"}</Pill>
-          {connected ? <Pill tone="blue">Telegram connected{chatHint ? ` · chat ${chatHint}` : ""}</Pill> : <Pill tone="gray">Telegram not connected</Pill>}
-          {!messagingReady && <Pill tone="orange">Messaging Not Ready</Pill>}
+          <Pill tone="green">WhatsApp</Pill>
+          {!phone && <Pill tone="orange">Messaging Not Ready</Pill>}
         </div>
-        {!canSwitchToOther && <p className="mt-2 text-xs font-semibold text-amber-700">They must connect Telegram (below) before they can be switched over.</p>}
-        {error && <p className="mt-2 text-xs font-semibold text-rose-600">{error}</p>}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" loading={busy} disabled={!canSwitchToOther} onClick={() => switchTo(other)}>
-            <ArrowLeftRight size={16}/>Switch to {otherLabel}
-          </Button>
-          {connected && <Button type="button" variant="ghost" loading={unlinkBusy} onClick={unlinkTelegram}>
-            <Unlink size={16}/>Unlink Telegram
-          </Button>}
-        </div>
-        {unlinkError && <p className="mt-2 text-xs font-semibold text-rose-600">{unlinkError}</p>}
-
-        {!connected && <div className="mt-4 rounded-2xl border border-dashed border-blue-200 bg-blue-50/60 p-3">
-          <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[.14em] text-blue-700"><KeyRound size={14}/>Connect Telegram</p>
-          {!connectCode ? <>
-            <p className="mt-1 text-xs leading-5 text-slate-600">Generates a one-time link. They open it on their phone, tap Start in a private chat with the bot, and they're connected.</p>
-            {codeError && <p className="mt-2 text-xs font-semibold text-rose-600">{codeError}</p>}
-            <Button type="button" variant="secondary" className="mt-2" loading={codeBusy} onClick={generateCode}>
-              <KeyRound size={16}/>Generate link
-            </Button>
-          </> : <>
-            {connectCode.link ? <>
-              <p className="mt-1 text-sm leading-6 text-slate-700">Send them this link. It opens the bot; they tap <strong>Start</strong>:</p>
-              <code className="mt-2 block break-all rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-900 shadow-sm">{connectCode.link}</code>
-            </> : <>
-              <p className="mt-1 text-sm leading-6 text-slate-700">The bot link isn't available right now. Tell them to open the bot in Telegram and send this message:</p>
-              <code className="mt-2 block break-all rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-900 shadow-sm">{connectCode.start_command}</code>
-            </>}
-            <p className="mt-2 text-xs font-semibold text-slate-500">Works once. Expires {new Date(connectCode.expires_at).toLocaleTimeString("en-GB")}. Refresh this record afterward to confirm it connected.</p>
-            {codeError && <p className="mt-2 text-xs font-semibold text-rose-600">{codeError}</p>}
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button type="button" onClick={copyLink}><Copy size={16}/>{copied ? "Copied" : "Copy link"}</Button>
-              <Button type="button" variant="secondary" loading={codeBusy} onClick={generateCode}>
-                <KeyRound size={16}/>Generate a new link
-              </Button>
-            </div>
-          </>}
-        </div>}
+        {!phone && <p className="mt-2 text-xs font-semibold text-amber-700">Add a mobile number above so they can receive WhatsApp messages.</p>}
       </div>
     </div>
   </section>;
@@ -219,7 +102,7 @@ export function UserModal({ selectedUser, actor, catalog, manageableRoles, onClo
   const definition = roleDefinition(catalog, selectedRole);
   const profile = selectedUser.employee_profile;
   // Admins/Super Admins open their own record here (they have no My Profile
-  // page), and can't manage their own role - but they can link their own Telegram.
+  // page), and can't manage their own role.
   const isSelf = selectedUser.id === actor.id;
 
   useEffect(() => { usersApi.events(selectedUser.id).then(setEvents).catch(() => setEvents([])); }, [selectedUser.id]);
@@ -252,7 +135,7 @@ export function UserModal({ selectedUser, actor, catalog, manageableRoles, onClo
   }
 
   const roleChanged = selectedRole !== selectedUser.role;
-  return <><Modal title="Access record" subtitle="Employee identity, role boundary, lifecycle and immutable account history." onClose={onClose} className="sm:max-w-4xl"><div className="grid gap-5"><IdentityBand person={selectedUser}/>{canManage ? <form className="grid gap-5" onSubmit={save}><section className="grid gap-4 rounded-[22px] border border-slate-200 p-4 sm:grid-cols-2 sm:p-5"><Field label="Full name"><Input name="name" defaultValue={selectedUser.name} required/></Field><Field label="Email login"><Input name="email" type="email" defaultValue={selectedUser.email} required/></Field><Field label="Mobile number"><Input name="phone" inputMode="tel" defaultValue={selectedUser.phone || ""} placeholder="+919876543210"/></Field><Field label="System role"><Select name="role" value={selectedRole} onChange={event => setSelectedRole(event.target.value)}>{manageableRoles.map(role => <option key={role} value={role}>{roles[role]}</option>)}</Select></Field><Field label="Employee code"><Input name="employee_code" defaultValue={profile?.employee_code || ""} required/></Field><Field label="Designation"><Input name="designation" defaultValue={profile?.designation || ""} required/></Field><Field label="Department"><Input name="department" defaultValue={profile?.department || ""}/></Field>{roleChanged && <Field className="sm:col-span-2" label="Reason for role change" hint="Role changes are written to account history."><Input name="reason" placeholder="Explain why access responsibility is changing" minLength={4} required/></Field>}</section><CapabilityPreview definition={definition}/><ChannelPanel profile={profile} phone={selectedUser.phone}/><section className="rounded-[22px] border border-slate-200 bg-slate-50 p-4"><div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 shrink-0 text-amber-600" size={19}/><div><h3 className="font-black text-slate-950">Employment lifecycle</h3><p className="mt-1 text-sm leading-6 text-slate-600">Offboarding blocks Supabase and portal access but retains accountable business history. Permanent deletion is limited to inactive, unused test or duplicate accounts.</p></div></div></section><FormActions>{selectedUser.active ? <Button type="button" variant="danger" onClick={() => setLifecycleMode("offboard")}><UserX size={17}/>Offboard</Button> : <><Button type="button" variant="secondary" onClick={() => setLifecycleMode("restore")}><RotateCcw size={17}/>Restore</Button>{canDelete && <Button type="button" variant="danger" onClick={() => setLifecycleMode("delete")}><Trash2 size={17}/>Delete unused account</Button>}</>}<Button type="submit"><Save size={17}/>Save changes</Button></FormActions></form> : <div className="grid gap-4"><CapabilityPreview definition={roleDefinition(catalog, selectedUser.role)}/>{isSelf && <MyTelegramPanel/>}<div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">{isSelf ? "This is your own account. Your role and account status are managed by a higher authority; you can connect your own Telegram above." : "This identity is visible for context but falls outside your management authority."}</div></div>}{canManage && selectedUser.active && <PasswordPanel person={selectedUser} action={action}/>}<section className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4 sm:p-5"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.16em] text-slate-500">Account trail</p><h3 className="mt-1 font-black text-slate-950">Recent activity</h3></div><Activity className="text-blue-600" size={20}/></div><div className="mt-4 grid gap-2">{events.length ? events.slice(0, 6).map(item => <article key={item.id} className="grid grid-cols-[auto_1fr] gap-3 rounded-2xl bg-white p-3 shadow-sm"><span className="mt-0.5 grid size-8 place-items-center rounded-xl bg-slate-100 text-slate-500"><Clock3 size={15}/></span><div><strong className="block text-xs text-slate-900">{item.event_type.replaceAll("_", " ")}</strong><p className="mt-1 text-xs leading-5 text-slate-500">{item.reason}</p><time className="mt-1 block text-[11px] font-semibold text-slate-400">{new Date(item.created_at).toLocaleString("en-GB")}</time></div></article>) : <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">No account changes recorded yet.</p>}</div></section></div></Modal>{lifecycleMode && <LifecycleModal mode={lifecycleMode} person={selectedUser} onClose={() => setLifecycleMode("")} onConfirm={applyLifecycle} loading={lifecycleBusy}/>}</>;
+  return <><Modal title="Access record" subtitle="Employee identity, role boundary, lifecycle and immutable account history." onClose={onClose} className="sm:max-w-4xl"><div className="grid gap-5"><IdentityBand person={selectedUser}/>{canManage ? <form className="grid gap-5" onSubmit={save}><section className="grid gap-4 rounded-[22px] border border-slate-200 p-4 sm:grid-cols-2 sm:p-5"><Field label="Full name"><Input name="name" defaultValue={selectedUser.name} required/></Field><Field label="Email login"><Input name="email" type="email" defaultValue={selectedUser.email} required/></Field><Field label="Mobile number"><Input name="phone" inputMode="tel" defaultValue={selectedUser.phone || ""} placeholder="+919876543210"/></Field><Field label="System role"><Select name="role" value={selectedRole} onChange={event => setSelectedRole(event.target.value)}>{manageableRoles.map(role => <option key={role} value={role}>{roles[role]}</option>)}</Select></Field><Field label="Employee code"><Input name="employee_code" defaultValue={profile?.employee_code || ""} required/></Field><Field label="Designation"><Input name="designation" defaultValue={profile?.designation || ""} required/></Field><Field label="Department"><Input name="department" defaultValue={profile?.department || ""}/></Field>{roleChanged && <Field className="sm:col-span-2" label="Reason for role change" hint="Role changes are written to account history."><Input name="reason" placeholder="Explain why access responsibility is changing" minLength={4} required/></Field>}</section><CapabilityPreview definition={definition}/><ChannelPanel phone={selectedUser.phone}/><section className="rounded-[22px] border border-slate-200 bg-slate-50 p-4"><div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 shrink-0 text-amber-600" size={19}/><div><h3 className="font-black text-slate-950">Employment lifecycle</h3><p className="mt-1 text-sm leading-6 text-slate-600">Offboarding blocks Supabase and portal access but retains accountable business history. Permanent deletion is limited to inactive, unused test or duplicate accounts.</p></div></div></section><FormActions>{selectedUser.active ? <Button type="button" variant="danger" onClick={() => setLifecycleMode("offboard")}><UserX size={17}/>Offboard</Button> : <><Button type="button" variant="secondary" onClick={() => setLifecycleMode("restore")}><RotateCcw size={17}/>Restore</Button>{canDelete && <Button type="button" variant="danger" onClick={() => setLifecycleMode("delete")}><Trash2 size={17}/>Delete unused account</Button>}</>}<Button type="submit"><Save size={17}/>Save changes</Button></FormActions></form> : <div className="grid gap-4"><CapabilityPreview definition={roleDefinition(catalog, selectedUser.role)}/><div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">{isSelf ? "This is your own account. Your role and account status are managed by a higher authority." : "This identity is visible for context but falls outside your management authority."}</div></div>}{canManage && selectedUser.active && <PasswordPanel person={selectedUser} action={action}/>}<section className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4 sm:p-5"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.16em] text-slate-500">Account trail</p><h3 className="mt-1 font-black text-slate-950">Recent activity</h3></div><Activity className="text-blue-600" size={20}/></div><div className="mt-4 grid gap-2">{events.length ? events.slice(0, 6).map(item => <article key={item.id} className="grid grid-cols-[auto_1fr] gap-3 rounded-2xl bg-white p-3 shadow-sm"><span className="mt-0.5 grid size-8 place-items-center rounded-xl bg-slate-100 text-slate-500"><Clock3 size={15}/></span><div><strong className="block text-xs text-slate-900">{item.event_type.replaceAll("_", " ")}</strong><p className="mt-1 text-xs leading-5 text-slate-500">{item.reason}</p><time className="mt-1 block text-[11px] font-semibold text-slate-400">{new Date(item.created_at).toLocaleString("en-GB")}</time></div></article>) : <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">No account changes recorded yet.</p>}</div></section></div></Modal>{lifecycleMode && <LifecycleModal mode={lifecycleMode} person={selectedUser} onClose={() => setLifecycleMode("")} onConfirm={applyLifecycle} loading={lifecycleBusy}/>}</>;
 }
 export function EditMyProfileModal({ user, onClose, action }) {
   async function save(event) {

@@ -308,7 +308,7 @@ class ExecutionTasksReadApiTests(unittest.TestCase):
         self.assertEqual(len(body["progress_updates"]), 1)
         self.assertEqual(body["progress_updates"][0]["note"], "Work completed, ready for review.")
         # The verification closed this cycle, so the board's submit rule sees
-        # the update as already reviewed (Telegram task plan U2).
+        # the update as already reviewed.
         self.assertIsNotNone(body["progress_updates"][0]["reviewed_at"])
         self.assertEqual(len(body["verifications"]), 1)
         self.assertEqual(body["verifications"][0]["decision"], "verified")

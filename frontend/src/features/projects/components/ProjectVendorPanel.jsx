@@ -1,7 +1,7 @@
 import { Building2, Pencil, RotateCcw, Truck, UserMinus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { vendorAssignmentApi } from "../../../api/vendorAssignmentApi";
-import { AcknowledgementPill, Button, EmptyState, Field, Pill, Select, Textarea } from "../../../components/ui";
+import { Button, EmptyState, Field, Pill, Select, Textarea } from "../../../components/ui";
 import { PEOPLE_MANAGER_ROLES, VendorProjectPeople } from "./VendorProjectPeople";
 
 const engagementLabel = { main: "Main vendor", sub_vendor: "Sub-vendor" };
@@ -185,7 +185,7 @@ export function ProjectVendorPanel({ project, user }) {
       const vendor = vendorById.get(mapping.vendor_id);
       return <article key={mapping.id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2"><Building2 size={15} className="text-slate-400"/><strong className="text-slate-900">{mapping.vendor_name}</strong><Pill tone="gray">{engagementLabel[mapping.engagement_type] || mapping.engagement_type}</Pill><Pill tone="green">Active</Pill><AcknowledgementPill acknowledgedAt={mapping.acknowledged_at}/></div>
+          <div className="flex items-center gap-2"><Building2 size={15} className="text-slate-400"/><strong className="text-slate-900">{mapping.vendor_name}</strong><Pill tone="gray">{engagementLabel[mapping.engagement_type] || mapping.engagement_type}</Pill><Pill tone="green">Active</Pill></div>
           <div className="flex items-center gap-3"><time className="text-xs text-slate-400">Added {new Date(mapping.created_at).toLocaleDateString("en-GB")}</time>{canManage && vendor && <RemoveVendorControl project={project} vendor={vendor} onChanged={load}/>}</div>
         </div>
         {vendor && <VendorTradePhaseEditor vendor={vendor} categories={categories} canManage={canManage} onChanged={load}/>}

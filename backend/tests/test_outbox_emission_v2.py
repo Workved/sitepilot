@@ -837,9 +837,8 @@ class OutboxEmissionApiTests(unittest.TestCase):
         self.assertEqual(targets.count("submitted"), 2)
 
     def test_status_events_name_the_actor_and_mark_decision_driven_steps(self):
-        """Telegram task plan U4 (KTD11): the intermediate status steps a
-        decision drives carry `cause: decision` (Telegram skips them - the
-        decision's own event tells everyone); user-driven steps do not."""
+        """The intermediate status steps a decision drives carry
+        `cause: decision`; user-driven steps do not."""
         project = self.activate_project()
         t001 = self.task_by_code(project["id"], "T001")
         self.drive_to_submitted(project["id"], t001.id)

@@ -88,8 +88,7 @@ successful batch is still a safe no-op that creates zero new rows, exactly
 as the plan's verification test scenario expects.
 
 Not every failed delivery is retried every pass, though: a failure caused by
-the recipient having no address on their channel (`missing_chat_id`,
-`missing_phone`) is only retried once they are reachable again, a template
+the recipient having no phone number (`missing_phone`) is only retried once they are reachable again, a template
 rejection (`_PERMANENT_FAILURE_CODES`) is never retried, nothing is retried
 more than `_MAX_DELIVERY_ATTEMPTS` times, and retries run fewest-attempts
 first - see `_select_events`.
@@ -102,12 +101,11 @@ import uuid
 from dataclasses import dataclass
 from typing import Protocol
 
-from sqlalchemy import and_, exists, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.execution_models import (
-    FileObject,
     MessageDelivery,
     OutboxEvent,
     ProjectExternalApproval,
@@ -116,19 +114,13 @@ from app.execution_models import (
 )
 from app.models import EmployeeProfile, User, UserRole
 from app.project_models import V2ProjectMembership
-from app.services import evidence_storage
 from app.services.message_templates import TemplateSpec, render_components, resolve
 from app.services.task_approval import TaskApprovalService
 from app.services.task_lifecycle import latest_submitter_user_id
-from app.services.telegram_render import render_telegram
 from app.services.whatsapp_template_fields import template_fields
 from app.vendor_models import ProjectVendor, TaskVendorAssignment, V2VendorContact
 
 logger = logging.getLogger(__name__)
-
-# Sent as Telegram photos; any other evidence type (WebP, PDF) goes as a
-# document, which Telegram shows as a downloadable file.
-_TELEGRAM_PHOTO_MIME_TYPES = frozenset({"image/jpeg", "image/png"})
 
 # The only two `V2ProjectMembership.project_role` values this service ever
 # treats as notification recipients. `'super_admin'` is deliberately never
@@ -138,11 +130,11 @@ _ACCOUNTABLE_ROLES = ("project_manager", "site_supervisor")
 
 _SUCCEEDED_STATUSES = ("sent", "delivered", "read")
 
-# Failures caused by the recipient having no address on their current channel
-# (no Telegram chat linked / no phone on file). Retrying them cannot succeed
+# Failures caused by the recipient being unreachable (no phone on file, or an
+# offboarded account). Retrying them cannot succeed
 # until that changes, so they are only retried once the recipient is
 # reachable again - see `_select_events`.
-_UNREACHABLE_FAILURE_CODES = ("missing_chat_id", "missing_phone", "recipient_offboarded")
+_UNREACHABLE_FAILURE_CODES = ("missing_phone", "recipient_offboarded")
 
 # Failures that resending the same message can never fix: a `TBD_`
 # placeholder template, or Meta rejecting the template itself (missing /
@@ -160,6 +152,9 @@ _PERMANENT_FAILURE_CODES = (
     "132012",  # parameter format mismatch
     "132015",  # template paused
     "132016",  # template disabled
+    # Deliveries left over from the removed Telegram channel - see
+    # supabase/migrations/202611230001_v2_remove_telegram.sql.
+    "channel_removed",
 )
 
 # Any other failure (network errors, Meta 5xx, rate limits) is retried on
@@ -198,31 +193,6 @@ _EMPLOYEE_ELIGIBLE_TASK_EVENTS: set[str] = {
     "task.eod_check",
 }
 
-# Gate command confirmations whose sender is always also a recipient of the
-# paired main event (GATEACCEPT/GATEDECLINE -> `.accepted`/`.declined`,
-# GATESTATUS -> `.status_checked`, GATECLOSE -> `.submitted`: the assignee;
-# GATEDECIDE -> `.decided`: every Admin, including the sender). On Telegram
-# the main event's recipient-specific message already confirms the action, so
-# these would be a second message to the same person for the same action.
-# `gate_confirmation.session_opened` has no paired event and is still sent.
-# WhatsApp delivery of these confirmations is unchanged.
-_TELEGRAM_REDUNDANT_GATE_CONFIRMATIONS = frozenset({
-    "gate_confirmation.accepted",
-    "gate_confirmation.declined",
-    "gate_confirmation.status_recorded",
-    "gate_confirmation.session_closed",
-    "gate_confirmation.decided",
-})
-
-# Telegram task plan KTD11 - Telegram-only noise rules for task execution:
-# every progress item (`task.evidence_submitted`) would otherwise be its own
-# message to the reviewers, and a verification/approval decision drives
-# several intermediate status changes (submitted -> rejected -> in_progress)
-# whose outcome the decision's own event already tells everyone. Those status
-# rows carry `cause: "decision"` (task_lifecycle.transition). WhatsApp
-# delivery of both is unchanged.
-_TELEGRAM_SKIPPED_TASK_EVENTS = frozenset({"task.evidence_submitted"})
-
 # Events whose outcome the people doing the work must hear themselves
 # (KTD10): see `_resolve_execution_participants`.
 _EXECUTION_OUTCOME_EVENTS = frozenset({
@@ -231,7 +201,7 @@ _EXECUTION_OUTCOME_EVENTS = frozenset({
     "task.approval_recorded",
 })
 
-# Telegram T3/T5 reminders that go to their own audience instead of the
+# Reminders that go to their own audience instead of the
 # default PM/Supervisor set: the pre-start warning to the assignee, the
 # Supervisor and the vendor delegated to the task, the overdue warning to the assignee (the Supervisor when nobody
 # is assigned), the overdue escalation to the PM and Admins.
@@ -293,25 +263,11 @@ class ProviderSendResult:
 class Recipient:
     """One resolved notification target. Exactly one of `employee_id` /
     `vendor_contact_id` is set, mirroring `MessageDelivery`'s own
-    real-FK-pair recipient columns.
-
-    `channel` (U5, KTD5) defaults to `'whatsapp'` so no existing
-    construction site needs to change yet - it is populated from the
-    recipient's `active_channel` column starting in U8/U9, not here."""
+    real-FK-pair recipient columns."""
 
     employee_id: uuid.UUID | None
     vendor_contact_id: uuid.UUID | None
     phone: str
-    channel: str = "whatsapp"
-
-
-def _skipped_on_telegram(event: OutboxEvent) -> bool:
-    """Events a Telegram recipient never gets, because another message they
-    receive already covers them (gate confirmations: the paired gate event;
-    progress items and decision-driven status steps: KTD11)."""
-    if event.event_type in _TELEGRAM_REDUNDANT_GATE_CONFIRMATIONS or event.event_type in _TELEGRAM_SKIPPED_TASK_EVENTS:
-        return True
-    return event.event_type == "task.status_changed" and (event.payload or {}).get("cause") == "decision"
 
 
 def _unique_recipients(recipients: list[Recipient]) -> list[Recipient]:
@@ -358,32 +314,6 @@ class MessageDispatchService:
     def __init__(self, db: Session, adapter: WhatsAppProviderAdapter | None = None):
         self.db = db
         self.adapter = adapter or SandboxProviderAdapter()
-        # U9 (KTD4): channel -> adapter mapping, replacing `self.adapter` as
-        # dispatch's actual send target - `_dispatch_to_recipient` looks up
-        # the adapter here by the recipient's resolved channel instead of
-        # always using `self.adapter` directly. Built here, not as a new
-        # `__init__` parameter, so `outbox_scheduler.run_dispatch_pass`'s
-        # call site (`MessageDispatchService(db, adapter=_build_adapter())`)
-        # does not need to change - `_build_adapter()` still decides which
-        # real-vs-sandbox WhatsApp adapter to use, unchanged, and simply
-        # becomes the `'whatsapp'` slot of this mapping. `self.adapter` is
-        # kept as the fallback for an unrecognized channel value.
-        # U10: registers the Telegram adapter as a real option in this
-        # mapping, keyed 'telegram'. Instantiated unconditionally (like
-        # `SandboxProviderAdapter()` above) - `TelegramProviderAdapter`
-        # itself fails fast at `.send()` time (`failure_code='not_configured'`)
-        # when no token is set, not at construction time, so this is safe
-        # even with no Telegram credentials configured.
-        #
-        # Imported here, not at module level: `telegram_provider.py`
-        # imports `ProviderSendResult` from this module, so a top-level
-        # import here would be circular.
-        from app.services.telegram_provider import TelegramProviderAdapter
-
-        self._adapters: dict[str, WhatsAppProviderAdapter] = {
-            "whatsapp": self.adapter,
-            "telegram": TelegramProviderAdapter(),
-        }
 
     # ---- recipient resolution -------------------------------------------
 
@@ -639,7 +569,7 @@ class MessageDispatchService:
         return [Recipient(employee_id=employee_id, vendor_contact_id=None, phone=phone or "") for employee_id, phone in rows]
 
     def _resolve_reminder_audience(self, task: Task, event_type: str) -> list[Recipient]:
-        """Telegram T3/T5 reminders with their own audience (see
+        """Reminders with their own audience (see
         `_REMINDER_AUDIENCES`), still limited to active project members; the
         escalation's Admin copy is added after that filter, as for every other
         Admin copy (visibility, not membership)."""
@@ -682,7 +612,7 @@ class MessageDispatchService:
         """The people doing the work on `task`: every active support assignee
         plus whoever submitted it for review (e.g. a Supervisor who executed
         it themselves). They are told status changes and review outcomes, not
-        only the PM/Supervisor (Telegram task plan KTD10)."""
+        only the PM/Supervisor."""
         recipients = self._resolve_internal_employee_recipient(task)
         submitter_user_id = latest_submitter_user_id(self.db, task.id)
         if submitter_user_id is not None:
@@ -690,7 +620,7 @@ class MessageDispatchService:
         return recipients
 
     def _submission_needs_admin_reviewer(self, task: Task, event: OutboxEvent) -> bool:
-        """Telegram task plan KTD20: a submission's review request also goes
+        """a submission's review request also goes
         to Admins when nobody on the project can act on it - for work, no
         active Supervisor/PM other than the submitter (who may not verify their
         own work); for an approval-gate task, no active PM. Admin keeps their
@@ -718,7 +648,7 @@ class MessageDispatchService:
         return self.db.scalar(query.limit(1)) is None
 
     def _approval_needs_admin(self, task: Task, event: OutboxEvent) -> bool:
-        """Telegram task plan KTD20 (U10): a class_a verification opens the PM
+        """a class_a verification opens the PM
         approval step. If no PM may approve it - none on the project, or the
         only one verified as a fallback and so may not also approve - the
         request goes to Admins. If no Admin may either, the state is logged
@@ -742,7 +672,7 @@ class MessageDispatchService:
 
     def _only_active_project_members(self, project_id: uuid.UUID, recipients: list[Recipient]) -> list[Recipient]:
         """Task messages reach only people still on the project: an active
-        user with an active membership (Telegram task plan R20). Vendor
+        user with an active membership. Vendor
         contacts are resolved by their own rules and pass through unchanged."""
         member_employee_ids = set(self.db.scalars(
             select(V2ProjectMembership.employee_id)
@@ -867,7 +797,7 @@ class MessageDispatchService:
                         if all(r.employee_id != recipient.employee_id for r in recipients):
                             recipients.append(recipient)
             if event.event_type == "task.blocker_resolved":
-                # Telegram task plan U12: whoever reported the blocker is told
+                # whoever reported the blocker is told
                 # it was resolved (still subject to the active-member filter).
                 recipients.extend(self._resolve_user_id_recipient((event.payload or {}).get("reported_by")))
             if event.event_type == "task.delay_recorded":
@@ -973,33 +903,6 @@ class MessageDispatchService:
             )
         return self.db.scalar(stmt)
 
-    def _resolve_recipient_channel(self, recipient: Recipient) -> str:
-        """U8 (KTD5): read-only channel lookup - answers "what channel is
-        this recipient on right now" by reading the recipient's identity
-        row's `active_channel` column (`EmployeeProfile`/`V2VendorContact`,
-        U5). Always returns `'whatsapp'` today, since no one has been
-        toggled onto Telegram yet. NOT called from `_dispatch_to_recipient`
-        or `_build_adapter` - that wiring is U9."""
-        if recipient.employee_id is not None:
-            return self.db.scalar(
-                select(EmployeeProfile.active_channel).where(EmployeeProfile.id == recipient.employee_id)
-            ) or "whatsapp"
-        return self.db.scalar(
-            select(V2VendorContact.active_channel).where(V2VendorContact.id == recipient.vendor_contact_id)
-        ) or "whatsapp"
-
-    def _resolve_telegram_chat_id(self, recipient: Recipient) -> str:
-        """U10: the identifier a Telegram send actually targets - the
-        recipient's `telegram_chat_id` (U4), not `recipient.phone`. Mirrors
-        `_resolve_recipient_channel`'s employee/vendor-contact branching."""
-        if recipient.employee_id is not None:
-            return self.db.scalar(
-                select(EmployeeProfile.telegram_chat_id).where(EmployeeProfile.id == recipient.employee_id)
-            ) or ""
-        return self.db.scalar(
-            select(V2VendorContact.telegram_chat_id).where(V2VendorContact.id == recipient.vendor_contact_id)
-        ) or ""
-
     def _is_offboarded_employee(self, recipient: Recipient) -> bool:
         if recipient.employee_id is None:
             return False
@@ -1011,8 +914,6 @@ class MessageDispatchService:
         return active is False
 
     def _dispatch_to_recipient(self, event: OutboxEvent, recipient: Recipient, spec: TemplateSpec) -> None:
-        if self._resolve_recipient_channel(recipient) == "telegram" and _skipped_on_telegram(event):
-            return  # another message to this person already covers it
         template = spec.meta_template_name
         delivery = self._existing_delivery(event.id, recipient, template)
         if delivery is not None and delivery.status in _SUCCEEDED_STATUSES:
@@ -1054,12 +955,6 @@ class MessageDispatchService:
             self.db.flush()
             return
 
-        # U9: the channel this attempt actually targets, read fresh from the
-        # recipient's identity row (U8) rather than trusting
-        # `recipient.channel`'s construction-time default - the same
-        # resolve-fresh-on-every-attempt discipline `recipient_phone` below
-        # already follows.
-        channel = self._resolve_recipient_channel(recipient)
         if delivery.status == "failed" and (
             delivery.failure_code in _PERMANENT_FAILURE_CODES or delivery.attempt_count >= _MAX_DELIVERY_ATTEMPTS
         ):
@@ -1067,8 +962,7 @@ class MessageDispatchService:
             # retry - see `_select_events`.
             return
         if delivery.status == "failed" and delivery.failure_code in _UNREACHABLE_FAILURE_CODES:
-            address = self._resolve_telegram_chat_id(recipient) if channel == "telegram" else recipient.phone
-            if not address:
+            if not recipient.phone:
                 # Still unreachable: this event was re-selected for another
                 # recipient's retry - don't burn an attempt on this one.
                 return
@@ -1076,87 +970,37 @@ class MessageDispatchService:
         # Refresh the denormalized snapshot on every attempt (including a
         # retry) so it reflects the number this specific attempt targeted.
         delivery.recipient_phone = recipient.phone
-        delivery.channel = channel
+        delivery.channel = "whatsapp"
         delivery.status = "sending"
         delivery.attempt_count += 1
 
-        if channel == "telegram":
-            # U10/KTD8: Telegram has no Meta-template registry, so it never
-            # gets the WhatsApp-shaped `components` payload below - this
-            # renders human-readable plain text via `telegram_render.py`
-            # instead (event/data -> shared backend -> Telegram renderer ->
-            # message; no Telegram-specific business logic here).
-            send_target = self._resolve_telegram_chat_id(recipient)
-            message = render_telegram(
-                self.db, event.event_type, event.payload or {}, recipient.employee_id, recipient.vendor_contact_id,
-            )
-            # Actions with a callback become inline buttons (pressing one runs
-            # the same typed command - telegram_callback.py); any action
-            # without one stays listed as a typed command in the text.
-            send_payload = {
-                "text": message.text_for_buttons(),
-                "parse_mode": message.parse_mode,
-                "buttons": message.button_rows(),
-            }
-        else:
-            # Merge `components` into a copy of the event payload rather
-            # than mutating `event.payload` itself - the outbox row's
-            # payload is the durable record of what happened; `components`
-            # is dispatch-time rendering derived from it, not part of that
-            # record.
-            components = render_components(spec, template_fields(self.db, event.payload or {}))
-            send_payload = {**(event.payload or {}), "components": components, "language_code": spec.language}
-            send_target = recipient.phone
+        # Merge `components` into a copy of the event payload rather than
+        # mutating `event.payload` itself - the outbox row's payload is the
+        # durable record of what happened; `components` is dispatch-time
+        # rendering derived from it, not part of that record.
+        components = render_components(spec, template_fields(self.db, event.payload or {}))
+        send_payload = {**(event.payload or {}), "components": components, "language_code": spec.language}
 
-        adapter = self._adapters.get(channel, self.adapter)
-        delivery.provider = getattr(adapter, "provider_name", "sandbox")
-        result = adapter.send(recipient_phone=send_target, template=template, payload=send_payload)
+        delivery.provider = getattr(self.adapter, "provider_name", "sandbox")
+        result = self.adapter.send(recipient_phone=recipient.phone, template=template, payload=send_payload)
         if result.ok:
             delivery.status = "sent"
             delivery.provider_message_id = result.provider_message_id
             delivery.failure_code = None
             delivery.failure_reason = None
-            if channel == "telegram" and message.attachments:
-                # Only after the message itself went out: a delivery that is
-                # 'sent' is never re-sent, so files can't arrive twice.
-                self._send_telegram_attachments(adapter, send_target, message.attachments)
         else:
             delivery.status = "failed"
             delivery.failure_code = result.failure_code
             delivery.failure_reason = result.failure_reason
         self.db.flush()
 
-    def _send_telegram_attachments(self, adapter, chat_id: str, attachments) -> None:
-        """Sends stored evidence files after a Telegram message (Admin
-        evidence review), uploading the bytes from evidence storage - the
-        recipient never gets a storage link. Best-effort: the message they
-        follow is already delivered and links to the Web App, where every
-        file is available, so a file that can't be sent is logged, not
-        retried."""
-        for attachment in attachments:
-            file_object = self.db.get(FileObject, attachment.file_id)
-            try:
-                data = evidence_storage.read(file_object.storage_key) if file_object is not None else None
-            except evidence_storage.EvidenceStorageError:
-                data = None
-            if data is None:
-                logger.warning("Evidence file %s could not be read for Telegram review.", attachment.file_id)
-                continue
-            send = adapter.send_photo if file_object.mime_type in _TELEGRAM_PHOTO_MIME_TYPES else adapter.send_document
-            result = send(chat_id, data, file_object.original_filename, file_object.mime_type, attachment.caption)
-            if not result.ok:
-                logger.warning(
-                    "Evidence file %s was not sent on Telegram: %s", attachment.file_id, result.failure_reason,
-                )
-
     # ---- entry point ------------------------------------------------
 
     @staticmethod
     def _recipient_reachable():
         """SQL condition (correlated to `MessageDelivery`): the delivery's
-        recipient now has an address on their current channel - a linked
-        Telegram chat when on Telegram, otherwise a phone number. Mirrors
-        what `_dispatch_to_recipient` would send to."""
+        recipient now has a WhatsApp number on file. Mirrors what
+        `_dispatch_to_recipient` would send to."""
         employee_reachable = (
             select(EmployeeProfile.id)
             .join(User, User.id == EmployeeProfile.user_id)
@@ -1164,11 +1008,7 @@ class MessageDispatchService:
                 EmployeeProfile.id == MessageDelivery.recipient_employee_id,
                 # Offboarded: nothing is sent to them, so nothing to retry.
                 User.active.is_(True),
-                or_(
-                    and_(EmployeeProfile.active_channel == "telegram",
-                         func.coalesce(EmployeeProfile.telegram_chat_id, "") != ""),
-                    and_(EmployeeProfile.active_channel != "telegram", func.coalesce(User.phone, "") != ""),
-                ),
+                func.coalesce(User.phone, "") != "",
             )
             .exists()
         )
@@ -1176,15 +1016,8 @@ class MessageDispatchService:
             select(V2VendorContact.id)
             .where(
                 V2VendorContact.id == MessageDelivery.recipient_vendor_contact_id,
-                or_(
-                    and_(V2VendorContact.active_channel == "telegram",
-                         func.coalesce(V2VendorContact.telegram_chat_id, "") != ""),
-                    and_(
-                        V2VendorContact.active_channel != "telegram",
-                        or_(func.coalesce(V2VendorContact.phone, "") != "",
-                            func.coalesce(V2VendorContact.whatsapp, "") != ""),
-                    ),
-                ),
+                or_(func.coalesce(V2VendorContact.phone, "") != "",
+                    func.coalesce(V2VendorContact.whatsapp, "") != ""),
             )
             .exists()
         )
@@ -1196,8 +1029,8 @@ class MessageDispatchService:
         retryable failed delivery).
 
         A failure for an unreachable recipient (`_UNREACHABLE_FAILURE_CODES`)
-        is only retryable once that recipient is reachable again (e.g. they
-        linked Telegram), so it neither retries every pass forever nor takes
+        is only retryable once that recipient is reachable again (e.g. a
+        phone number was added), so it neither retries every pass forever nor takes
         batch space. A permanent failure (`_PERMANENT_FAILURE_CODES`) or a
         delivery that already used `_MAX_DELIVERY_ATTEMPTS` is never retried. Retries are ordered by their fewest attempts, then
         oldest, so deliveries that keep failing for other reasons (hundreds

@@ -295,7 +295,7 @@ class TaskBlockersDelaysApiTests(unittest.TestCase):
             rows = session.scalars(select(TaskBlocker).where(TaskBlocker.task_id == task.id)).all()
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0].type, "material")
-            # Telegram task plan U12: the reporter is recorded for every
+            # the reporter is recorded for every
             # channel, the Web App included.
             self.assertEqual(rows[0].reported_by, SUPERVISOR_ID)
 

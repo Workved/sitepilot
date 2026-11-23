@@ -89,9 +89,9 @@ _STARTED_STATUSES = {
 
 class EarlyStartReasonRequired(HTTPException):
     """Starting before the planned start date without a reason. The same 422
-    and message the Web App has always shown; a distinct type so the Telegram
-    layer can ask for the reason instead of just refusing (Telegram task plan
-    KTD9) - the rule itself stays here, never duplicated in Telegram."""
+    and message the Web App has always shown; a distinct type so a messaging
+    channel can ask for the reason instead of just refusing - the rule itself
+    stays here, never duplicated elsewhere."""
 
     def __init__(self, planned_start_date: date):
         super().__init__(
@@ -407,7 +407,7 @@ class TaskLifecycleService:
     # ---- review cycle ------------------------------------------------------
 
     def _submission_snapshot(self, task_id: uuid.UUID, actor: User) -> dict:
-        """Telegram task plan KTD18: who submitted and exactly which progress
+        """who submitted and exactly which progress
         updates this submission rests on - the unreviewed set at submit time,
         read under the task row lock (KTD24), so nothing can join or leave it
         before the decision. Review messages, their files and the people told
@@ -452,11 +452,11 @@ class TaskLifecycleService:
         this exact decision.
 
         `source` is purely an audit-trail label ('portal'/'whatsapp'/
-        'telegram'/'system') - it changes nothing about who is allowed to
+        'system') - it changes nothing about who is allowed to
         transition what. Defaults to 'portal' for every existing call site
         (the raw route, TaskVerificationService, TaskApprovalService); only
         `InboundMessageService`'s STATUS-command handler passes its own
-        channel, so a Telegram/WhatsApp-originated status change is no
+        channel, so a WhatsApp-originated status change is no
         longer mis-recorded as if it happened in the Web App."""
         project = self._require_access(project_id, actor)
 
@@ -549,8 +549,7 @@ class TaskLifecycleService:
             #   the one a verification happened to name, and also after a PM
             #   rejection, which names no update at all.
             #
-            # Approval-gate tasks follow the same rule (Telegram task plan
-            # R19): an intentional shared change - before it they could be
+            # Approval-gate tasks follow the same rule: an intentional shared change - before it they could be
             # submitted with no progress, and resubmitted after a PM rejection
             # with nothing new.
             #
@@ -686,8 +685,7 @@ class TaskLifecycleService:
                 "actor_user_id": str(actor.id),
                 # Set only for the intermediate steps a verification/approval
                 # decision drives (e.g. submitted -> rejected -> in_progress):
-                # the decision's own event already tells everyone, so Telegram
-                # skips these rows (message_dispatch). WhatsApp is unchanged.
+                # lets readers tell them apart from user-driven steps.
                 **({"cause": "decision"} if _via_decision_service else {}),
                 **(self._submission_snapshot(task.id, actor) if target_status == "submitted" else {}),
             },

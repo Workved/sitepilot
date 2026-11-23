@@ -575,7 +575,7 @@ class InboundMessageMatchingApiTests(unittest.TestCase):
             self.assertEqual(assignment.status, "acknowledged")
 
     def test_status_cancel_is_refused_on_whatsapp_even_for_an_admin(self):
-        """Telegram task plan U3: cancellation needs a real typed reason and
+        """cancellation needs a real typed reason and
         stays in the Web App for every messaging channel - the typed command
         used to supply "Reported via WhatsApp." as that reason."""
         project = self.activate_project()

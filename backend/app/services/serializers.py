@@ -24,20 +24,9 @@ def public_user(user: User, db: Session | None = None) -> dict:
             "designation": profile.designation,
             "department": profile.department,
             "availability": profile.availability,
-            "active_channel": profile.active_channel,
-            "telegram_connected": bool(profile.telegram_chat_id),
-            # Enough to tell which chat is linked, not the full chat id.
-            "telegram_chat_hint": f"•••{profile.telegram_chat_id[-4:]}" if profile.telegram_chat_id else None,
-            # Messaging readiness is a fact about the CURRENT active_channel,
-            # not a blanket "has any channel" check - deliberately no
-            # auto-fallback to WhatsApp if Telegram is selected but
-            # unconnected (see channel_toggle.py's own precondition on the
-            # switch itself). A dispatch attempt against a not-ready person
-            # still resolves and fails visibly (missing_chat_id/missing_phone
-            # in message_dispatch.py) rather than silently rerouting.
-            "messaging_ready": (
-                bool(profile.telegram_chat_id) if profile.active_channel == "telegram" else bool(user.phone)
-            ),
+            # WhatsApp is the only messaging channel: a person is reachable
+            # once they have a phone number on file.
+            "messaging_ready": bool(user.phone),
         } if profile else None,
     }
 

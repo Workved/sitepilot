@@ -199,7 +199,7 @@ EMPLOYEE_COMMANDS = {
 }
 
 # Rejection reasons for evidence sent into a session, named so a channel can
-# turn each into its own reply (telegram_evidence.py) without parsing text.
+# turn each into its own reply without parsing text.
 NO_OPEN_SESSION_REASON = "You have no open evidence session. Send GATEOPEN <ref> first."
 SESSION_NOT_ASSIGNED_REASON = (
     "This approval is no longer assigned to you for evidence, so nothing was added. "
@@ -239,8 +239,7 @@ EmployeeIdentity = tuple[User, EmployeeProfile]
 
 def active_pm_user(db: Session, project_id: uuid.UUID) -> User | None:
     """The project's active PM, who records a vendor's acknowledgement on the
-    vendor's behalf (see the actor-substitution note above). Shared with the
-    Telegram vendor Acknowledge button (telegram_ack_callback.py)."""
+    vendor's behalf (see the actor-substitution note above)."""
     membership = db.scalar(
         select(V2ProjectMembership).where(
             V2ProjectMembership.project_id == project_id,
@@ -259,14 +258,7 @@ def active_pm_user(db: Session, project_id: uuid.UUID) -> User | None:
 class InboundMessageService:
     def __init__(self, db: Session):
         self.db = db
-        # U14 (docs/plans/2026-09-16-001-feat-telegram-messaging-channel-plan.md,
-        # KTD7): `TelegramInboundService` below subclasses this service to
-        # reuse its actual command grammar and business-service calls
-        # (`_handle_employee`, `_handle_vendor_contact`, every
-        # `_handle_gate_*` method) instead of duplicating them. These two
-        # attributes are the only channel-specific values inside that
-        # shared logic; the subclass overrides them, everything else is
-        # identical for both channels.
+        # The channel recorded on audit rows and shown in replies.
         self._inbound_channel = "whatsapp"
         self._inbound_channel_label = "WhatsApp"
 
@@ -857,7 +849,7 @@ class InboundMessageService:
                 "rejected", UNSUPPORTED_ATTACHMENT_REASON,
             )
 
-        # A size the channel reports up front (Telegram does) rejects an
+        # A size the channel reports up front rejects an
         # oversized file without downloading it at all.
         declared_size = media_metadata.get("file_size")
         if isinstance(declared_size, int) and declared_size > MAX_EVIDENCE_SIZE_BYTES:
@@ -922,8 +914,7 @@ class InboundMessageService:
 
     def _download_media(self, media_metadata: dict):
         """Fetches an attachment's bytes from the channel it arrived on
-        (`MediaDownloadResult`). The only channel-specific step of the
-        evidence path; `TelegramInboundService` overrides it."""
+        (`MediaDownloadResult`)."""
         return download_inbound_media(media_metadata.get("id"))
 
     def _open_session_for_employee(self, user_id: uuid.UUID) -> GateEvidenceSession | None:

@@ -2,7 +2,7 @@
 (the gate due-date reminder, added to `escalation.py` in this same phase for
 cohesion with the rest of that module's `ProjectExternalApproval` handling).
 The task reminders that used to live here are covered by
-test_task_reminders.py (Telegram T3-T5).
+test_task_reminders.py.
 
 Mirrors `test_escalation_v2.py`'s SQLite in-memory harness (ATTACHed
 `siteops_v2` schema) closely - real `Task`/`ProjectExternalApproval` rows

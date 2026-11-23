@@ -1,4 +1,4 @@
-"""Telegram task plan U3 (KTD24): `submit_progress` and `transition(submitted)`
+"""`submit_progress` and `transition(submitted)`
 serialize on the task row, proven against a real Postgres.
 
 SQLite ignores `SELECT ... FOR UPDATE`, so the rest of the suite cannot show

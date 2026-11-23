@@ -22,8 +22,6 @@ services:
       WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-}
       DOUBLETICK_API_KEY: ${DOUBLETICK_API_KEY:-}
       DOUBLETICK_FROM_NUMBER: ${DOUBLETICK_FROM_NUMBER:-}
-      TELEGRAM_ACCESS_TOKEN: ${TELEGRAM_ACCESS_TOKEN:-}
-      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
       # Local-only "sign in as any local test account" shortcut (see
       # backend/app/routes/auth.py dev_login) - never set in render.yaml/prod.
       LOCAL_DEV_LOGIN_ENABLED: "true"

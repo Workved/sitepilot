@@ -3,8 +3,7 @@ escalation sweep in one pass, mirroring `outbox_scheduler.py`'s shape
 exactly - see that module's docstring for the shape's own rationale.
 
 Merged on purpose, not split into two files: the plan's own framing is that
-the reminders (`TaskReminderService.send_due_reminders`, Asia/Kolkata times -
-Telegram T3-T5) and the task-side escalation sweep
+the reminders (`TaskReminderService.send_due_reminders`, Asia/Kolkata times) and the task-side escalation sweep
 (`EscalationService.sweep_task_followups`/`sweep_task_escalations`) are the
 same "what does this task need right now" pass over the same task set, so
 one scheduler captures `now` once and threads that single instant through
@@ -49,7 +48,7 @@ def run_daily_task_prompts_pass() -> int:
         escalation = EscalationService(db)
         processed = 0
         for label, call in (
-            # Telegram T3-T5: every IST task reminder (pre-start, readiness,
+            # every IST task reminder (pre-start, readiness,
             # start, midday, EOD, overdue, escalation).
             ("send_due_reminders", lambda: reminders.send_due_reminders(now)),
             ("sweep_task_followups", lambda: escalation.sweep_task_followups(now)),

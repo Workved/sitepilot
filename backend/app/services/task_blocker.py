@@ -105,7 +105,7 @@ class TaskBlockerService:
             type=clean_type,
             description=clean_description,
             owner_employee_id=owner_employee_id,
-            # Telegram task plan U12: recorded for every channel, so the
+            # recorded for every channel, so the
             # reporter is told when the blocker is resolved.
             reported_by=actor.id,
         )

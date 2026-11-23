@@ -179,7 +179,7 @@ class TaskVerificationService:
         self.db.flush()
         # The submission this decision covers, captured before the cycle is
         # marked reviewed, so the class_a approval request that follows shows
-        # exactly the verified work (Telegram task plan KTD18).
+        # exactly the verified work.
         reviewed_update_ids = [str(i) for i in self.db.scalars(
             select(TaskProgressUpdate.id)
             .where(TaskProgressUpdate.task_id == task.id, TaskProgressUpdate.reviewed_at.is_(None))

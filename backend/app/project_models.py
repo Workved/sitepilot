@@ -199,8 +199,8 @@ class V2ProjectMembership(Base):
     assigned_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     assignment_reason: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    # Telegram T2: when the member pressed [Acknowledge Assignment]. Receipt
-    # only - it grants and changes nothing.
+    # Set by the removed Telegram Acknowledge button; nothing writes it now.
+    # Kept so acknowledgements recorded before the removal are not lost.
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 

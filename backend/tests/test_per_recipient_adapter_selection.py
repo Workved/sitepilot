@@ -1,14 +1,7 @@
-"""U9 (docs/plans/2026-09-16-001-feat-telegram-messaging-channel-plan.md,
-KTD4): `MessageDispatchService` picks the outbound adapter per recipient
-via U8's lookup, instead of one adapter for the whole pass. Behavior is
-unchanged today because every real recipient's channel still reads
-'whatsapp' (no one has been toggled onto Telegram yet - U15).
-
-This is the highest-risk unit in the plan - the WhatsApp path must behave
-identically before and after. `test_message_delivery_dispatch_v2.py`
-already exercises the full `process_pending` flow end to end and must
-keep passing unmodified; this file adds direct coverage of the new
-per-recipient adapter-selection and `MessageDelivery.channel` write.
+"""`MessageDispatchService` sends every recipient through its one WhatsApp
+adapter and records `MessageDelivery.channel` as 'whatsapp'.
+`test_message_delivery_dispatch_v2.py` exercises the full `process_pending`
+flow end to end; this file covers the adapter and channel write directly.
 """
 
 from __future__ import annotations
@@ -75,11 +68,9 @@ class PerRecipientAdapterSelectionTests(unittest.TestCase):
         self.session.close()
 
     def test_no_extra_configuration_needed_to_construct_the_service(self):
-        # Constructing with no Telegram adapter configured must not error -
-        # no recipient resolves to 'telegram' yet.
         MessageDispatchService(self.session)
 
-    def test_whatsapp_recipient_dispatches_through_the_same_adapter_as_before(self):
+    def test_recipient_dispatches_through_the_whatsapp_adapter(self):
         service = MessageDispatchService(self.session)
         recipient = Recipient(employee_id=self.profile_id, vendor_contact_id=None, phone=EMPLOYEE_PHONE)
 
@@ -87,7 +78,7 @@ class PerRecipientAdapterSelectionTests(unittest.TestCase):
 
         delivery = self.session.query(MessageDelivery).one()
         self.assertEqual(delivery.status, "sent")
-        self.assertIsInstance(service._adapters["whatsapp"], SandboxProviderAdapter)
+        self.assertIsInstance(service.adapter, SandboxProviderAdapter)
 
     def test_message_delivery_channel_is_recorded_as_whatsapp(self):
         service = MessageDispatchService(self.session)

@@ -137,8 +137,6 @@ $existing = Read-ExistingEnv
 $bootstrapEmail = First-Value $existing @("BOOTSTRAP_SUPER_ADMIN_EMAIL")
 $bootstrapPassword = First-Value $existing @("BOOTSTRAP_SUPER_ADMIN_PASSWORD")
 $migrationPassword = First-Value $existing @("MIGRATION_TEMP_PASSWORD")
-$telegramAccessToken = First-Value $existing @("TELEGRAM_ACCESS_TOKEN")
-$telegramWebhookSecret = First-Value $existing @("TELEGRAM_WEBHOOK_SECRET")
 $whatsappAccessToken = First-Value $existing @("WHATSAPP_ACCESS_TOKEN")
 $whatsappPhoneNumberId = First-Value $existing @("WHATSAPP_PHONE_NUMBER_ID")
 $whatsappApiVersion = First-Value $existing @("WHATSAPP_API_VERSION")
@@ -164,9 +162,6 @@ $envLines = @(
     "MIGRATION_TEMP_PASSWORD=$migrationPassword",
     "",
     "VITE_API_BASE=http://localhost:8000",
-    "",
-    "TELEGRAM_ACCESS_TOKEN=$telegramAccessToken",
-    "TELEGRAM_WEBHOOK_SECRET=$telegramWebhookSecret",
     "",
     "WHATSAPP_ACCESS_TOKEN=$whatsappAccessToken",
     "WHATSAPP_PHONE_NUMBER_ID=$whatsappPhoneNumberId",

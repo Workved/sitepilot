@@ -217,9 +217,6 @@ def invite_user(payload: UserInviteIn, actor: User = Depends(require_roles(UserR
             employee_code=employee_code.upper(),
             designation=designation,
             department=(payload.department or "").strip() or None,
-            # WhatsApp is the primary channel. An Admin can still move a
-            # person to Telegram via the channel toggle once they connect.
-            active_channel="whatsapp",
         ))
         add_event(db, user, actor, "ACCOUNT_INVITED", "Pre-registered for Google sign-in; awaiting first login.", to_role=payload.role)
         if password:
@@ -292,7 +289,6 @@ def update_my_profile(payload: MyProfileUpdateIn, actor: User = Depends(require_
             user_id=actor.id,
             employee_code=f"SUPERADMIN-{actor.id.hex[:8].upper()}",
             designation="Super Admin",
-            active_channel="whatsapp",
         ))
     if actor.supabase_user_id:
         try:

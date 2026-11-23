@@ -227,7 +227,7 @@ class ProjectRoleChangeService:
             # (routes/projects_v2.py, project_vendor.py): `set_membership`
             # lets this request flow run during Draft too (see its own
             # comment on why), but a Draft project is still planning/setup
-            # - nobody should get an operational Telegram/WhatsApp ping
+            # - nobody should get an operational WhatsApp ping
             # about a role-change request until the project is live.
             if project.status == "active":
                 OutboxService(self.db).emit(

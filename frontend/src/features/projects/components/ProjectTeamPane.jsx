@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { projectsApi } from "../../../api/projectsApi";
-import { AcknowledgementPill, Button, Field, Input, Modal, Select } from "../../../components/ui";
+import { Button, Field, Input, Modal, Select } from "../../../components/ui";
 import { PendingRoleChangesPanel } from "./PendingRoleChangesPanel";
 import { ProjectTeamReplaceModal } from "./ProjectTeamReplaceModal";
 
@@ -178,7 +178,6 @@ export function ProjectTeamPane({ project, references, user, onChanged }) {
           </div>
           <div className="flex shrink-0 items-center gap-3">
             <span className="text-xs font-bold text-slate-500">{roleLabel[item.project_role]}</span>
-            {!item.ends_at && <AcknowledgementPill acknowledgedAt={item.acknowledged_at}/>}
             {item.project_role === "internal_employee" && canRemoveInternalEmployee && <Button size="sm" variant="ghost" className="!text-rose-700 hover:!bg-rose-50" onClick={() => setRemovingMembership(item)}>Remove</Button>}
             {canRemoveAccountableRole[item.project_role] && <Button size="sm" variant="ghost" className="!text-rose-700 hover:!bg-rose-50" onClick={() => setRemovingMembership(item)}>Remove</Button>}
           </div>

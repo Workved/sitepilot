@@ -17,7 +17,6 @@ import { usersApi } from "../../api/usersApi";
 import { roles } from "../../utils/constants";
 import { initials } from "../../utils/format";
 import { CreateUserModal, EditMyProfileModal, UserModal } from "./components/UserModals";
-import { MyTelegramPanel } from "./components/MyTelegramPanel";
 
 const managementRoles = new Set(["super_admin", "admin"]);
 
@@ -29,14 +28,6 @@ function AccountStatus({ person }) {
   if (!person.active) return <Pill tone="gray">Offboarded</Pill>;
   if (person.activation_status === "setup_pending") return <Pill tone="orange">Setup pending</Pill>;
   return <Pill tone="green">Active</Pill>;
-}
-
-// Telegram link state at a glance; linking and unlinking live in the access record.
-function TelegramStatus({ person }) {
-  if (!person.employee_profile) return null;
-  return person.employee_profile.telegram_connected
-    ? <Pill tone="blue">Telegram linked</Pill>
-    : <Pill tone="gray">Telegram not linked</Pill>;
 }
 
 function Metric({ icon, label, value, tone = "blue" }) {
@@ -103,8 +94,8 @@ function AccessDirectory({ data, user, action, onRefresh }) {
       </div>
 
       {filtered.length === 0 ? <EmptyState/> : <>
-        <div className="divide-y divide-slate-100 md:hidden">{filtered.map(item => <button type="button" key={item.id} onClick={() => setSelected(item)} className="flex w-full items-center gap-3 p-4 text-left transition active:bg-blue-50"><Avatar name={item.name}/><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm text-slate-950">{item.name}</strong><AccountStatus person={item}/><TelegramStatus person={item}/></span><span className="mt-1 block truncate text-xs text-slate-500">{item.email}</span><span className="mt-1 block text-xs font-bold text-blue-700">{roles[item.role] || item.role}</span></span><ChevronRight className="shrink-0 text-slate-400" size={20}/></button>)}</div>
-        <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[880px] text-left"><thead className="bg-slate-50 text-[11px] font-black uppercase tracking-[.14em] text-slate-500"><tr><th className="px-5 py-4">Identity</th><th className="px-5 py-4">Role</th><th className="px-5 py-4">Employee profile</th><th className="px-5 py-4">Status</th><th className="px-5 py-4 text-right">View</th></tr></thead><tbody className="divide-y divide-slate-100">{filtered.map(item => <tr key={item.id} onClick={() => setSelected(item)} className="cursor-pointer transition hover:bg-blue-50/50"><td className="px-5 py-4"><span className="flex items-center gap-3"><Avatar name={item.name}/><span className="min-w-0"><strong className="block truncate text-sm text-slate-950">{item.name}</strong><small className="mt-1 block truncate text-xs text-slate-500">{item.email}</small></span></span></td><td className="px-5 py-4"><Pill>{roles[item.role] || item.role}</Pill></td><td className="px-5 py-4"><strong className="block text-sm text-slate-700">{item.employee_profile?.designation || "Profile pending"}</strong><small className="mt-1 block text-xs text-slate-500">{item.employee_profile?.employee_code || "No employee code"}</small></td><td className="px-5 py-4"><span className="flex flex-wrap items-center gap-2"><AccountStatus person={item}/><TelegramStatus person={item}/></span></td><td className="px-5 py-4 text-right"><ChevronRight className="ml-auto text-slate-400" size={20}/></td></tr>)}</tbody></table></div>
+        <div className="divide-y divide-slate-100 md:hidden">{filtered.map(item => <button type="button" key={item.id} onClick={() => setSelected(item)} className="flex w-full items-center gap-3 p-4 text-left transition active:bg-blue-50"><Avatar name={item.name}/><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm text-slate-950">{item.name}</strong><AccountStatus person={item}/></span><span className="mt-1 block truncate text-xs text-slate-500">{item.email}</span><span className="mt-1 block text-xs font-bold text-blue-700">{roles[item.role] || item.role}</span></span><ChevronRight className="shrink-0 text-slate-400" size={20}/></button>)}</div>
+        <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[880px] text-left"><thead className="bg-slate-50 text-[11px] font-black uppercase tracking-[.14em] text-slate-500"><tr><th className="px-5 py-4">Identity</th><th className="px-5 py-4">Role</th><th className="px-5 py-4">Employee profile</th><th className="px-5 py-4">Status</th><th className="px-5 py-4 text-right">View</th></tr></thead><tbody className="divide-y divide-slate-100">{filtered.map(item => <tr key={item.id} onClick={() => setSelected(item)} className="cursor-pointer transition hover:bg-blue-50/50"><td className="px-5 py-4"><span className="flex items-center gap-3"><Avatar name={item.name}/><span className="min-w-0"><strong className="block truncate text-sm text-slate-950">{item.name}</strong><small className="mt-1 block truncate text-xs text-slate-500">{item.email}</small></span></span></td><td className="px-5 py-4"><Pill>{roles[item.role] || item.role}</Pill></td><td className="px-5 py-4"><strong className="block text-sm text-slate-700">{item.employee_profile?.designation || "Profile pending"}</strong><small className="mt-1 block text-xs text-slate-500">{item.employee_profile?.employee_code || "No employee code"}</small></td><td className="px-5 py-4"><span className="flex flex-wrap items-center gap-2"><AccountStatus person={item}/></span></td><td className="px-5 py-4 text-right"><ChevronRight className="ml-auto text-slate-400" size={20}/></td></tr>)}</tbody></table></div>
       </>}
     </section>
 
@@ -136,8 +127,6 @@ function PersonalProfile({ data, user, action }) {
       <article className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,.06)] sm:p-6"><p className="text-xs font-black uppercase tracking-[.16em] text-slate-500">Employee identity</p><div className="mt-5 grid gap-3 sm:grid-cols-2">{detailRows.map(([label, value, icon]) => <div key={label} className="rounded-[20px] bg-slate-50 p-4"><span className="flex items-center gap-2 text-xs font-black uppercase tracking-[.1em] text-slate-400">{icon}{label}</span><strong className="mt-3 block break-words text-sm text-slate-900">{value}</strong></div>)}</div></article>
       <article className="rounded-[26px] border border-blue-100 bg-blue-50/70 p-5 sm:p-6"><span className="grid size-11 place-items-center rounded-2xl bg-blue-600 text-white"><ShieldCheck size={21}/></span><p className="mt-5 text-xs font-black uppercase tracking-[.16em] text-blue-700">Your access boundary</p><h2 className="mt-1 text-xl font-black text-slate-950">{definition.label}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{definition.summary}</p><div className="mt-5 grid gap-2">{definition.capabilities.map(item => <span key={item} className="rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm">{item}</span>)}</div></article>
     </section>
-
-    <MyTelegramPanel/>
 
     <section className="flex items-start gap-3 rounded-[22px] border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600 sm:p-5"><CircleUserRound className="mt-0.5 shrink-0 text-blue-600" size={20}/><p>You can update personal contact details here. Role, employee code, designation, department, and account status are controlled by authorized administrators.</p></section>
     {editing && <EditMyProfileModal user={user} action={action} onClose={() => setEditing(false)}/>}

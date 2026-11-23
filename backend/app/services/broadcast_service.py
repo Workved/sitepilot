@@ -26,15 +26,11 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.broadcast_models import Broadcast, BroadcastRecipient, BroadcastTemplate
-from app.config import settings
 from app.execution_models import MessageDelivery, OutboxEvent
 from app.models import EmployeeProfile, User
 from app.project_models import V2Project, V2ProjectMembership
 from app.routes.projects_v2 import add_audit
-from app.services.message_dispatch import (
-    SandboxProviderAdapter,
-    WhatsAppProviderAdapter,
-)
+from app.services.message_dispatch import WhatsAppProviderAdapter
 from app.services.message_templates import render_components, resolve
 from app.services.outbox_scheduler import _build_adapter
 from app.vendor_models import ProjectVendor, V2Vendor, V2VendorContact
@@ -53,38 +49,9 @@ def _default_whatsapp_adapter() -> WhatsAppProviderAdapter:
     return _build_adapter()
 
 
-def _default_telegram_adapter() -> WhatsAppProviderAdapter:
-    if settings.telegram_access_token:
-        from app.services.telegram_provider import TelegramProviderAdapter
-
-        return TelegramProviderAdapter()
-    return SandboxProviderAdapter()
-
-
-def _format_broadcast_text(broadcast: Broadcast, project_name: str) -> str:
-    lines = [
-        f"*{broadcast.title}*",
-        f"Project: {project_name}",
-    ]
-    if broadcast.meeting_date:
-        when = broadcast.meeting_date.isoformat()
-        if broadcast.meeting_time:
-            when = f"{when} {broadcast.meeting_time}"
-        lines.append(f"When: {when}")
-    elif broadcast.meeting_time:
-        lines.append(f"Time: {broadcast.meeting_time}")
-    if broadcast.location_or_link:
-        lines.append(f"Location/Link: {broadcast.location_or_link}")
-    if broadcast.agenda:
-        lines.append(f"Agenda: {broadcast.agenda}")
-    lines.append("")
-    lines.append(broadcast.message_body)
-    return "\n".join(lines)
-
-
 def _internal_recipients(db: Session, project_id: uuid.UUID, project_role: str) -> list[dict]:
     rows = db.execute(
-        select(User, EmployeeProfile.active_channel, EmployeeProfile.telegram_chat_id)
+        select(User)
         .join(EmployeeProfile, EmployeeProfile.user_id == User.id)
         .join(V2ProjectMembership, V2ProjectMembership.employee_id == EmployeeProfile.id)
         .where(
@@ -94,21 +61,13 @@ def _internal_recipients(db: Session, project_id: uuid.UUID, project_role: str) 
             User.active.is_(True),
         )
         .distinct()
-    ).all()
+    ).scalars().all()
     role_label = GROUP_ROLE_LABEL[project_role]
     results = []
-    for user, active_channel, telegram_chat_id in rows:
-        # U11 (docs/plans/2026-09-16-001-feat-telegram-messaging-channel-plan.md,
-        # step 1): resolve the actual contactable channel from
-        # `EmployeeProfile.active_channel` instead of inferring it purely
-        # from phone presence. Internal users always have a portal account
-        # (email is required at signup) - "no contact" only ever applies to
-        # vendors below.
-        if active_channel == "telegram" and telegram_chat_id:
-            messaging_channel = ["telegram"]
-        else:
-            messaging_channel = ["whatsapp"] if user.phone else []
-        channels = ["in_app", "email"] + messaging_channel
+    for user in rows:
+        # Internal users always have a portal account (email is required at
+        # signup) - "no contact" only ever applies to vendors below.
+        channels = ["in_app", "email"] + (["whatsapp"] if user.phone else [])
         results.append({
             "key": f"{project_role}:{user.id}", "recipient_type": project_role,
             "user_id": user.id, "vendor_id": None, "vendor_contact_id": None,
@@ -133,9 +92,8 @@ def _vendor_recipients(db: Session, project_id: uuid.UUID) -> list[dict]:
     ).all()
     results = []
     for vendor in vendors:
-        # U11 (step 2): `active_channel` lives on `V2VendorContact`, not
-        # `V2Vendor` - resolve it from the vendor's primary contact instead
-        # of the vendor's own phone/whatsapp fields. Looked up per-vendor
+        # Prefer the vendor's primary contact's number over the vendor's own
+        # phone/whatsapp fields. Looked up per-vendor
         # (not via a join) so a vendor with zero or more than one contact
         # flagged `is_primary` falls back to the vendor's own fields below,
         # matching today's behavior, rather than a join silently picking
@@ -146,13 +104,9 @@ def _vendor_recipients(db: Session, project_id: uuid.UUID) -> list[dict]:
         primary_contact = primary_contacts[0] if len(primary_contacts) == 1 else None
         if primary_contact is not None:
             phone = primary_contact.whatsapp or primary_contact.phone
-            if primary_contact.active_channel == "telegram" and primary_contact.telegram_chat_id:
-                channels = ["telegram"] + (["email"] if vendor.email else [])
-            else:
-                channels = (["whatsapp"] if phone else []) + (["email"] if vendor.email else [])
         else:
             phone = vendor.whatsapp or vendor.phone
-            channels = (["whatsapp"] if phone else []) + (["email"] if vendor.email else [])
+        channels = (["whatsapp"] if phone else []) + (["email"] if vendor.email else [])
         results.append({
             "key": f"vendor:{vendor.id}", "recipient_type": "vendor",
             "user_id": None, "vendor_id": vendor.id, "vendor_contact_id": None,
@@ -184,11 +138,7 @@ def _vendor_contact_recipients(db: Session, project_id: uuid.UUID) -> list[dict]
     for contact, vendor in rows:
         # V2VendorContact carries no email column - only phone/whatsapp.
         phone = contact.whatsapp or contact.phone
-        # U11 (step 3): same active_channel resolution as steps 1-2.
-        if contact.active_channel == "telegram" and contact.telegram_chat_id:
-            channels = ["telegram"]
-        else:
-            channels = ["whatsapp"] if phone else []
+        channels = ["whatsapp"] if phone else []
         results.append({
             "key": f"vendor_contact:{contact.id}", "recipient_type": "vendor_contact",
             "user_id": None, "vendor_id": vendor.id, "vendor_contact_id": contact.id,
@@ -341,10 +291,9 @@ def _dispatch_broadcast_recipients(
     recipients: list[BroadcastRecipient],
     *,
     whatsapp_adapter: WhatsAppProviderAdapter | None = None,
-    telegram_adapter: WhatsAppProviderAdapter | None = None,
 ) -> None:
     """Dispatches broadcast messages to eligible recipients using the shared
-    WhatsApp / Telegram provider adapters, template registry, and delivery
+    WhatsApp provider adapter, template registry, and delivery
     tracking infrastructure."""
     now_ts = datetime.now(timezone.utc)
     project_name = project.name if project else "Unknown project"
@@ -362,13 +311,9 @@ def _dispatch_broadcast_recipients(
     }
     components = render_components(spec, event_payload)
     whatsapp_payload = {**event_payload, "components": components, "language_code": spec.language}
-    telegram_payload = {"text": _format_broadcast_text(broadcast, project_name)}
 
     outbox_event = _ensure_broadcast_outbox_event(db, broadcast, event_payload)
-    adapters: dict[str, WhatsAppProviderAdapter] = {
-        "whatsapp": whatsapp_adapter or _default_whatsapp_adapter(),
-        "telegram": telegram_adapter or _default_telegram_adapter(),
-    }
+    adapter = whatsapp_adapter or _default_whatsapp_adapter()
 
     for recipient in recipients:
         # Duplicate prevention: never re-send to a recipient already marked 'sent'.
@@ -377,7 +322,6 @@ def _dispatch_broadcast_recipients(
 
         employee_id: uuid.UUID | None = None
         vendor_contact_id: uuid.UUID | None = recipient.vendor_contact_id
-        target_channel: str | None = None
         target_address: str = ""
 
         if recipient.user_id is not None:
@@ -406,40 +350,30 @@ def _dispatch_broadcast_recipients(
                     vendor_contact_id=None,
                     recipient_phone=recipient.phone or (user.phone if user else "") or "",
                     template=spec.meta_template_name,
-                    channel=(profile.active_channel if profile else None) or "whatsapp",
+                    channel="whatsapp",
                     status="failed",
                     failure_code="recipient_offboarded" if (user is not None and not user.active) else "recipient_ineligible",
                     failure_reason="Recipient is inactive or no longer an active project member.",
                 )
                 continue
 
-            # Telegram only when the person actually linked a chat - the same
-            # rule `_internal_recipients` uses for the preview. Anyone else
-            # (including Telegram-preferred but never connected) goes to
-            # WhatsApp, the primary channel.
-            if profile.active_channel == "telegram" and profile.telegram_chat_id:
-                target_address = profile.telegram_chat_id
-                target_channel = "telegram"
-            else:
-                target_address = recipient.phone or user.phone or ""
-                if target_address:
-                    target_channel = "whatsapp"
-                elif "whatsapp" in (recipient.channels or []):
-                    recipient.delivery_status = "skipped_no_contact"
-                    recipient.delivered_at = None
-                    _record_message_delivery(
-                        db,
-                        outbox_event,
-                        employee_id=employee_id,
-                        vendor_contact_id=None,
-                        recipient_phone="",
-                        template=spec.meta_template_name,
-                        channel="whatsapp",
-                        status="failed",
-                        failure_code="missing_phone",
-                        failure_reason="Recipient has no phone number on file.",
-                    )
-                    continue
+            target_address = recipient.phone or user.phone or ""
+            if not target_address and "whatsapp" in (recipient.channels or []):
+                recipient.delivery_status = "skipped_no_contact"
+                recipient.delivered_at = None
+                _record_message_delivery(
+                    db,
+                    outbox_event,
+                    employee_id=employee_id,
+                    vendor_contact_id=None,
+                    recipient_phone="",
+                    template=spec.meta_template_name,
+                    channel="whatsapp",
+                    status="failed",
+                    failure_code="missing_phone",
+                    failure_reason="Recipient has no phone number on file.",
+                )
+                continue
 
         elif recipient.vendor_contact_id is not None:
             contact = db.get(V2VendorContact, recipient.vendor_contact_id)
@@ -460,16 +394,11 @@ def _dispatch_broadcast_recipients(
                 recipient.delivered_at = None
                 continue
 
-            if contact.active_channel == "telegram" and contact.telegram_chat_id:
-                target_address = contact.telegram_chat_id
-                target_channel = "telegram"
-            else:
-                target_address = recipient.phone or contact.whatsapp or contact.phone or ""
-                if not target_address:
-                    recipient.delivery_status = "skipped_no_contact"
-                    recipient.delivered_at = None
-                    continue
-                target_channel = "whatsapp"
+            target_address = recipient.phone or contact.whatsapp or contact.phone or ""
+            if not target_address:
+                recipient.delivery_status = "skipped_no_contact"
+                recipient.delivered_at = None
+                continue
 
         else:
             # recipient_type == 'vendor'
@@ -500,40 +429,28 @@ def _dispatch_broadcast_recipients(
             if primary_contact is not None:
                 vendor_contact_id = primary_contact.id
 
-            if (
-                primary_contact is not None
-                and primary_contact.active_channel == "telegram"
-                and primary_contact.telegram_chat_id
-            ):
-                target_address = primary_contact.telegram_chat_id
-                target_channel = "telegram"
-            else:
-                target_address = (
-                    recipient.phone
-                    or (primary_contact.whatsapp or primary_contact.phone if primary_contact is not None else None)
-                    or vendor.whatsapp
-                    or vendor.phone
-                    or ""
-                )
-                if target_address:
-                    target_channel = "whatsapp"
+            target_address = (
+                recipient.phone
+                or (primary_contact.whatsapp or primary_contact.phone if primary_contact is not None else None)
+                or vendor.whatsapp
+                or vendor.phone
+                or ""
+            )
 
-        if target_channel in ("whatsapp", "telegram") and target_address:
-            adapter = adapters[target_channel]
-            send_payload = telegram_payload if target_channel == "telegram" else whatsapp_payload
+        if target_address:
             result = adapter.send(
                 recipient_phone=target_address,
                 template=spec.meta_template_name,
-                payload=send_payload,
+                payload=whatsapp_payload,
             )
             _record_message_delivery(
                 db,
                 outbox_event,
                 employee_id=employee_id,
                 vendor_contact_id=vendor_contact_id if employee_id is None else None,
-                recipient_phone=target_address if target_channel == "whatsapp" else (recipient.phone or ""),
+                recipient_phone=target_address,
                 template=spec.meta_template_name,
-                channel=target_channel,
+                channel="whatsapp",
                 status="sent" if result.ok else "failed",
                 provider=getattr(adapter, "provider_name", "sandbox"),
                 provider_message_id=result.provider_message_id,
@@ -564,7 +481,6 @@ def create_broadcast(
     agenda: str | None, message_body: str, groups: list[str], excluded_keys: list[str],
     send_mode: str, scheduled_at,
     whatsapp_adapter: WhatsAppProviderAdapter | None = None,
-    telegram_adapter: WhatsAppProviderAdapter | None = None,
 ) -> Broadcast:
     if not groups:
         raise HTTPException(422, "Select at least one recipient group.")
@@ -603,7 +519,7 @@ def create_broadcast(
     if send_mode == "now":
         _dispatch_broadcast_recipients(
             db, broadcast, project, recipient_rows,
-            whatsapp_adapter=whatsapp_adapter, telegram_adapter=telegram_adapter,
+            whatsapp_adapter=whatsapp_adapter,
         )
 
     add_audit(
@@ -623,7 +539,6 @@ def send_scheduled_broadcast(
     broadcast: Broadcast,
     *,
     whatsapp_adapter: WhatsAppProviderAdapter | None = None,
-    telegram_adapter: WhatsAppProviderAdapter | None = None,
 ) -> Broadcast:
     if broadcast.status not in ("scheduled", "partially_failed", "failed"):
         raise HTTPException(409, "Only a scheduled or failed broadcast can be sent.")
@@ -633,7 +548,7 @@ def send_scheduled_broadcast(
     project = db.get(V2Project, broadcast.project_id)
     _dispatch_broadcast_recipients(
         db, broadcast, project, recipients,
-        whatsapp_adapter=whatsapp_adapter, telegram_adapter=telegram_adapter,
+        whatsapp_adapter=whatsapp_adapter,
     )
 
     add_audit(

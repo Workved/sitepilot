@@ -398,7 +398,7 @@ class TaskEvidenceRequiredApiTests(unittest.TestCase):
         self.assertEqual(allowed.status_code, 200, allowed.text)
 
     def test_a_rejected_photo_that_was_not_the_latest_update_cannot_carry_a_resubmission(self):
-        """AE2 (Telegram task plan U2): a verification names only the latest
+        """AE2: a verification names only the latest
         update, so before `reviewed_at` a photo logged earlier in the rejected
         cycle - followed by a note - still counted as fresh evidence."""
         project = self.activate_project()

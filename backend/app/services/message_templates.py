@@ -172,17 +172,17 @@ TEMPLATE_REGISTRY: dict[str, TemplateSpec] = {
         "task_eod_check", "en", ("task_id", "lifecycle_status"),
     ),
     "task.prestart_warning": TemplateSpec(
-        # Telegram T3: `TaskReminderService`, 09:00 IST the day before
+        # `TaskReminderService`, 09:00 IST the day before
         # `planned_start_date` for a task not started yet.
         "task_prestart_warning", "en", ("task_id", "planned_start_date"),
     ),
     "task.sla_overdue": TemplateSpec(
-        # Telegram T5: 06:30 IST (EOD + 12h) the day after `planned_end_date`
+        # 06:30 IST (EOD + 12h) the day after `planned_end_date`
         # for work still not submitted.
         "task_sla_overdue", "en", ("task_label", "project_name", "planned_end_date_label"),
     ),
     "task.sla_escalated": TemplateSpec(
-        # Telegram T5: 09:30 IST (EOD + 15h), same condition, to PM and Admin.
+        # 09:30 IST (EOD + 15h), same condition, to PM and Admin.
         "task_sla_escalated", "en", ("task_id", "planned_end_date"),
     ),
     # ---- project events -------------------------------------------------

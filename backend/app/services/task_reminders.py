@@ -1,4 +1,4 @@
-"""Scheduled task reminders on Indian Standard Time (Telegram T3-T5).
+"""Scheduled task reminders on Indian Standard Time.
 
 Replaces the four UTC daily prompts. Every reminder has a fixed Asia/Kolkata
 send time, a latest time it may still go out (a pass that runs after that is
@@ -29,8 +29,8 @@ a retry - into an IntegrityError (Postgres 23505) that is rolled back and
 skipped, so nothing is sent twice. Delivery then goes through the outbox like
 every other message.
 
-Only active projects and non-milestone tasks are considered. Recipients and
-buttons are decided by dispatch and the Telegram renderers, not here.
+Only active projects and non-milestone tasks are considered. Recipients are
+decided by dispatch, not here.
 """
 
 from __future__ import annotations

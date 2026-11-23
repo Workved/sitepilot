@@ -27,8 +27,8 @@ function roleViewMeta(role) {
 }
 
 export function ExecutionPage({ user }) {
-  // A link such as ?tab=execution&project=<code>&pane=approvals (sent with a
-  // Telegram external-approval review) opens that project's External
+  // A link such as ?tab=execution&project=<code>&pane=approvals opens that
+  // project's External
   // Approvals tab. Read once on mount; the page keeps its own state after.
   const [linked] = useState(readRoute);
   const [projects, setProjects] = useState([]);

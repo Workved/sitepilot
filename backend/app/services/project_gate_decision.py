@@ -199,8 +199,8 @@ class ProjectGateDecisionService:
         reason: str | None = None,
         source: str = "portal",
     ) -> ExternalApprovalView:
-        """`source` is an audit-trail label only ('portal'/'whatsapp'/
-        'telegram') - `_require_approver` below still owns the actual
+        """`source` is an audit-trail label only ('portal'/'whatsapp')
+        - `_require_approver` below still owns the actual
         Admin/Super-Admin authorization check regardless of channel.
         Defaults to 'portal' for the raw route; `InboundMessageService`'s
         GATEDECIDE handler passes its own channel."""

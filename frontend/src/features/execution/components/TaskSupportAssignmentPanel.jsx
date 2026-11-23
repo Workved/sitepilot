@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { taskExecutionApi } from "../../../api/taskExecutionApi";
-import { AcknowledgementPill, Button, Field, Input, Pill, Select } from "../../../components/ui";
+import { Button, Field, Input, Pill, Select } from "../../../components/ui";
 
 function EndAssignmentControl({ projectId, task, assignment, onChanged }) {
   const [open, setOpen] = useState(false);
@@ -75,7 +75,7 @@ export function TaskSupportAssignmentPanel({ projectId, task, candidates = [], c
     <div className="grid gap-2">
       {task.support_assignments.map(assignment => <div key={assignment.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2"><Pill tone={assignment.status === "active" ? "green" : "gray"}>{assignment.status}</Pill><span className="text-slate-700">{assignment.responsibility}</span>{assignment.status === "active" && <AcknowledgementPill acknowledgedAt={assignment.acknowledged_at}/>}</div>
+          <div className="flex items-center gap-2"><Pill tone={assignment.status === "active" ? "green" : "gray"}>{assignment.status}</Pill><span className="text-slate-700">{assignment.responsibility}</span></div>
           {assignment.status === "active" && <EndAssignmentControl projectId={projectId} task={task} assignment={assignment} onChanged={onChanged}/>}
         </div>
       </div>)}

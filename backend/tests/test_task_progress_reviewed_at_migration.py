@@ -1,4 +1,4 @@
-"""Telegram task plan U2: the one-time `reviewed_at` backfill in
+"""the one-time `reviewed_at` backfill in
 202609250002_v2_task_progress_reviewed_at.sql.
 
 Runs the migration's own UPDATE statement (read from the file, not a copy)

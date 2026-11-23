@@ -560,7 +560,7 @@ class TaskProgressEvidenceApiTests(unittest.TestCase):
         if upload_dir.is_dir():
             self.assertEqual(list(upload_dir.rglob(f"*{storage_key}*")), [])
 
-    # ---- Telegram task plan U3: progress only while in_progress --------------
+    # ---- progress only while in_progress --------------
 
     def test_progress_is_refused_outside_in_progress_and_leaves_nothing_behind(self):
         project = self.activate_project()

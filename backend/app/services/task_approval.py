@@ -139,7 +139,7 @@ class TaskApprovalService:
         ) is not None
 
     def ineligible_approver_user_id(self, task: Task) -> uuid.UUID | None:
-        """Read-only (Telegram task plan KTD20): the one person who may not
+        """Read-only: the one person who may not
         approve this task's current cycle - a class_a verification recorded by
         someone who is not the project's active Supervisor (a PM or Admin
         fallback). Exactly the actor `_require_not_same_fallback_actor` refuses;
