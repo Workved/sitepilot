@@ -66,7 +66,7 @@ function DayColumn({ label, tasks, expanded, onExpand, onOpen }) {
   const remaining = tasks.length - visible.length;
   return <article className="grid min-w-0 gap-2 rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
     <header className="text-center">
-      <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">{label.kind}</div>
+      <div className="text-xs font-medium text-slate-500">{label.kind}</div>
       <div className="text-xs font-bold text-slate-700">{label.formatted}</div>
     </header>
     <div className="grid min-w-0 gap-2">
@@ -206,7 +206,7 @@ export function SupervisorOperationsBoard({ projectId, user }) {
 
       <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4" aria-label="Attention required">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 className="text-xs font-black uppercase tracking-wide text-amber-800">Attention Required</h4>
+          <h4 className="text-xs font-medium text-amber-800">Attention Required</h4>
           {attentionFilter && <button type="button" onClick={() => setAttentionFilter(null)} className="text-xs font-bold text-blue-700 hover:underline">Clear filter</button>}
         </div>
         <div className="mt-2 flex flex-wrap gap-2">

@@ -3,11 +3,13 @@ import { AdminProjectsOverview } from "../admin/AdminProjectsOverview";
 import { CommunicationPage } from "../broadcasts/CommunicationPage";
 import { CommunicationHubPage } from "../communication/CommunicationHubPage";
 import { ExecutionPage } from "../execution/ExecutionPage";
+import { OverviewPage } from "../overview/OverviewPage";
 import { ProjectsPage } from "../projects/ProjectsPage";
 import { TemplatesPage } from "../templates/TemplatesPage";
 import { UsersPage } from "../users/UsersPage";
 
 const TAB_COMPONENTS = {
+  overview: OverviewPage,
   projects: ProjectsPage,
   admin_overview: AdminProjectsOverview,
   templates: TemplatesPage,
@@ -17,12 +19,12 @@ const TAB_COMPONENTS = {
   users: UsersPage,
 };
 
-export function DashboardTab({ tab, loading, data, user, action, onOpenProject, onRefresh }) {
+export function DashboardTab({ tab, loading, data, user, tabs, action, onOpenProject, onTabChange, onRefresh }) {
   if (loading) {
-    return <section className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,.06)]"><LoadingSpinner label="Loading workspace..." /></section>;
+    return <section className="rounded-[22px] border border-line bg-white p-6"><LoadingSpinner label="Loading workspace..." /></section>;
   }
   const Component = TAB_COMPONENTS[tab];
   if (!Component) return null;
   const identityKey = `${user?.id || user?.email || "anonymous"}:${user?.role || "unknown"}`;
-  return <Component key={`${tab}:${identityKey}`} data={data} user={user} action={action} onOpenProject={onOpenProject} onRefresh={onRefresh} />;
+  return <Component key={`${tab}:${identityKey}`} data={data} user={user} tabs={tabs} action={action} onOpenProject={onOpenProject} onTabChange={onTabChange} onRefresh={onRefresh} />;
 }

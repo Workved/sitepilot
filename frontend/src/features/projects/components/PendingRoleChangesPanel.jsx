@@ -27,7 +27,7 @@ function RejectControl({ projectId, change, onDone }) {
   return <div className="mt-2 flex flex-wrap items-center gap-2">
     <Input value={reason} onChange={event => setReason(event.target.value)} placeholder="Reason (required)" className="min-w-[200px] flex-1"/>
     <Button size="sm" variant="danger" loading={busy} disabled={reason.trim().length < 4} onClick={reject}>Reject</Button>
-    {error && <span className="text-xs font-bold text-rose-700">{error}</span>}
+    {error && <span className="text-xs text-rose-700">{error}</span>}
   </div>;
 }
 
@@ -95,18 +95,18 @@ export function PendingRoleChangesPanel({ projectId, user, onChanged }) {
   if (!canActOnAny && !pending.length && !reassignmentNeeded.length) return null;
 
   return <section className="grid gap-3">
-    {error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div>}
+    {error && <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>}
 
-    {reassignmentNeeded.length > 0 && <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
-      <h3 className="flex items-center gap-2 font-black text-amber-950"><AlertTriangle size={17}/> Reassignment required</h3>
-      <div className="mt-2 grid gap-2">{reassignmentNeeded.map(item => <p key={item.membership_id} className="text-sm text-amber-900">The active <strong>{ROLE_LABEL[item.role_type] || item.role_type}</strong> is marked unavailable - request a replacement below.</p>)}</div>
+    {reassignmentNeeded.length > 0 && <div className="rounded-[20px] border border-orange-100 bg-orange-50 p-4">
+      <h3 className="flex items-center gap-2 font-medium text-orange-950"><AlertTriangle size={17}/> Reassignment required</h3>
+      <div className="mt-2 grid gap-2">{reassignmentNeeded.map(item => <p key={item.membership_id} className="text-sm text-orange-900">The active <strong>{ROLE_LABEL[item.role_type] || item.role_type}</strong> is marked unavailable - request a replacement below.</p>)}</div>
     </div>}
 
-    {pending.length > 0 && <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <h3 className="font-black text-slate-950">Pending role changes</h3>
-      <div className="mt-3 grid gap-3">{pending.map(change => <article key={change.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+    {pending.length > 0 && <div className="rounded-[20px] border border-line bg-white p-5">
+      <h3 className="text-[15px] font-medium text-slate-950">Pending role changes</h3>
+      <div className="mt-3 grid gap-3">{pending.map(change => <article key={change.id} className="rounded-xl border border-line bg-slate-50 px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div><strong className="text-slate-900">{ROLE_LABEL[change.role_type] || change.role_type}</strong><span className="ml-2 text-sm text-slate-600">{change.change_type === "vacate" ? "→ Vacate (no replacement named)" : `→ ${change.replacement_name}`}</span></div>
+          <div><strong className="font-normal text-slate-950">{ROLE_LABEL[change.role_type] || change.role_type}</strong><span className="ml-2 text-sm text-slate-600">{change.change_type === "vacate" ? "→ Vacate (no replacement named)" : `→ ${change.replacement_name}`}</span></div>
           <Pill tone="orange">Pending approval</Pill>
         </div>
         <p className="mt-2 text-sm text-slate-600">{change.reason_code}</p>

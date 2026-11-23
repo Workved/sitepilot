@@ -57,3 +57,13 @@ describe("Communication (broadcasts) navigation visibility", () => {
     },
   );
 });
+
+describe("Overview home tab", () => {
+  it.each(["super_admin", "admin", "project_manager", "supervisor", "internal_employee"])("leads the navigation for %s", role => {
+    expect(keysFor(role)[0]).toBe("overview");
+  });
+
+  it("is not duplicated if the backend ever grants it too", () => {
+    expect(visibleTabs(["overview", ...modules], "admin").filter(([key]) => key === "overview")).toHaveLength(1);
+  });
+});

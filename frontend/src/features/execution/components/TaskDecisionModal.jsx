@@ -127,7 +127,7 @@ export function TaskDecisionModal({ projectId, project, task, user, onDecided })
 
   return <>
     <section className="rounded-xl border border-violet-200 bg-violet-50 p-4">
-      <h4 className="text-xs font-black uppercase tracking-wide text-violet-800">{action === "verify" ? "Supervisor verification" : "PM approval"}</h4>
+      <h4 className="text-xs font-medium text-violet-800">{action === "verify" ? "Supervisor verification" : "PM approval"}</h4>
       <div className="mt-3 flex flex-wrap gap-2">
         <Button size="sm" onClick={() => open("positive")}>{positiveLabel}</Button>
         <Button size="sm" variant="danger" onClick={() => open("rejected")}>Reject</Button>

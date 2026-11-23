@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { projectsApi } from "../../../api/projectsApi";
 import { Button, Field, Input, Modal, Select } from "../../../components/ui";
+import { initials } from "../../../utils/format";
+import { PaneHeader } from "./PaneKit";
 import { PendingRoleChangesPanel } from "./PendingRoleChangesPanel";
 import { ProjectTeamReplaceModal } from "./ProjectTeamReplaceModal";
 
@@ -57,9 +59,10 @@ function AddTeamMemberForm({ project, user, references, onChanged }) {
     }
   }
 
-  return <section className="rounded-2xl border border-slate-200 bg-white p-4">
-    <h3 className="text-sm font-black text-slate-950">Add team member</h3>
-    <form onSubmit={submit} className="mt-3 grid gap-3 sm:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+  return <section className="rounded-[20px] border border-line bg-white p-5">
+    <h3 className="text-[15px] font-medium text-slate-950">Add team member</h3>
+    <p className="mt-0.5 text-[13px] text-slate-500">Accountable roles you replace go through an approval request.</p>
+    <form onSubmit={submit} className="mt-4 grid gap-3 md:grid-cols-[170px_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
       <Field label="Role">
         <Select value={role} onChange={event => { setRole(event.target.value); setEmployeeId(""); }}>
           {assignableRoles.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -76,8 +79,8 @@ function AddTeamMemberForm({ project, user, references, onChanged }) {
       </Field>
       <Button type="submit" loading={saving} disabled={!employeeId}>Add</Button>
     </form>
-    {notice && <p className="mt-3 text-sm font-bold text-emerald-700">{notice}</p>}
-    {error && <p className="mt-3 text-sm font-bold text-rose-700">{error}</p>}
+    {notice && <p className="mt-3 text-sm text-emerald-700">{notice}</p>}
+    {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
   </section>;
 }
 
@@ -116,7 +119,7 @@ function RemoveMembershipModal({ project, membership, onClose, onChanged }) {
       <Field label="Reason">
         <Input value={reason} onChange={event => setReason(event.target.value)} minLength={4} required placeholder="Why is this person leaving the project team?"/>
       </Field>
-      {error && <p className="text-sm font-bold text-rose-700">{error}</p>}
+      {error && <p className="text-sm text-rose-700">{error}</p>}
       <div className="flex justify-end gap-3">
         <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
         <Button type="submit" variant="danger" loading={saving} disabled={reason.trim().length < 4}>Remove</Button>
@@ -155,35 +158,47 @@ export function ProjectTeamPane({ project, references, user, onChanged }) {
     site_supervisor: ["draft", "on_hold"].includes(project.status) && (isAdmin || isPmOnProject),
   };
 
-  return <div className="grid gap-3">
-    <section className="grid gap-2 sm:grid-cols-3">
+  const members = project.memberships || [];
+
+  return <div className="grid gap-5">
+    <PaneHeader title="Team" description="Who is accountable for this project, and everyone else working on it."/>
+
+    <section className="grid gap-3 md:grid-cols-3">
       {[
         ["Creator", project.creator?.name || project.created_by_name || "—", null],
         ["Project Manager", pm?.name || "Not assigned", "project_manager"],
         ["Supervisor", supervisor?.name || "Not assigned", "site_supervisor"],
-      ].map(([label, value, changeRole]) => <article key={label} className="rounded-2xl border border-slate-200 bg-white p-4">
-        <p className="font-mono text-[10px] uppercase tracking-[.1em] text-slate-400">{label}</p>
-        <h4 className="mt-1.5 truncate text-sm font-black text-slate-950">{value}</h4>
-        {changeRole && canReplace[changeRole] && <Button variant="secondary" className="mt-3" onClick={() => setReplaceRole(changeRole)}>Change</Button>}
-      </article>)}
+      ].map(([label, value, changeRole]) => {
+        const missing = value === "Not assigned";
+        return <article key={label} className="flex items-center gap-3 rounded-[20px] border border-line bg-white p-4">
+          <span className={`grid size-11 shrink-0 place-items-center rounded-xl text-sm font-medium ${missing ? "bg-orange-50 text-orange-800" : "bg-blue-50 text-blue-800"}`}>{missing ? "?" : initials(value)}</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-slate-500">{label}</p>
+            <h4 className={`truncate text-[15px] ${missing ? "text-orange-800" : "text-slate-950"}`}>{value}</h4>
+          </div>
+          {changeRole && canReplace[changeRole] && <Button size="sm" variant="secondary" onClick={() => setReplaceRole(changeRole)}>Change</Button>}
+        </article>;
+      })}
     </section>
 
-    <section className="rounded-2xl border border-slate-200 bg-white p-4">
-      <h3 className="text-sm font-black text-slate-950">Memberships</h3>
-      <div className="mt-2 grid">
-        {(project.memberships || []).map(item => <div key={item.id} className="flex items-center justify-between gap-3 border-b border-slate-100 py-2.5 last:border-0">
-          <div className="min-w-0">
-            <strong className="block truncate text-sm font-semibold text-slate-900">{item.name}</strong>
-            <span className="block truncate text-[11px] text-slate-400">{item.designation || item.employee_code}</span>
-          </div>
-          <div className="flex shrink-0 items-center gap-3">
-            <span className="text-xs font-bold text-slate-500">{roleLabel[item.project_role]}</span>
-            {item.project_role === "internal_employee" && canRemoveInternalEmployee && <Button size="sm" variant="ghost" className="!text-rose-700 hover:!bg-rose-50" onClick={() => setRemovingMembership(item)}>Remove</Button>}
-            {canRemoveAccountableRole[item.project_role] && <Button size="sm" variant="ghost" className="!text-rose-700 hover:!bg-rose-50" onClick={() => setRemovingMembership(item)}>Remove</Button>}
-          </div>
-        </div>)}
-        {!(project.memberships || []).length && <p className="py-3 text-xs text-slate-400">Nobody is assigned to this project yet.</p>}
+    <section className="overflow-hidden rounded-[20px] border border-line bg-white">
+      <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+        <h3 className="text-[15px] font-medium text-slate-950">Memberships</h3>
+        <span className="text-xs text-slate-500">{members.length} {members.length === 1 ? "person" : "people"}</span>
       </div>
+      <ul className="divide-y divide-slate-100">
+        {members.map(item => <li key={item.id} className="flex items-center gap-3 px-5 py-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-[10px] bg-slate-100 text-xs font-medium text-slate-700">{initials(item.name)}</span>
+          <div className="min-w-0 flex-1">
+            <strong className="block truncate text-sm font-normal text-slate-950">{item.name}</strong>
+            <span className="block truncate text-xs text-slate-500">{item.designation || item.employee_code}</span>
+          </div>
+          <span className="hidden shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700 sm:inline">{roleLabel[item.project_role]}</span>
+          {item.project_role === "internal_employee" && canRemoveInternalEmployee && <Button size="sm" variant="ghost" className="!text-rose-700 hover:!bg-rose-50" onClick={() => setRemovingMembership(item)}>Remove</Button>}
+          {canRemoveAccountableRole[item.project_role] && <Button size="sm" variant="ghost" className="!text-rose-700 hover:!bg-rose-50" onClick={() => setRemovingMembership(item)}>Remove</Button>}
+        </li>)}
+        {!members.length && <li className="px-5 py-6 text-sm text-slate-500">Nobody is assigned to this project yet.</li>}
+      </ul>
     </section>
 
     <AddTeamMemberForm project={project} user={user} references={references} onChanged={onChanged}/>

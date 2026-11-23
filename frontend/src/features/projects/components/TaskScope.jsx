@@ -17,7 +17,7 @@ export function TaskScopeChoice({ value, onChange, canTemplate, disabled = false
       const locked = option.key === "template" && !canTemplate;
       return <label key={option.key} className={`flex gap-3 rounded-xl border p-3 text-sm ${value === option.key ? "border-blue-500 bg-blue-50" : "border-slate-200 bg-white"} ${locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
         <input type="radio" name="task-scope" value={option.key} checked={value === option.key} disabled={locked} onChange={() => onChange(option.key)} className="mt-1"/>
-        <span><strong className="block font-black text-slate-900">{option.label}</strong><span className="mt-0.5 block text-xs leading-5 text-slate-500">{locked ? "Only an Admin can change the template." : option.help}</span></span>
+        <span><strong className="block font-medium text-slate-900">{option.label}</strong><span className="mt-0.5 block text-xs leading-5 text-slate-500">{locked ? "Only an Admin can change the template." : option.help}</span></span>
       </label>;
     })}
   </fieldset>;

@@ -35,7 +35,7 @@ function activeStepIndex(steps, status) {
 
 export function TaskLifecycleStepper({ status, approvalRequired }) {
   if (status === "cancelled") {
-    return <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wide text-slate-400"><X size={14}/> Cancelled</div>;
+    return <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500"><X size={14}/> Cancelled</div>;
   }
 
   const steps = approvalRequired === false ? STEPS_NO_APPROVAL : STEPS_WITH_APPROVAL;
@@ -48,7 +48,7 @@ export function TaskLifecycleStepper({ status, approvalRequired }) {
       const current = !rejected && index === activeIndex;
       return <span key={step.key} className="flex items-center gap-1">
         <span className={cn(
-          "flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black uppercase tracking-wide",
+          "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
           done && "bg-emerald-50 text-emerald-700",
           current && "bg-blue-600 text-white",
           !done && !current && "bg-slate-100 text-slate-400",
@@ -59,6 +59,6 @@ export function TaskLifecycleStepper({ status, approvalRequired }) {
         {index < steps.length - 1 && <span className={cn("h-px w-3", done ? "bg-emerald-300" : "bg-slate-200")} aria-hidden="true"/>}
       </span>;
     })}
-    {rejected && <span className="ml-1 flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-rose-700"><X size={11}/> Rejected - back to In progress</span>}
+    {rejected && <span className="ml-1 flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700"><X size={11}/> Rejected - back to In progress</span>}
   </div>;
 }

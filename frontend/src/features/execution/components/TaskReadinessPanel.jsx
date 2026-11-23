@@ -128,7 +128,7 @@ export function TaskReadinessPanel({ task }) {
 
   return <section className="rounded-xl border border-slate-200 bg-white px-4 py-3" aria-label="Task readiness">
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs font-black uppercase tracking-wide text-slate-500">Readiness</span>
+      <span className="text-xs font-medium text-slate-500">Readiness</span>
       <Pill tone={readinessTone(readiness.state)}>{readinessLabel(readiness.state)}</Pill>
     </div>
 

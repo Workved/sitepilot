@@ -1,7 +1,7 @@
 import { FolderKanban, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { projectsApi } from "../../api/projectsApi";
-import { Button, EmptyState, LoadingSpinner, RefreshButton } from "../../components/ui";
+import { Button, EmptyState, LoadingSpinner } from "../../components/ui";
 import { useRoute } from "../../lib/route";
 import { AttentionMenu } from "./components/AttentionMenu";
 import { ProjectFormModal } from "./components/ProjectFormModal";
@@ -37,6 +37,7 @@ export function ProjectsPage({ user, action }) {
 
   const [route, setRoute] = useRoute();
   const [filter, setFilter] = useState("active");
+  const [sort, setSort] = useState("attention");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -46,12 +47,8 @@ export function ProjectsPage({ user, action }) {
   // `projects` state is not readable synchronously right after load() in the
   // same tick, so keep the last fetched list here for post-save lookups.
   const loadedProjects = useRef([]);
-  // Bumped only by the manual Refresh button, never by refreshAll() on its
-  // own (post-save calls already reload themselves in place) - folded into
-  // ProjectWorkspace's key below so a manual refresh also forces the open
-  // project's workspace and every pane inside it (dependencies, external
-  // gates, vendors, template review) to re-fetch, not just the list.
-  const [refreshNonce, setRefreshNonce] = useState(0);
+  // There is no page-level Refresh: the shell's refresh reloads the
+  // workspace, which remounts this page and every pane inside it.
 
   async function loadPublishedTemplates() {
     if (!CAN_CREATE.includes(user.role)) {
@@ -179,11 +176,6 @@ export function ProjectsPage({ user, action }) {
     return items;
   }
 
-  async function manualRefresh() {
-    await refreshAll();
-    setRefreshNonce(current => current + 1);
-  }
-
   async function saveProject(payload) {
     if (saving) return;
     setSaving(true);
@@ -212,27 +204,26 @@ export function ProjectsPage({ user, action }) {
     }
   }
 
+  const canCreate = CAN_CREATE.includes(user.role);
+  const hasAttention = Boolean(attention?.length);
+  const listActions = (canCreate || hasAttention) ? <>
+    <AttentionMenu items={attention} onOpen={openFromAttention}/>
+    {canCreate && <Button size="sm" className="ml-auto whitespace-nowrap" onClick={() => { setFormError(""); setFormProject(null); }}>
+      <Plus size={16}/> New project
+    </Button>}
+  </> : null;
+
   if (loading) {
-    return <section className="rounded-[28px] border border-slate-200/80 bg-white p-6"><LoadingSpinner label="Loading project portfolio…"/></section>;
+    return <section className="rounded-[22px] border border-line bg-white p-6"><LoadingSpinner label="Loading project portfolio…"/></section>;
   }
 
   return <section className="grid min-w-0 gap-4">
-    <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3">
-      <div className="min-w-0">
-        <h2 className="text-base font-black tracking-tight text-slate-950">Projects</h2>
-        <p className="text-xs text-slate-500">Manage your projects and execution lifecycle</p>
-      </div>
-      <div className="flex items-center gap-2">
-        <RefreshButton onClick={manualRefresh} loading={loading}/>
-        <AttentionMenu items={attention} onOpen={openFromAttention}/>
-        {CAN_CREATE.includes(user.role) && <Button onClick={() => { setFormError(""); setFormProject(null); }}>
-          <Plus size={17}/> New project
-        </Button>}
-      </div>
-    </header>
+    <h2 className="sr-only">Projects</h2>
 
     {projects.length === 0
-      ? <EmptyState
+      ? <div className="grid gap-4">
+        {listActions && <div className="flex items-center justify-end gap-2">{listActions}</div>}
+        <EmptyState
           icon={<FolderKanban size={21}/>}
           title="Create the first controlled project"
           description={CAN_CREATE.includes(user.role)
@@ -242,22 +233,26 @@ export function ProjectsPage({ user, action }) {
             ? <Button onClick={() => { setFormError(""); setFormProject(null); }}><Plus size={17}/> Create draft</Button>
             : null}
         />
-      : <div className="grid min-h-[34rem] min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
+        </div>
+      : <div className="grid min-w-0 overflow-hidden rounded-[22px] border border-line bg-white lg:h-[calc(100dvh-9.75rem)] lg:min-h-[36rem] lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
           <ProjectListPane
             projects={projects}
             summaries={summaries}
             attentionByProject={attentionByProject}
             filter={filter}
             onFilterChange={setFilter}
+            sort={sort}
+            onSortChange={setSort}
+            actions={listActions}
             search={search}
             onSearchChange={setSearch}
             selectedId={selected?.id}
             onOpen={openProject}
           />
-          <div className="min-w-0 bg-slate-50/60">
+          <div className="flex min-h-0 min-w-0 flex-col bg-[#fbfbfc]">
             {selected
               ? <ProjectWorkspace
-                  key={`${selected.id}:${refreshNonce}`}
+                  key={selected.id}
                   projectId={selected.id}
                   references={references}
                   templates={publishedTemplates}
@@ -270,7 +265,7 @@ export function ProjectsPage({ user, action }) {
                   onChanged={refreshAll}
                   onDeleted={async () => { setRoute({ project: "", pane: "" }, { replace: true }); await refreshAll(); }}
                 />
-              : <p className="p-10 text-center text-sm text-slate-400">Select a project from the list.</p>}
+              : <p className="p-10 text-center text-sm text-slate-500">Select a project from the list.</p>}
           </div>
         </div>}
 

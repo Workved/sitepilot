@@ -61,7 +61,7 @@ function taskTypePill(task) {
 
 function TaskRow({ task, index, count, disableMove, onEdit, onDelete, onMove }) {
   const typePill = taskTypePill(task);
-  return <article data-testid={"draft-task-" + task.code} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_8px_28px_rgba(15,23,42,.05)]">
+  return <article data-testid={"draft-task-" + task.code} className="rounded-2xl border border-slate-200 bg-white p-4">
     <div className="flex items-start gap-3">
       <span className="mt-0.5 hidden text-slate-300 sm:block"><GripVertical size={18}/></span>
       <div className="min-w-0 flex-1">
@@ -105,10 +105,10 @@ function DeleteTaskModal({ task, busy, error, onClose, onConfirm }) {
 
 
 function DependencyRow({ dependency, onEdit, onDelete }) {
-  return <article data-testid={"draft-dependency-" + dependency.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_8px_28px_rgba(15,23,42,.05)]">
+  return <article data-testid={"draft-dependency-" + dependency.id} className="rounded-2xl border border-slate-200 bg-white p-4">
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-black uppercase tracking-[.16em] text-cyan-700">Link {dependency.sequence_no}</span><Pill tone="blue">{dependencyTypeLabel(dependency.dependency_type)}</Pill><Pill tone={dependency.blocking ? "red" : "gray"}>{dependency.blocking ? "Enforced" : "Advisory only"}</Pill></div>
+        <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-medium text-cyan-700">Link {dependency.sequence_no}</span><Pill tone="blue">{dependencyTypeLabel(dependency.dependency_type)}</Pill><Pill tone={dependency.blocking ? "red" : "gray"}>{dependency.blocking ? "Enforced" : "Advisory only"}</Pill></div>
         <div className="mt-4 grid grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] items-center gap-2">
           <div><b className="font-mono text-xs text-blue-700">{dependency.predecessor?.code || "Missing"}</b><p className="mt-1 text-sm font-bold text-slate-950">{dependency.predecessor?.title || "Missing task"}</p></div>
           <span className="grid size-8 place-items-center rounded-full bg-slate-100 text-slate-500"><ArrowRight size={16}/></span>
@@ -144,7 +144,7 @@ function GateRow({ gate, onEdit, onDelete }) {
     <Button size={size} variant="secondary" aria-label={`Edit approval ${gate.code}`} onClick={() => onEdit(gate)}><PencilLine size={15}/>{size === "sm" && " Edit"}</Button>
     <Button size={size} variant="danger" aria-label={`Delete approval ${gate.code}`} onClick={() => onDelete(gate)}><Trash2 size={15}/>{size === "sm" && " Delete"}</Button>
   </>;
-  return <article data-testid={`draft-gate-${gate.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_8px_28px_rgba(15,23,42,.05)]">
+  return <article data-testid={`draft-gate-${gate.id}`} className="rounded-2xl border border-slate-200 bg-white p-4">
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <h3 className="text-sm font-black text-slate-950">{gate.approval_name}</h3>
@@ -387,7 +387,7 @@ export function TemplateDraftEditorEntry({ summary: initialSummary, user, onBack
       <div className="relative">
         <Button variant="ghost" className="-ml-3 text-slate-300 hover:bg-white/10 hover:text-white" onClick={leave}><ArrowLeft size={17}/> Back to draft details</Button>
         <div className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div><div className="flex flex-wrap items-center gap-2"><span className="font-mono text-[11px] font-black uppercase tracking-[.18em] text-blue-300">{summary.template_code}</span><Pill tone={statusTone(summary.status)}>{summary.status}</Pill></div><h2 className="mt-3 text-2xl font-black tracking-[-.04em] sm:text-4xl">{summary.template_name}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Version {summary.version_no} · Draft you can edit</p></div>
+          <div><div className="flex flex-wrap items-center gap-2"><span className="text-xs font-medium text-blue-300">{summary.template_code}</span><Pill tone={statusTone(summary.status)}>{summary.status}</Pill></div><h2 className="mt-3 text-2xl font-normal tracking-[-.04em] sm:text-4xl">{summary.template_name}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Version {summary.version_no} · Draft you can edit</p></div>
           <div className="grid grid-cols-2 gap-2 text-xs font-bold"><span className="rounded-xl border border-white/10 bg-white/[.07] px-3.5 py-3"><b className="block text-white">{summary.updated_at ? formatTemplateDate(summary.updated_at) : "Not available"}</b><small className="text-slate-400">Last updated</small></span><span className="rounded-xl border border-white/10 bg-white/[.07] px-3.5 py-3"><b className="block text-white">{summary.duration_days} days</b><small className="text-slate-400">Template length</small></span></div>
         </div>
       </div>

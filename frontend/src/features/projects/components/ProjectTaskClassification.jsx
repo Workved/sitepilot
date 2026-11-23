@@ -36,7 +36,7 @@ export function ProjectTaskClassification({ projectId }) {
   const workCount = Object.keys(draft).length;
 
   if (error && !data) return <Alert tone="danger">{error}</Alert>;
-  if (!data) return <section className="grid place-items-center rounded-2xl border border-slate-200 bg-white p-6"><LoadingSpinner/></section>;
+  if (!data) return <section className="grid place-items-center rounded-[20px] border border-line bg-white p-6"><LoadingSpinner/></section>;
 
   const editable = data.editable;
   const setAll = value => { setSaved(false); setDraft(current => Object.fromEntries(Object.keys(current).map(id => [id, value]))); };
@@ -54,12 +54,12 @@ export function ProjectTaskClassification({ projectId }) {
     }
   }
 
-  return <section aria-label="Task classification" className="rounded-2xl border border-slate-200 bg-white">
+  return <section aria-label="Task classification" className="rounded-[20px] border border-line bg-white">
     <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 p-4 sm:p-5">
       <div className="flex items-start gap-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-50 text-amber-700"><ShieldCheck size={17}/></span>
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700"><ShieldCheck size={17}/></span>
         <div>
-          <h3 className="text-sm font-black text-slate-950">Task classification</h3>
+          <h3 className="text-[15px] font-medium text-slate-950">Task classification</h3>
           <p className="mt-0.5 max-w-2xl text-xs leading-5 text-slate-500">
             Class A adds PM approval after Supervisor verification. Defaults come from the template; changes here apply to this project only.
           </p>
@@ -81,12 +81,12 @@ export function ProjectTaskClassification({ projectId }) {
 
     <div className="mt-3 max-h-[28rem] overflow-auto border-t border-slate-100">
       <table className="w-full text-left text-sm">
-        <thead className="sticky top-0 bg-slate-50 text-[10px] font-black uppercase tracking-wide text-slate-500">
+        <thead className="sticky top-0 bg-slate-50 text-xs font-medium text-slate-500">
           <tr><th className="px-4 py-2 sm:px-5">Code</th><th className="px-2 py-2">Task</th><th className="px-2 py-2">Template default</th><th className="px-4 py-2 sm:px-5">Project classification</th></tr>
         </thead>
         <tbody>
           {data.items.map(item => <tr key={item.id} data-testid="classification-row" className="border-t border-slate-100">
-            <td className="px-4 py-2 font-mono text-xs text-slate-500 sm:px-5">{item.code}</td>
+            <td className="px-4 py-2 tabular-nums text-xs text-slate-500 sm:px-5">{item.code}</td>
             <td className="px-2 py-2 text-slate-900">{item.title}</td>
             <td className="px-2 py-2 text-xs text-slate-500">{item.classifiable ? classLabel(item.template_task_class) : kindLabel(item.task_kind)}</td>
             <td className="px-4 py-2 sm:px-5">

@@ -102,7 +102,7 @@ export function VendorCategoryManager({ onClose, onChanged }) {
       <form onSubmit={add} className="flex gap-2">
         <input aria-label="New category name" value={newName} maxLength={80} onChange={event => setNewName(event.target.value)} placeholder="e.g. Glass Works"
           className="min-h-11 flex-1 rounded-xl border border-slate-200 px-4 text-sm font-semibold outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-50"/>
-        <button type="submit" disabled={busy || !newName.trim()} className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-50"><Plus size={16}/> Add</button>
+        <button type="submit" disabled={busy || !newName.trim()} className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-black text-white hover:bg-slate-800 disabled:opacity-50"><Plus size={16}/> Add</button>
       </form>
       {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{notice}</p>}
       {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</p>}

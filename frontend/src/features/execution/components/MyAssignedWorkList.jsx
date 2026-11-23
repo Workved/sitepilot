@@ -101,7 +101,7 @@ export function MyAssignedWorkList({ projectId, onOpenTask, onTasksLoaded }) {
   return <div className="grid gap-4">
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" role="group" aria-label="My work summary">
       {TILES.map(([key, label, Icon, tone]) => <article key={key} className="rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="flex items-center gap-2 text-slate-500"><Icon size={16}/><small className="text-xs font-black uppercase tracking-wide">{label}</small></div>
+        <div className="flex items-center gap-2 text-slate-500"><Icon size={16}/><small className="text-xs font-medium">{label}</small></div>
         <strong className="mt-2 block font-serif text-2xl text-slate-950">{counts[key]}</strong>
       </article>)}
     </div>

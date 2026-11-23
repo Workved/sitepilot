@@ -38,11 +38,11 @@ export function ReferenceMaterial({ instructions, files = [], onDownload, onRemo
 
   return <div className={`grid gap-3 ${className}`}>
     {instructions && <div>
-      <h4 className="text-[11px] font-black uppercase tracking-wide text-slate-400">What proof is needed</h4>
+      <h4 className="text-xs font-medium text-slate-500">What proof is needed</h4>
       <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700">{instructions}</p>
     </div>}
     {files.length > 0 && <div>
-      <h4 className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-slate-400"><Paperclip size={12}/> Reference material</h4>
+      <h4 className="flex items-center gap-1.5 text-xs font-medium text-slate-500"><Paperclip size={12}/> Reference material</h4>
       <ul className="mt-2 grid gap-2">
         {files.map(file => <li key={file.id} className="flex items-start gap-2">
           <button type="button" onClick={() => download(file)} aria-label={`Download ${file.filename}`}

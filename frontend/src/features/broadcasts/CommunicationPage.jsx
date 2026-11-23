@@ -105,10 +105,10 @@ export function CommunicationPage({ action }) {
   }
 
   return <div className="grid gap-6">
-    <section className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_12px_40px_rgba(15,23,42,.06)]">
+    <section className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6">
       <div>
-        <p className="text-xs font-black uppercase tracking-[.18em] text-blue-700">Communication</p>
-        <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Communication</h2>
+        <p className="text-xs font-medium text-slate-500">Communication</p>
+        <h2 className="mt-2 text-3xl font-normal tracking-tight text-slate-950">Communication</h2>
         <span className="mt-2 block text-sm text-slate-500">Send announcements, meeting alerts, quick discussions and updates to your project teams.</span>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -125,7 +125,7 @@ export function CommunicationPage({ action }) {
       <KpiCard icon={<AlertOctagon size={20} className="text-rose-600" />} tone="border-rose-200 bg-rose-50" label="Failed" value={summary.failed} className="col-span-2 sm:col-span-1" />
     </section>
 
-    <nav className="flex flex-wrap gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_12px_40px_rgba(15,23,42,.06)]" aria-label="Communication sections">
+    <nav className="flex flex-wrap gap-1 rounded-2xl border border-slate-200 bg-white p-1.5" aria-label="Communication sections">
       {TABS.map(([key, label]) => <button key={key} type="button" onClick={() => setActiveTab(key)} aria-current={activeTab === key ? "page" : undefined}
         className={cn("rounded-xl px-4 py-2.5 text-sm font-black transition", activeTab === key ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900")}>{label}</button>)}
     </nav>

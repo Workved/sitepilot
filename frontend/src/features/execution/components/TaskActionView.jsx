@@ -83,7 +83,7 @@ export function TaskActionView({ projectId, project, task, user, candidates, onB
         Approvals Pending is the one Quick Info stat that tab doesn't carry,
         so it's the one kept here. */}
     {detail && <section className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
-      <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-slate-400"><ShieldCheck size={12}/> Approvals Pending</span>
+      <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500"><ShieldCheck size={12}/> Approvals Pending</span>
       <strong className="text-xl text-slate-950">{detail.readiness?.reasons?.filter(item => item.kind === "approval").length || 0}</strong>
     </section>}
 

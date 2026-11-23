@@ -38,7 +38,7 @@ function ProgressCell({ phase }) {
     <span className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
       <span className="block h-full rounded-full" style={{ width: `${phase.pct}%`, background: phase.pct === 100 ? "#059669" : "#2563eb" }}/>
     </span>
-    <span className="w-8 shrink-0 text-right font-mono text-[11px] tabular-nums text-slate-500">{phase.pct}%</span>
+    <span className="w-8 shrink-0 text-right tabular-nums text-xs text-slate-500">{phase.pct}%</span>
   </span>;
 }
 
@@ -48,13 +48,13 @@ function PhaseRow({ phase, expanded, onToggle, tasks, tasksLoading, startDate })
       type="button"
       onClick={onToggle}
       aria-expanded={expanded}
-      className={`grid w-full grid-cols-[minmax(0,1fr)_3.5rem_minmax(4rem,7rem)_5.5rem] items-center gap-2 border-b border-slate-100 px-3 py-2.5 text-left transition hover:bg-slate-50 ${expanded ? "bg-blue-50/60" : ""}`}
+      className={`grid w-full grid-cols-[minmax(0,1fr)_3.5rem_minmax(4rem,7rem)_5.5rem] items-center gap-2 border-b border-slate-100 px-3 py-2.5 text-left transition hover:bg-slate-50 ${expanded ? "bg-slate-50" : ""}`}
     >
       <span className="flex min-w-0 items-center gap-1.5">
         {expanded ? <ChevronDown size={14} className="shrink-0 text-slate-400"/> : <ChevronRight size={14} className="shrink-0 text-slate-400"/>}
         <span className="truncate text-xs font-bold text-slate-900">{phase.phase}</span>
       </span>
-      <span className="font-mono text-[11px] tabular-nums text-slate-500">{phase.completed} / {phase.total}</span>
+      <span className="tabular-nums text-xs text-slate-500">{phase.completed} / {phase.total}</span>
       <ProgressCell phase={phase}/>
       <span className="justify-self-end"><Pill tone={phaseStatusTone[phase.status]}>{phaseStatusLabel[phase.status]}</Pill></span>
     </button>
@@ -67,10 +67,10 @@ function PhaseRow({ phase, expanded, onToggle, tasks, tasksLoading, startDate })
               {tasks.map(task => <li key={task.id} className="grid grid-cols-[minmax(0,1fr)_auto_5.5rem] items-center gap-2 rounded-lg bg-white px-2.5 py-1.5">
                 <span className="min-w-0">
                   <span className="block truncate text-xs font-semibold text-slate-800">{task.title}</span>
-                  <span className="font-mono text-[10px] text-slate-400">{task.original_code}</span>
+                  <span className="tabular-nums text-xs text-slate-400">{task.original_code}</span>
                 </span>
                 <Pill tone={taskStatusTone[task.lifecycle_status] || "gray"}>{humanise(task.lifecycle_status)}</Pill>
-                <span className="justify-self-end text-right text-[11px] text-slate-500">
+                <span className="justify-self-end text-right text-xs text-slate-500">
                   {plannedDate(startDate, task.planned_start_day) || "—"}
                 </span>
               </li>)}
@@ -130,7 +130,7 @@ export function PhaseOverviewDrawer({ project, summary, onClose }) {
       <header className="border-b border-slate-200 px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="text-sm font-black text-slate-950">Phase overview</h3>
+            <h3 className="text-sm font-medium text-slate-950">Phase overview</h3>
             <p className="mt-0.5 truncate text-xs text-slate-500">
               {project.name} · {summary?.total_count ?? 0} tasks · {summary?.completed_count ?? 0} completed
             </p>
@@ -162,7 +162,7 @@ export function PhaseOverviewDrawer({ project, summary, onClose }) {
         </div>
       </header>
 
-      <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_minmax(4rem,7rem)_5.5rem] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[.1em] text-slate-400">
+      <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_minmax(4rem,7rem)_5.5rem] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-500">
         <span>Phase</span><span>Tasks</span><span>Progress</span><span className="justify-self-end">Status</span>
       </div>
 
@@ -182,7 +182,7 @@ export function PhaseOverviewDrawer({ project, summary, onClose }) {
             </p>}
       </div>
 
-      <footer className="border-t border-slate-200 px-4 py-2 text-[11px] text-slate-500">
+      <footer className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
         Showing {visible.length} of {phases.length} phases
       </footer>
     </section>

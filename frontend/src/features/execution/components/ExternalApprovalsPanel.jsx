@@ -144,12 +144,12 @@ function triggerDownload(blob, filename) {
 // ---- workflow strip -------------------------------------------------------
 
 function WorkflowStrip() {
-  return <div className="flex flex-wrap items-stretch gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_40px_rgba(15,23,42,0.05)]">
+  return <div className="flex flex-wrap items-stretch gap-2 rounded-2xl border border-slate-200 bg-white p-4">
     {WORKFLOW_STEPS.map(({ title, desc, Icon }, index) => <div key={title} className="flex flex-1 items-stretch gap-2">
       <article className="flex min-w-[190px] flex-1 flex-col gap-2 rounded-xl bg-slate-50 p-3">
         <div className="flex items-center gap-2">
           <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-blue-100 text-blue-700"><Icon size={16}/></span>
-          <span className="text-[11px] font-black uppercase tracking-wide text-slate-500">Step {index + 1}</span>
+          <span className="text-xs font-medium text-slate-500">Step {index + 1}</span>
         </div>
         <h4 className="text-sm font-black text-slate-950">{title}</h4>
         <p className="text-xs leading-5 text-slate-500">{desc}</p>
@@ -162,10 +162,10 @@ function WorkflowStrip() {
 // ---- KPI cards --------------------------------------------------------
 
 function KpiCard({ icon: Icon, tone, label, value, helper }) {
-  return <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_40px_rgba(15,23,42,0.05)]">
+  return <article className="rounded-2xl border border-slate-200 bg-white p-4">
     <span className={`grid size-9 place-items-center rounded-xl ${tone}`}><Icon size={17}/></span>
     <strong className="mt-3 block font-serif text-2xl text-slate-950">{value ?? "—"}</strong>
-    <p className="mt-0.5 text-xs font-black uppercase tracking-wide text-slate-500">{label}</p>
+    <p className="mt-0.5 text-xs font-medium text-slate-500">{label}</p>
     <p className="mt-1 text-[11px] text-slate-400">{helper}</p>
   </article>;
 }
@@ -253,7 +253,7 @@ function ApprovalsTable({ approvals, mayManage, user, selectedId, onSelect, onAs
   return <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
     <div className="overflow-x-auto">
       <table className="w-full min-w-[760px] border-collapse text-left text-sm">
-        <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-black uppercase tracking-wide text-slate-500">
+        <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-medium text-slate-500">
           <tr>
             <th className="px-4 py-3">Approval</th>
             <th className="px-4 py-3">Status</th>
@@ -396,7 +396,7 @@ function SubmissionForm({ projectId, approval, onSubmitted }) {
     {approval.rejection_reason && <p className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-800">
       Sent back for resubmission: {approval.rejection_reason}
     </p>}
-    <h4 className="text-xs font-black uppercase tracking-wide text-emerald-800">Update / submit evidence</h4>
+    <h4 className="text-xs font-medium text-emerald-800">Update / submit evidence</h4>
     <form className="mt-3 grid gap-3" onSubmit={submit}>
       <Field label="Update note"><Textarea className="min-h-20" value={note} onChange={event => setNote(event.target.value)} placeholder="Describe what's attached, or any context for Admin"/></Field>
       {/* capture="environment" biases the mobile OS picker to the rear
@@ -586,7 +586,7 @@ function ReviewPanel({ projectId, approval, mayManage, user, candidates, tasksBy
 
     {/* A. Assignment Summary */}
     <section className="grid gap-2">
-      <h4 className="text-[11px] font-black uppercase tracking-wide text-slate-400">Assignment summary</h4>
+      <h4 className="text-xs font-medium text-slate-500">Assignment summary</h4>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-bold text-slate-500">Assigned Internal Employee</span>
         {approval.assigned_to_name
@@ -613,7 +613,7 @@ function ReviewPanel({ projectId, approval, mayManage, user, candidates, tasksBy
 
     {/* B. Submission Summary */}
     <section className="grid gap-2 border-t border-slate-100 pt-3">
-      <h4 className="text-[11px] font-black uppercase tracking-wide text-slate-400">Submission summary</h4>
+      <h4 className="text-xs font-medium text-slate-500">Submission summary</h4>
       <SubmissionList projectId={projectId} approval={approval}/>
     </section>
 
@@ -628,7 +628,7 @@ function ReviewPanel({ projectId, approval, mayManage, user, candidates, tasksBy
         persist this against; it exists purely to help Admin structure their
         own review before deciding, and is reset per approval above. */}
     {canDecide && <section className="grid gap-2 border-t border-slate-100 pt-3">
-      <h4 className="text-[11px] font-black uppercase tracking-wide text-slate-400">Admin review checklist</h4>
+      <h4 className="text-xs font-medium text-slate-500">Admin review checklist</h4>
       <div className="grid gap-1.5">
         {[
           ["documents", "Documents received"],
@@ -650,7 +650,7 @@ function ReviewPanel({ projectId, approval, mayManage, user, candidates, tasksBy
         rather than show two buttons that do the same thing, Reject is
         labelled to say what it actually does. */}
     {canDecide && <section className="grid gap-2 border-t border-slate-100 pt-3">
-      <h4 className="text-[11px] font-black uppercase tracking-wide text-slate-400">Admin decision</h4>
+      <h4 className="text-xs font-medium text-slate-500">Admin decision</h4>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={() => setPendingDecision("approved")}>Approve</Button>
         <Button size="sm" variant="danger" onClick={() => setPendingDecision("rejected")}>Reject / Request Changes</Button>

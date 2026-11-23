@@ -7,7 +7,7 @@ function formatDate(value) {
 function AuditHistory({ events }) {
   if (!events.length) return null;
   return <details className="group mt-3">
-    <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 text-xs font-black uppercase tracking-wide text-slate-500">
+    <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-slate-500">
       <History size={13}/> Audit history <ChevronDown size={13} className="transition group-open:rotate-180"/>
     </summary>
     <div className="mt-2 grid gap-1.5">
@@ -33,7 +33,7 @@ export function TaskTerminalSummary({ task, onDownloadEvidence }) {
   if (task.lifecycle_status === "cancelled") {
     const cancellation = task.audit_events.find(event => event.after_status === "cancelled");
     return <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <h4 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-slate-500"><XCircle size={14} className="text-rose-600"/> Cancelled</h4>
+      <h4 className="flex items-center gap-2 text-xs font-medium text-slate-500"><XCircle size={14} className="text-rose-600"/> Cancelled</h4>
       <dl className="mt-2 grid gap-1.5 text-sm">
         <div className="flex flex-wrap gap-2"><dt className="font-bold text-slate-500">Reason:</dt><dd className="text-slate-700">{cancellation?.reason || "Not recorded."}</dd></div>
         <div className="flex flex-wrap gap-2"><dt className="font-bold text-slate-500">Cancelled by:</dt><dd className="text-slate-700">{cancellation?.actor_name || "Unknown"}</dd></div>
@@ -50,7 +50,7 @@ export function TaskTerminalSummary({ task, onDownloadEvidence }) {
     const evidence = task.progress_updates.flatMap(update => update.evidence);
 
     return <section className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
-      <h4 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-emerald-800"><FileCheck2 size={14}/> Completed</h4>
+      <h4 className="flex items-center gap-2 text-xs font-medium text-emerald-800"><FileCheck2 size={14}/> Completed</h4>
       <dl className="mt-2 grid gap-1.5 text-sm">
         <div className="flex flex-wrap gap-2"><dt className="font-bold text-slate-500">Completed at:</dt><dd className="text-slate-700">{formatDate(task.updated_at)}</dd></div>
         {reviewerLabel && <div className="flex flex-wrap gap-2"><dt className="font-bold text-slate-500">{reviewerLabel}:</dt><dd className="text-slate-700">{reviewerName || "Unknown"}{reviewer?.remarks ? ` - ${reviewer.remarks}` : ""}</dd></div>}
