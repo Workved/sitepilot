@@ -313,24 +313,66 @@ function SiteHealth({ rows }) {
   </Panel>;
 }
 
-function OpenWork({ rows }) {
+const WORK_ROWS = 4;
+
+// Where the open tasks are, not just how many: a status split across the
+// portfolio, then the sites carrying the most open work.
+function OpenWork({ rows, onOpenProject }) {
   const sum = key => rows.reduce((total, row) => total + (row[key] || 0), 0);
-  const open = sum("task_count") - sum("completed_count");
+  const total = sum("task_count");
+  const completed = sum("completed_count");
+  const open = total - completed;
   const overdue = sum("overdue_count");
+  const blocked = sum("blocked_count");
   const onTime = Math.max(0, open - overdue);
-  const max = Math.max(onTime, overdue, 1);
+  const byProject = rows
+    .map(row => ({ ...row, open: Math.max(0, row.task_count - row.completed_count) }))
+    .filter(row => row.open > 0)
+    .sort((a, b) => b.open - a.open || a.name.localeCompare(b.name));
+  const busiest = byProject.slice(0, WORK_ROWS);
+  const maxOpen = Math.max(1, ...busiest.map(row => row.open));
+
   return <Panel title="Open work" id="ov-open" className="ov-open">
-    <Legend items={[["On schedule", "var(--color-gate)"], ["Overdue", "var(--color-behind)"]]} />
-    <div className="flex min-h-[150px] flex-1 items-end gap-3.5">
-      <div className="flex-1 pb-1">
-        <span className="block text-[42px] font-light leading-none tracking-[-0.03em] text-slate-950">{open.toLocaleString()}</span>
-        <span className="mt-1.5 block text-[13px] text-slate-500">open tasks across {rows.length} {rows.length === 1 ? "site" : "sites"}</span>
-      </div>
-      {[[onTime, "var(--color-gate)", "On schedule"], [overdue, "var(--color-behind)", "Overdue"]].map(([value, color, label]) => <div key={label} className="flex w-[72px] flex-col items-center gap-1.5 sm:w-[84px]">
-        <span className="text-[13px] font-medium tabular-nums text-slate-950">{value}</span>
-        <div className="w-full rounded-xl" style={{ height: `${Math.max(12, value / max * 120)}px`, background: color }} title={label} />
-      </div>)}
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      <span className="text-[42px] font-light leading-none tracking-[-0.03em] text-slate-950">{open.toLocaleString()}</span>
+      <span className="text-[13px] text-slate-500">open tasks across {rows.length} {rows.length === 1 ? "site" : "sites"}</span>
     </div>
+
+    <div>
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`${onTime} on schedule, ${overdue} overdue`}>
+        {onTime > 0 && <span style={{ width: `${onTime / Math.max(open, 1) * 100}%`, background: "var(--color-gate)" }} />}
+        {overdue > 0 && <span style={{ width: `${overdue / Math.max(open, 1) * 100}%`, background: "var(--color-behind)" }} />}
+      </div>
+      <dl className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-[13px]">
+        {[["On schedule", onTime, "var(--color-gate)"], ["Overdue", overdue, "var(--color-behind)"], ["Blocked", blocked, "#d9483b"]].map(([label, value, color]) => <div key={label} className="flex items-center gap-1.5">
+          <span className="size-2 rounded-full" style={{ background: value ? color : "var(--color-slate-300)" }} aria-hidden="true" />
+          <dt className="text-slate-500">{label}</dt>
+          <dd className="tabular-nums text-slate-950">{value}</dd>
+        </div>)}
+      </dl>
+    </div>
+
+    <div className="border-t border-line pt-3">
+      <h3 className="text-[13px] text-slate-500">Where the work is</h3>
+      <ul className="-mx-2 mt-1 grid content-start" style={{ minHeight: WORK_ROWS * 40 }}>
+        {busiest.length === 0
+          ? <li className="px-2 py-4 text-sm text-slate-500">No open tasks on running projects.</li>
+          : busiest.map(row => <li key={row.project_id}>
+            <button type="button" onClick={() => onOpenProject?.(row.code)} aria-label={`${row.name}: ${row.open} open, ${row.overdue_count} overdue`} className="grid w-full grid-cols-[minmax(0,9rem)_minmax(0,1fr)_3.5rem] items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-slate-50">
+              <span className="truncate text-sm text-slate-950">{row.name}</span>
+              <span className="flex h-1.5 overflow-hidden rounded-full" style={{ width: `${row.open / maxOpen * 100}%` }} aria-hidden="true">
+                <span className="h-full" style={{ flex: Math.max(row.open - row.overdue_count, 0), background: "var(--color-gate)" }} />
+                <span className="h-full" style={{ flex: row.overdue_count, background: "var(--color-behind)" }} />
+              </span>
+              <span className="text-right text-xs tabular-nums text-slate-700">{row.open} open</span>
+            </button>
+          </li>)}
+      </ul>
+    </div>
+
+    <p className="mt-auto border-t border-line pt-3 text-[13px] text-slate-500">
+      {total ? <><span className="text-slate-950">{completed.toLocaleString()}</span> completed so far, {Math.round(completed / total * 100)}% of all tasks{byProject.length > WORK_ROWS ? `. ${byProject.length - WORK_ROWS} more sites have open work.` : ""}</> : "No tasks scheduled yet."}
+    </p>
   </Panel>;
 }
 
@@ -338,6 +380,7 @@ function OpenWork({ rows }) {
 // comes from overdue tasks as well as a late forecast, so check both.
 export function cardStatus(row) {
   if (row.health === "completed") return { text: "Handed over", tone: "text-blue-700" };
+  if (row.status === "draft") return { text: "Not activated", tone: "text-slate-500" };
   if (row.days_late > 0) return { text: `${row.days_late} ${row.days_late === 1 ? "day" : "days"} late`, tone: "text-rose-700" };
   if (row.overdue_count > 0) return { text: `${row.overdue_count} overdue`, tone: "text-rose-700" };
   if (row.blocked_count > 0) return { text: `${row.blocked_count} blocked`, tone: "text-orange-700" };
@@ -422,8 +465,8 @@ export function OverviewPage({ user, tabs, onOpenProject, onTabChange }) {
     return {
       ...row,
       planned: planned ?? 0,
-      behind: planned != null && row.status !== "completed" && planned - row.progress_pct > BEHIND_TOLERANCE,
-      standing: standingOf(row, planned),
+      behind: RUNNING.has(row.status) && planned != null && planned - row.progress_pct > BEHIND_TOLERANCE,
+      standing: standingOf(row, RUNNING.has(row.status) ? planned : null),
     };
   }), [timeline]);
   const running = useMemo(() => rows.filter(row => RUNNING.has(row.status) && row.task_count > 0), [rows]);
@@ -436,7 +479,7 @@ export function OverviewPage({ user, tabs, onOpenProject, onTabChange }) {
       <ProgressChart rows={running} onOpenProject={onOpenProject} />
       <TodayPanel user={user} rows={running} attention={attention} tabs={tabs} onOpenProject={onOpenProject} onTabChange={onTabChange} />
       <SiteHealth rows={running} />
-      <OpenWork rows={running} />
+      <OpenWork rows={running} onOpenProject={onOpenProject} />
       <Handovers rows={rows} onOpenProject={onOpenProject} onTabChange={onTabChange} tabs={tabs} />
     </div>
   </div>;
