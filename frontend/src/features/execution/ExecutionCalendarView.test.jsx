@@ -5,7 +5,6 @@ import { taskExecutionApi } from "../../api/taskExecutionApi";
 import { ExecutionCalendarView } from "./components/ExecutionCalendarView";
 import { dayEvents, ganttSpan, groupByPhase, monthGrid, taskState, ticks } from "./components/calendar/calendarModel";
 import { toGanttData } from "./components/calendar/ProjectGantt";
-import { toPortfolioData } from "./components/calendar/PortfolioTimeline";
 import { toCalendarEvents } from "./components/calendar/MonthCalendar";
 
 vi.mock("../../api/projectsApi", () => ({ projectsApi: { detail: vi.fn(), timeline: vi.fn() } }));
@@ -96,14 +95,6 @@ describe("library data", () => {
     expect(rows.find(r => r.id === "t4")).toBeUndefined();
   });
 
-  it("turns projects into portfolio rows with the late share and approval milestones", () => {
-    const rows = toPortfolioData([{ project_id: "p1", name: "HQ", status: "active", start_date: "2026-11-01", target_handover_date: "2026-11-30", forecast_finish_date: "2026-12-10", progress_pct: 40, days_late: 10, health: "delayed", approvals: [{ name: "Fire NOC", due_date: "2026-11-20", status: "assigned" }] }], today);
-    const project = rows.find(r => r.id === "p1");
-    expect(project.end.getDate()).toBe(11);
-    expect(project.lateShare).toBe(25);
-    expect(rows.find(r => r.isApproval)).toMatchObject({ parent: "p1", text: "Fire NOC" });
-  });
-
   it("turns tasks into calendar events coloured by state, plus milestones", () => {
     const events = toCalendarEvents(tasks, { start_date: "2026-11-01", target_handover_date: "2026-12-20" }, today);
     expect(events.find(e => e.id === "t2")).toMatchObject({ title: "Wiring · 2d late", backgroundColor: "#fff1f2", borderColor: "#f43f5e" });
@@ -119,7 +110,8 @@ describe("ExecutionCalendarView", () => {
     expect(screen.getByRole("tab", { name: /gantt/i })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("gantt-row-phase:Electrical")).toHaveTextContent("2 tasks");
     expect(screen.queryByTestId("gantt-row-key:today")).toBeNull();
-    expect(screen.getByText(/Today ·/)).toBeInTheDocument();
+    // Start and handover are in the page header; the toolbar keeps a Today jump.
+    expect(screen.getByRole("button", { name: /today/i })).toBeInTheDocument();
     expect(within(wiring).getByText("In progress · 2d late")).toBeInTheDocument();
     expect(within(wiring).getByText("+2d")).toBeInTheDocument();
     expect(screen.getByTestId("gantt-stub")).toHaveAttribute("data-links", "1");
@@ -144,6 +136,8 @@ describe("ExecutionCalendarView", () => {
     expect(screen.queryByTestId("gantt-row-T001")).toBeNull();
     expect(screen.getByTestId("gantt-row-T002")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /reset/i }));
+    // Phase, type and vendor sit behind one Filters button.
+    fireEvent.click(screen.getByRole("button", { name: /^filters/i }));
     fireEvent.change(screen.getByLabelText("Vendor"), { target: { value: "Bright Electricals" } });
     expect(screen.queryByTestId("gantt-row-T001")).toBeNull();
   });
@@ -157,12 +151,14 @@ describe("ExecutionCalendarView", () => {
     await waitFor(() => expect(taskExecutionApi.detail).toHaveBeenCalledWith("p1", "t1"));
   });
 
-  it("offers Day to Year zoom, Week by default", async () => {
+  it("offers Day to Year zoom, Day by default", async () => {
     render(<ExecutionCalendarView projectId="p1" user={admin}/>);
     await screen.findByTestId("gantt-row-T001");
+    // Zoom is one compact menu rather than a five-button bar.
+    fireEvent.click(screen.getByRole("button", { name: "Zoom: Day. Change zoom" }));
     const zoom = screen.getByRole("group", { name: "Zoom" });
     expect(within(zoom).getAllByRole("button").map(b => b.textContent)).toEqual(["Day", "Week", "Month", "Quarter", "Year"]);
-    expect(within(zoom).getByRole("button", { name: "Week" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(zoom).getByRole("button", { name: "Day" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("switches to the month calendar and opens a task from it", async () => {
@@ -177,31 +173,25 @@ describe("ExecutionCalendarView", () => {
     await waitFor(() => expect(taskExecutionApi.detail).toHaveBeenCalledWith("p1", "t1"));
   });
 
-  it("shows the portfolio and opens a running project's Gantt", async () => {
-    projectsApi.timeline.mockResolvedValue([
-      { project_id: "p1", code: "PRJ-1", name: "Head Office", status: "active", start_date: shift(todayIso, -10), target_handover_date: shift(todayIso, 30), forecast_finish_date: shift(todayIso, 40), pm_name: "Piyush", progress_pct: 40, completed_count: 2, task_count: 5, days_late: 10, health: "delayed", approvals: [{ name: "Fire NOC", due_date: shift(todayIso, 5), status: "assigned", overdue: false }] },
-      { project_id: "p2", code: "PRJ-2", name: "Lobby", status: "draft", start_date: shift(todayIso, 20), target_handover_date: shift(todayIso, 60), forecast_finish_date: null, pm_name: null, progress_pct: 0, completed_count: 0, task_count: 0, days_late: 0, health: "on_track", approvals: [] },
-    ]);
-    const onSelectProject = vi.fn();
-    render(<ExecutionCalendarView projectId="p1" user={admin} onSelectProject={onSelectProject}/>);
+  it("offers only this project's Gantt and Month - cross-project views live on the Portfolio page", async () => {
+    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
     await screen.findByTestId("gantt-row-T001");
-    fireEvent.click(screen.getByRole("tab", { name: /portfolio/i }));
-    const row = await screen.findByTestId("gantt-row-p1");
-    expect(within(row).getByText("10d late")).toBeInTheDocument();
-    expect(within(row).getByText("Head Office · 40%")).toBeInTheDocument();
-    expect(screen.getByText("1 delayed")).toBeInTheDocument();
-    expect(within(screen.getByTestId("gantt-row-p2")).getByText("Lobby · not started")).toBeInTheDocument();
-    expect(screen.getByTestId("gantt-row-p1:a0")).toHaveTextContent("Fire NOC");
-    fireEvent.click(screen.getByTestId("gantt-row-p2"));
-    expect(onSelectProject).not.toHaveBeenCalled();
-    fireEvent.click(row);
-    expect(onSelectProject).toHaveBeenCalledWith("p1");
-    expect(screen.getByRole("tab", { name: /gantt/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["Gantt", "Month"]);
   });
 
   it("shows an empty state when the project has no tasks", async () => {
     taskExecutionApi.list.mockResolvedValue([]);
     render(<ExecutionCalendarView projectId="p1" user={admin}/>);
     expect(await screen.findByText("No execution tasks yet")).toBeInTheDocument();
+  });
+});
+
+describe("ExecutionCalendarView toolbar", () => {
+  it("lists only statuses that have tasks, plus All", async () => {
+    render(<ExecutionCalendarView projectId="p1" user={admin}/>);
+    await screen.findByTestId("gantt-row-T001");
+    const chips = within(screen.getByRole("group", { name: /execution summary/i })).getAllByRole("button").map(button => button.textContent.replace(/\s*\d+$/, ""));
+    expect(chips[0]).toBe("All");
+    expect(chips).not.toContain("Needs review");
   });
 });
