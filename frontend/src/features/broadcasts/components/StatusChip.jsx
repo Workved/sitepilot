@@ -1,12 +1,12 @@
 import { Pill } from "../../../components/ui";
 
-const STATUS_META = {
+export const STATUS_META = {
   scheduled: { label: "Scheduled", tone: "blue" },
   sent: { label: "Sent", tone: "green" },
-  partially_failed: { label: "Partially Failed", tone: "orange" },
+  partially_failed: { label: "Partly failed", tone: "orange" },
   failed: { label: "Failed", tone: "red" },
   pending: { label: "Pending", tone: "gray" },
-  skipped_no_contact: { label: "No Contact", tone: "orange" },
+  skipped_no_contact: { label: "No contact", tone: "orange" },
 };
 
 export function StatusChip({ status, className }) {
