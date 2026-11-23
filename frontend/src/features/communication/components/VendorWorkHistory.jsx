@@ -55,7 +55,7 @@ function PastProjectForm({ entry, categories, saving, onClose, onSubmit }) {
     title={entry ? "Edit past project" : "Add past project"}
     subtitle="Work this vendor did before or outside SiteOps."
     onClose={onClose}
-    footer={<div className="flex justify-end"><button type="submit" form={formId} disabled={saving} className="min-h-12 rounded-xl bg-blue-700 px-6 font-black text-white shadow-[0_10px_24px_rgba(29,78,216,0.22)] transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">{saving ? "Saving..." : entry ? "Save changes" : "Add past project"}</button></div>}
+    footer={<div className="flex justify-end"><button type="submit" form={formId} disabled={saving} className="min-h-12 rounded-xl bg-slate-950 px-6 font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">{saving ? "Saving..." : entry ? "Save changes" : "Add past project"}</button></div>}
   >
     <form id={formId} onSubmit={submit} className="grid grid-cols-2 gap-4 max-[720px]:grid-cols-1">
       <label className={`${labelClass} col-span-full max-[720px]:col-span-1`}>Project name<input className={inputClass} name="project_name" defaultValue={entry?.project_name || ""} placeholder="e.g. Skyline Towers interior fit-out" required/></label>
@@ -119,7 +119,7 @@ export function VendorWorkHistory({ user, pastProjects = [], projectHistory = []
     </header>
 
     {projectHistory.length > 0 && <div className="grid gap-2">
-      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">In SiteOps</p>
+      <p className="text-xs font-medium text-slate-500">In SiteOps</p>
       {projectHistory.map(item => <article key={item.id} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4">
         <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600"><FolderKanban size={19}/></span>
         <div className="min-w-0 flex-1"><strong className="block truncate text-slate-950">{item.project_name}</strong><span className="mt-1 block text-xs text-slate-500">{dateLabel(item.started_at)} - {dateLabel(item.ended_at)}</span></div>
@@ -128,7 +128,7 @@ export function VendorWorkHistory({ user, pastProjects = [], projectHistory = []
     </div>}
 
     {pastProjects.length > 0 && <div className="grid gap-2">
-      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Before SiteOps</p>
+      <p className="text-xs font-medium text-slate-500">Before SiteOps</p>
       {pastProjects.map(entry => <PastProjectCard key={entry.id} entry={entry} canEdit={canEditWorkHistory(user, entry)} onEdit={() => setEditing(entry)} onDelete={() => { setDeleteError(""); setConfirmDelete(entry); }}/>)}
     </div>}
 

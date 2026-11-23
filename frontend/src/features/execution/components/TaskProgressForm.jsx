@@ -35,7 +35,7 @@ export function TaskProgressForm({ projectId, task, onSubmitted }) {
   }
 
   return <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-    <h4 className="text-xs font-black uppercase tracking-wide text-emerald-800">Log progress</h4>
+    <h4 className="text-xs font-medium text-emerald-800">Log progress</h4>
     <form className="mt-3 grid gap-3" onSubmit={submit}>
       <Field label="Note"><Textarea className="min-h-20" value={note} onChange={event => setNote(event.target.value)} placeholder="Describe the work completed or in progress"/></Field>
       <Field label="Status claim (optional)"><Input value={statusClaim} onChange={event => setStatusClaim(event.target.value)} placeholder="e.g. Ready for Supervisor review"/></Field>

@@ -61,7 +61,7 @@ export function BlacklistModal({ vendor, mode, projectCount = 0, subVendorCount 
       {error && <p role="alert" className="text-sm font-bold text-rose-700">{error}</p>}
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-black text-slate-700 hover:bg-slate-50">Cancel</button>
-        <button type="submit" disabled={tooShort || saving} className={`flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60 ${removing ? "bg-blue-700 hover:bg-blue-800" : "bg-rose-700 hover:bg-rose-800"}`}>
+        <button type="submit" disabled={tooShort || saving} className={`flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-60 ${removing ? "bg-slate-950 hover:bg-slate-800" : "bg-rose-700 hover:bg-rose-800"}`}>
           {removing ? <ShieldOff size={16}/> : <Ban size={16}/>}{saving ? "Saving..." : removing ? "Remove from blacklist" : "Blacklist vendor"}
         </button>
       </div>

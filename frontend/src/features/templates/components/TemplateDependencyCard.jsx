@@ -27,9 +27,9 @@ export function DependencyTaskLink({ task, onFocusTask }) {
 
 export function TemplateDependencyCard({ dependency, onFocusTask }) {
   const invalid = dependency.validation_state === "invalid";
-  return <article data-testid={`dependency-card-${dependency.id}`} className={`rounded-2xl border bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,.05)] ${invalid ? "border-amber-300" : "border-slate-200"}`}>
+  return <article data-testid={`dependency-card-${dependency.id}`} className={`rounded-2xl border bg-white p-4 ${invalid ? "border-amber-300" : "border-slate-200"}`}>
     <div className="flex items-center justify-between gap-3">
-      <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[.16em] text-slate-500"><GitBranch size={15} className="text-cyan-700"/> Link {dependency.sequence_no}</span>
+      <span className="inline-flex items-center gap-2 text-xs font-medium text-slate-500"><GitBranch size={15} className="text-cyan-700"/> Link {dependency.sequence_no}</span>
       <Pill tone={invalid ? "orange" : "green"}>{invalid ? "Review" : "Valid"}</Pill>
     </div>
     <div className="mt-4 grid grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] items-center gap-2">

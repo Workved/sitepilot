@@ -45,9 +45,9 @@ function SummaryMetric({ icon: Icon, label, value, tone = "blue" }) {
     emerald: "bg-emerald-50 text-emerald-700",
     rose: "bg-rose-50 text-rose-700",
   };
-  return <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,.04)]">
+  return <div className="rounded-2xl border border-slate-200 bg-white p-4">
     <span className={`grid size-9 place-items-center rounded-xl ${tones[tone]}`}><Icon size={18}/></span>
-    <strong className="mt-4 block text-2xl font-black tracking-[-.04em] text-slate-950">{value}</strong>
+    <strong className="mt-4 block text-2xl font-normal tracking-[-.04em] text-slate-950">{value}</strong>
     <span className="mt-1 block text-xs font-bold text-slate-500">{label}</span>
   </div>;
 }
@@ -63,7 +63,7 @@ function TaskGroup({ eyebrow, title, description, tasks }) {
   if (!tasks.length) return null;
   return <section className="grid gap-3" data-testid={`task-group-${eyebrow}`}>
     <div className="flex items-end justify-between gap-4 px-1">
-      <div><span className="text-[10px] font-black uppercase tracking-[.18em] text-blue-700">{eyebrow}</span><h3 className="mt-1 text-lg font-black tracking-[-.02em] text-slate-950">{title}</h3><p className="mt-1 text-xs font-medium text-slate-500">{description}</p></div>
+      <div><span className="text-xs font-medium text-slate-500">{eyebrow}</span><h3 className="mt-1 text-lg font-black tracking-[-.02em] text-slate-950">{title}</h3><p className="mt-1 text-xs font-medium text-slate-500">{description}</p></div>
       <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">{tasks.length} loaded</span>
     </div>
     <TemplateTaskTable tasks={tasks}/>
@@ -321,7 +321,7 @@ export function TemplateDetails({ versionId, user, onBack, onClone, onArchive, o
           </div>
         </div>
         <div className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="font-mono text-[11px] font-black uppercase tracking-[.18em] text-blue-300">{summary.template_code}</span><Pill tone={statusTone(summary.status)}>{summary.status}</Pill>{summary.is_current_published && <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-300"><CheckCircle2 size={15}/> Current published</span>}</div><h2 className="mt-3 max-w-3xl text-2xl font-black tracking-[-.04em] sm:text-4xl">{summary.template_name}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{summary.template_description || "Governed project execution schedule."}</p></div>
+          <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="text-xs font-medium text-blue-300">{summary.template_code}</span><Pill tone={statusTone(summary.status)}>{summary.status}</Pill>{summary.is_current_published && <span className="inline-flex items-center gap-1 text-xs font-black text-emerald-300"><CheckCircle2 size={15}/> Current published</span>}</div><h2 className="mt-3 max-w-3xl text-2xl font-normal tracking-[-.04em] sm:text-4xl">{summary.template_name}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{summary.template_description || "Governed project execution schedule."}</p></div>
           <div className="grid grid-cols-2 gap-2 text-xs font-bold sm:flex"><span className="rounded-xl border border-white/10 bg-white/[.07] px-3.5 py-3"><b className="block text-white">Version {summary.version_no}</b><small className="text-slate-400">Template version</small></span><span className="rounded-xl border border-white/10 bg-white/[.07] px-3.5 py-3"><b className="block text-white">{summary.duration_days} days</b><small className="text-slate-400">Planned duration</small></span><span className="col-span-2 rounded-xl border border-white/10 bg-white/[.07] px-3.5 py-3 sm:col-span-1"><b className="block text-white">{formatTemplateDate(summary.published_at)}</b><small className="text-slate-400">Published</small></span></div>
         </div>
       </div>
@@ -332,7 +332,7 @@ export function TemplateDetails({ versionId, user, onBack, onClone, onArchive, o
     <Tabs active={activeTemplateTab} onChange={onTabChange} summary={summary}/>
 
     {activeTemplateTab === "tasks" && <>
-      <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_12px_40px_rgba(15,23,42,.05)]">
+      <section className="rounded-[22px] border border-slate-200 bg-white p-3">
         <div className="grid gap-3 xl:grid-cols-[minmax(240px,1.4fr)_repeat(4,minmax(150px,.7fr))_auto]">
           <label className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17}/><Input aria-label="Search template tasks" value={search} onChange={event => { setSearch(event.target.value); resetTaskPage(); }} className="min-h-11 pl-10" placeholder="Search code, title or description"/></label>
           <Select aria-label="Filter schedule classification" value={scheduleClassification} onChange={event => { setScheduleClassification(event.target.value); resetTaskPage(); }}><option value="">All schedules</option><option value="pre_activation">Pre-Activation</option><option value="execution">Execution</option></Select>
@@ -355,7 +355,7 @@ export function TemplateDetails({ versionId, user, onBack, onClone, onArchive, o
 
     {activeTemplateTab === "dependencies" && <>
       <DependencySummary counts={dependencyCounts}/>
-      <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_12px_40px_rgba(15,23,42,.05)]">
+      <section className="rounded-[22px] border border-slate-200 bg-white p-3">
         <div className="grid gap-3 xl:grid-cols-[minmax(260px,1.5fr)_repeat(3,minmax(170px,.7fr))_auto]">
           <label className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17}/><Input aria-label="Search template dependencies" value={dependencySearch} onChange={event => setDependencySearch(event.target.value)} className="min-h-11 pl-10" placeholder="Search tasks"/></label>
           <Select aria-label="Filter dependency type" value={dependencyType} onChange={event => setDependencyType(event.target.value)}><option value="">All link types</option><option value="finish_to_start">Finish first</option><option value="start_to_start">Start together</option></Select>
@@ -368,7 +368,7 @@ export function TemplateDetails({ versionId, user, onBack, onClone, onArchive, o
       {invalidDependencyCount > 0 && <Alert tone="warning"><AlertTriangle className="shrink-0" size={19}/><div><strong>{invalidDependencyCount} relationship{invalidDependencyCount === 1 ? "" : "s"} require review</strong><span className="mt-1 block font-medium">Warnings reflect stored source data. Shown exactly as saved.</span></div></Alert>}
 
       {dependenciesLoading ? <div className="grid min-h-64 place-items-center rounded-2xl border border-slate-200 bg-white"><LoadingSpinner label="Loading template dependencies..."/></div> : dependencyError ? <Alert tone="danger" className="items-center"><div><strong className="block">{accessError(dependencyError).title}</strong><span className="mt-1 block font-medium">{accessError(dependencyError).description}</span></div><Button size="sm" variant="secondary" onClick={() => setDependencyRetry(value => value + 1)}><RefreshCw size={15}/> Retry</Button></Alert> : !dependencyResult.items.length ? <EmptyState className="min-h-64 bg-white" icon={hasDependencyFilters ? <Search size={21}/> : <GitBranch size={21}/>} title={hasDependencyFilters ? "No dependencies match these filters" : "No dependencies stored for this version"} description={hasDependencyFilters ? "Clear one or more filters and try again." : "Relationships will appear after this template version receives dependency records."} action={hasDependencyFilters ? <Button variant="secondary" onClick={clearDependencyFilters}><FilterX size={16}/> Clear filters</Button> : null}/> : <section className="grid gap-3">
-        <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-end sm:justify-between"><div><span className="text-[10px] font-black uppercase tracking-[.18em] text-cyan-700">Read-only</span><h3 className="mt-1 text-lg font-black tracking-[-.02em] text-slate-950">Task relationships</h3><p className="mt-1 text-xs font-medium text-slate-500">Select a task code to inspect that task in context.</p></div><span className="text-xs font-bold text-slate-500">Showing {dependencyResult.items.length} of {dependencyResult.pagination.total}</span></div>
+        <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-end sm:justify-between"><div><span className="text-xs font-medium text-cyan-700">Read-only</span><h3 className="mt-1 text-lg font-black tracking-[-.02em] text-slate-950">Task relationships</h3><p className="mt-1 text-xs font-medium text-slate-500">Select a task code to inspect that task in context.</p></div><span className="text-xs font-bold text-slate-500">Showing {dependencyResult.items.length} of {dependencyResult.pagination.total}</span></div>
         <TemplateDependencyTable dependencies={dependencyResult.items} onFocusTask={focusTask}/>
         <div className="grid gap-3 lg:hidden">{dependencyResult.items.map(dependency => <TemplateDependencyCard key={dependency.id} dependency={dependency} onFocusTask={focusTask}/>)}</div>
       </section>}
@@ -376,7 +376,7 @@ export function TemplateDetails({ versionId, user, onBack, onClone, onArchive, o
 
     {activeTemplateTab === "gates" && <>
       <GateSummary gates={gateResult.items}/>
-      <section className="rounded-[22px] border border-slate-200 bg-white p-3 shadow-[0_12px_40px_rgba(15,23,42,.05)]">
+      <section className="rounded-[22px] border border-slate-200 bg-white p-3">
         <div className="grid gap-3 xl:grid-cols-[minmax(240px,1.4fr)_repeat(4,minmax(150px,.7fr))_auto]">
           <label className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17}/><Input aria-label="Search external gates" value={gateSearch} onChange={event => setGateSearch(event.target.value)} className="min-h-11 pl-10" placeholder="Search code, approval or party"/></label>
           <Select aria-label="Filter gate mapping" value={gateMapping} onChange={event => setGateMapping(event.target.value)}><option value="">All</option><option value="exact">Linked to tasks</option><option value="broad_text">Imported wording</option><option value="unmapped">Not linked</option></Select>
@@ -390,7 +390,7 @@ export function TemplateDetails({ versionId, user, onBack, onClone, onArchive, o
       {invalidGateCount > 0 && <Alert tone="warning"><AlertTriangle className="shrink-0" size={19}/><div><strong>{invalidGateCount} gate{invalidGateCount === 1 ? "" : "s"} require review</strong><span className="mt-1 block font-medium">Shown exactly as saved. Nothing has been changed automatically.</span></div></Alert>}
 
       {gatesLoading ? <div className="grid min-h-64 place-items-center rounded-2xl border border-slate-200 bg-white"><LoadingSpinner label="Loading external gates..."/></div> : gateError ? <Alert tone="danger" className="items-center"><div><strong className="block">{accessError(gateError).title}</strong><span className="mt-1 block font-medium">{accessError(gateError).description}</span></div><Button size="sm" variant="secondary" onClick={() => setGateRetry(value => value + 1)}><RefreshCw size={15}/> Retry</Button></Alert> : !gateResult.items.length ? <EmptyState className="min-h-64 bg-white" icon={hasGateFilters ? <Search size={21}/> : <ShieldCheck size={21}/>} title={hasGateFilters ? "No external gates match these filters" : "No external gates stored for this version"} description={hasGateFilters ? "Clear one or more filters and try again." : "Gate records will appear when this version has external approvals."} action={hasGateFilters ? <Button variant="secondary" onClick={clearGateFilters}><FilterX size={16}/> Clear filters</Button> : null}/> : <section className="grid gap-3">
-        <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-end sm:justify-between"><div><span className="text-[10px] font-black uppercase tracking-[.18em] text-amber-700">Read-only</span><h3 className="mt-1 text-lg font-black tracking-[-.02em] text-slate-950">Prerequisite approvals</h3><p className="mt-1 text-xs font-medium text-slate-500">Each approval lists the tasks it is required before.</p></div><span className="text-xs font-bold text-slate-500">Showing {gateResult.items.length} of {gateResult.pagination.total}</span></div>
+        <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-end sm:justify-between"><div><span className="text-xs font-medium text-amber-700">Read-only</span><h3 className="mt-1 text-lg font-black tracking-[-.02em] text-slate-950">Prerequisite approvals</h3><p className="mt-1 text-xs font-medium text-slate-500">Each approval lists the tasks it is required before.</p></div><span className="text-xs font-bold text-slate-500">Showing {gateResult.items.length} of {gateResult.pagination.total}</span></div>
         <TemplateGateTable gates={gateResult.items} onFocusTask={focusTask}/>
         <div className="grid gap-3 lg:hidden">{gateResult.items.map(gate => <TemplateGateCard key={gate.id} gate={gate} onFocusTask={focusTask}/>)}</div>
       </section>}

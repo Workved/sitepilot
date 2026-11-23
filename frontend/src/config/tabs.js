@@ -1,6 +1,7 @@
-import { BookOpenCheck, BriefcaseBusiness, CalendarCheck, FolderKanban, Gauge, Megaphone, UsersRound } from "lucide-react";
+import { BookOpenCheck, BriefcaseBusiness, CalendarCheck, FolderKanban, Gauge, LayoutDashboard, Megaphone, UsersRound } from "lucide-react";
 
 export const TAB_REGISTRY = {
+  overview: { label: "Overview", help: "Today across your sites", icon: LayoutDashboard },
   projects: { label: "Projects", help: "Project setup, ownership and lifecycle", icon: FolderKanban },
   admin_overview: { label: "Portfolio", help: "Cross-project rollup and activity", icon: Gauge },
   templates: { label: "Templates", help: "Approved project schedule library", icon: BookOpenCheck },
@@ -23,7 +24,11 @@ export function visibleTabs(modulePermissions, role) {
     const projectIndex = permitted.indexOf("projects");
     permitted.splice(projectIndex >= 0 ? projectIndex + 1 : 0, 0, "templates");
   }
-  return permitted.filter(key => TAB_REGISTRY[key]).map(key => {
+  // Overview is a client-side home built from read models every signed-in
+  // role can already reach (/projects/timeline, /projects/attention), so it
+  // needs no backend module grant and always leads the list.
+  const withHome = ["overview", ...permitted.filter(key => key !== "overview")];
+  return withHome.filter(key => TAB_REGISTRY[key]).map(key => {
     const label = key === "users" && !["super_admin", "admin"].includes(role) ? "My Profile" : TAB_REGISTRY[key].label;
     return [key, label];
   });

@@ -154,7 +154,7 @@ export function TaskBlockerDelayPanel({ projectId, task, onChanged, autoOpen, ca
 
   return <section className="rounded-xl border border-slate-200 bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h4 className="text-xs font-black uppercase tracking-wide text-slate-500">Blockers &amp; delays</h4>
+      <h4 className="text-xs font-medium text-slate-500">Blockers &amp; delays</h4>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant={openForm === "blocker" ? "primary" : "secondary"} onClick={() => setOpenForm(openForm === "blocker" ? null : "blocker")}>
           {openForm === "blocker" ? <X size={13}/> : <AlertTriangle size={13}/>} Report blocker

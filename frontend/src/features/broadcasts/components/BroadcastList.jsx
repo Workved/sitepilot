@@ -14,10 +14,10 @@ const STATUS_FILTERS = [
 ];
 
 export function BroadcastCard({ broadcast, onOpen, onSendNow }) {
-  return <article onClick={onOpen} className="grid cursor-pointer gap-2 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,23,42,.06)]">
+  return <article onClick={onOpen} className="grid cursor-pointer gap-2 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-200">
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div className="min-w-0">
-        <span className="text-[10px] font-black uppercase tracking-[.14em] text-blue-700">{broadcast.project_name}</span>
+        <span className="text-xs font-medium text-slate-500">{broadcast.project_name}</span>
         <h3 className="mt-0.5 truncate font-black text-slate-950">{broadcast.title}</h3>
       </div>
       <StatusChip status={broadcast.status} />
@@ -28,7 +28,7 @@ export function BroadcastCard({ broadcast, onOpen, onSendNow }) {
       <span className="flex items-center gap-1"><Clock size={13} /> {broadcast.send_mode === "scheduled" ? `Scheduled ${new Date(broadcast.scheduled_at).toLocaleString()}` : `Sent ${broadcast.sent_at ? new Date(broadcast.sent_at).toLocaleString() : "-"}`}</span>
     </div>
     {broadcast.status === "scheduled" && onSendNow && <button type="button" onClick={event => { event.stopPropagation(); onSendNow(broadcast); }}
-      className="mt-1 flex w-fit items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-black text-white transition hover:bg-blue-800"><Send size={12} /> Send now</button>}
+      className="mt-1 flex w-fit items-center gap-1.5 rounded-lg bg-slate-950 px-3 py-1.5 text-xs font-black text-white transition hover:bg-slate-800"><Send size={12} /> Send now</button>}
   </article>;
 }
 

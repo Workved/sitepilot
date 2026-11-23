@@ -1,40 +1,59 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock3, ShieldAlert, UserX } from "lucide-react";
+import { CheckCircle2, UserX } from "lucide-react";
 import { projectsApi } from "../../../api/projectsApi";
-import { EmptyState, LoadingSpinner, Pill } from "../../../components/ui";
+import { Alert, EmptyState, LoadingSpinner } from "../../../components/ui";
+import { PaneCard, PaneHeader, StatStrip } from "./PaneKit";
 
 // Phase 3 U2: read-only summary view over U1's ProjectVisibilityService.
 // Renders whatever the dashboard endpoint returns - it does not derive any
 // of its own counts, per the plan's "single source of truth" decision.
 
-function StatTile({ label, value, tone = "slate" }) {
-  const toneClasses = {
-    slate: "border-slate-200 bg-white text-slate-950",
-    amber: "border-amber-300 bg-amber-50 text-amber-950",
-    rose: "border-rose-300 bg-rose-50 text-rose-950",
-    emerald: "border-emerald-300 bg-emerald-50 text-emerald-950",
-  };
-  return <div className={`rounded-2xl border p-4 ${toneClasses[tone]}`}>
-    <p className="text-[10px] font-black uppercase tracking-[.14em] opacity-70">{label}</p>
-    <p className="mt-1 text-2xl font-black">{value}</p>
-  </div>;
+const STATUS_LABEL = { planned: "Planned", in_progress: "In progress", submitted: "Submitted", completed: "Completed", blocked: "Blocked", delayed: "Delayed", rejected: "Rejected" };
+
+// Planned / active / completed as one proportional bar - the shape of the
+// whole schedule at a glance, instead of four equal tiles.
+function TaskMix({ summary }) {
+  const parts = [
+    ["Completed", summary.completed_count, "var(--color-blue-600)"],
+    ["Active", summary.active_count, "var(--color-blue-200)"],
+    ["Planned", summary.planned_count, "var(--color-slate-200)"],
+  ];
+  const total = summary.total_count || 1;
+  return <PaneCard title="Task mix" description={`${summary.total_count} tasks on the frozen schedule`}>
+    <div className="flex h-3 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={parts.map(([label, value]) => `${label} ${value}`).join(", ")}>
+      {parts.map(([label, value, color]) => value > 0 && <span key={label} style={{ width: `${value / total * 100}%`, background: color }}/>)}
+    </div>
+    <dl className="mt-4 grid grid-cols-3 gap-3">
+      {parts.map(([label, value, color]) => <div key={label}>
+        <dt className="flex items-center gap-1.5 text-xs text-slate-500"><span className="size-2.5 rounded-[3px] border border-slate-200" style={{ background: color }}/>{label}</dt>
+        <dd className="mt-1 text-2xl font-light tabular-nums text-slate-950">{value}</dd>
+      </div>)}
+    </dl>
+  </PaneCard>;
 }
 
-function TaskListCard({ title, icon: Icon, tone, items, renderMeta }) {
+const DOT = { red: "bg-rose-600", orange: "bg-behind", violet: "bg-gate", yellow: "bg-yellow-400" };
+
+function TaskListCard({ title, tone, items, renderMeta }) {
   if (!items.length) return null;
-  return <div className="rounded-2xl border border-slate-200 bg-white p-4">
-    <h3 className="flex items-center gap-2 font-black text-slate-950"><Icon size={16}/> {title} <Pill tone={tone}>{items.length}</Pill></h3>
-    <div className="mt-3 grid gap-2">
-      {items.map(item => <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="font-bold text-slate-900">{item.original_code} - {item.title}</span>
-          <Pill tone="slate">{item.lifecycle_status.replace("_", " ")}</Pill>
+  return <PaneCard
+    title={<span className="flex items-center gap-2"><span className={`size-2 rounded-full ${DOT[tone] || "bg-slate-400"}`}/>{title}<span className="text-slate-400">{items.length}</span></span>}
+    bodyClassName="p-0"
+  >
+    <ul className="divide-y divide-slate-100">
+      {items.map(item => <li key={item.id} className="flex items-start gap-3 px-5 py-3">
+        {item.original_code && <span className="mt-0.5 shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-xs tabular-nums text-slate-600">{item.original_code}</span>}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-slate-950">{item.title}</p>
+          {renderMeta && renderMeta(item) && <p className="mt-0.5 text-xs text-slate-500">{renderMeta(item)}</p>}
         </div>
-        {renderMeta && <p className="mt-1 text-xs text-slate-600">{renderMeta(item)}</p>}
-      </div>)}
-    </div>
-  </div>;
+        {item.lifecycle_status && <span className="shrink-0 text-xs text-slate-500">{STATUS_LABEL[item.lifecycle_status] || item.lifecycle_status.replace("_", " ")}</span>}
+      </li>)}
+    </ul>
+  </PaneCard>;
 }
+
+const shortDate = value => new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 
 export function ProjectDashboard({ project }) {
   const [data, setData] = useState(null);
@@ -56,65 +75,58 @@ export function ProjectDashboard({ project }) {
   useEffect(() => { load(); }, [project.id]);
 
   if (loading) return <div className="grid min-h-32 place-items-center"><LoadingSpinner label="Loading dashboard..."/></div>;
-  if (error) return <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div>;
+  if (error) return <Alert tone="danger">{error}</Alert>;
   if (!data) return null;
 
   const { summary } = data;
+  const variance = summary.schedule_variance;
 
-  return <div className="grid gap-4">
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <StatTile label="Planned" value={summary.planned_count}/>
-      <StatTile label="Active" value={summary.active_count}/>
-      <StatTile label="Completed" value={summary.completed_count} tone="emerald"/>
-      <StatTile label="Total" value={summary.total_count}/>
-    </div>
+  return <div className="grid gap-5">
+    <PaneHeader title="Dashboard" description="Live counts from the execution board for this project."/>
 
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <StatTile label="Blocked" value={summary.blocked_tasks.length} tone={summary.blocked_tasks.length ? "rose" : "slate"}/>
-      <StatTile label="Delayed" value={summary.delayed_tasks.length} tone={summary.delayed_tasks.length ? "amber" : "slate"}/>
-      <StatTile label="Overdue" value={summary.overdue_tasks.length} tone={summary.overdue_tasks.length ? "rose" : "slate"}/>
-      <StatTile label="No update" value={summary.no_update_tasks.length} tone={summary.no_update_tasks.length ? "amber" : "slate"}/>
-    </div>
-
-    {/* U17: how finished work landed against the frozen baseline. Early is
-        shown rather than folded into "not late" - a task delivered ahead of
-        plan is a schedule saving, and hiding it would lose every gain the
-        project made. */}
-    {summary.schedule_variance && <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <StatTile label="Finished early" value={summary.schedule_variance.early_count} tone={summary.schedule_variance.early_count ? "emerald" : "slate"}/>
-      <StatTile label="On time" value={summary.schedule_variance.on_time_count} tone="slate"/>
-      <StatTile label="Finished late" value={summary.schedule_variance.late_count} tone={summary.schedule_variance.late_count ? "amber" : "slate"}/>
-      <StatTile
-        label="Worst overrun"
-        value={summary.schedule_variance.worst_late_days ? `${summary.schedule_variance.worst_late_days}d` : "0"}
-        tone={summary.schedule_variance.worst_late_days ? "rose" : "slate"}
-      />
-    </div>}
-
-    <TaskListCard title="Pending verifications" icon={Clock3} tone="amber" items={summary.pending_verifications}/>
-    <TaskListCard title="Pending approvals" icon={Clock3} tone="amber" items={summary.pending_approvals}/>
-    <TaskListCard
-      title="Approval gates at risk" icon={ShieldAlert} tone="rose" items={summary.approval_gates_at_risk}
-      renderMeta={item => item.due_at ? `Due ${new Date(item.due_at).toLocaleDateString()}` : null}
-    />
-    <TaskListCard
-      title="Overdue tasks" icon={AlertTriangle} tone="rose" items={summary.overdue_tasks}
-      renderMeta={item => `Planned finish ${new Date(item.due_on).toLocaleDateString()}`}
-    />
-    <TaskListCard
-      title="No recent update" icon={Clock3} tone="amber" items={summary.no_update_tasks}
-      renderMeta={item => `Last activity ${new Date(item.last_activity_at).toLocaleDateString()} (SLA ${item.update_sla_hours}h)`}
-    />
-
-    {summary.reassignment_required.length > 0 && <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
-      <h3 className="flex items-center gap-2 font-black text-amber-950"><UserX size={16}/> Reassignment required <Pill tone="orange">{summary.reassignment_required.length}</Pill></h3>
-      <div className="mt-2 grid gap-1">
-        {summary.reassignment_required.map(item => <p key={item.membership_id} className="text-sm text-amber-900">
-          The active <strong>{item.role_type.replace("_", " ")}</strong> is marked unavailable.
-        </p>)}
+    {summary.reassignment_required.length > 0 && <div className="flex items-start gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm text-orange-900">
+      <UserX size={17} className="mt-0.5 shrink-0 text-orange-600"/>
+      <div>
+        <p className="font-medium">Reassignment required</p>
+        {summary.reassignment_required.map(item => <p key={item.membership_id}>The active {item.role_type.replace("_", " ")} is marked unavailable.</p>)}
       </div>
     </div>}
 
-    {summary.total_count === 0 && <EmptyState icon={<CheckCircle2 size={20}/>} title="No execution tasks yet" description="This project has not generated execution tasks - counts will populate once it is activated."/>}
+    {summary.total_count === 0
+      ? <EmptyState icon={<CheckCircle2 size={20}/>} title="No execution tasks yet" description="This project has not generated execution tasks - counts will populate once it is activated."/>
+      : <>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          <TaskMix summary={summary}/>
+          <PaneCard title="Problems on site" description="Open tasks that need someone to act">
+            <StatStrip className="sm:grid-cols-2 xl:grid-cols-2" items={[
+              { label: "Overdue", value: summary.overdue_tasks.length, tone: "red" },
+              { label: "Blocked", value: summary.blocked_tasks.length, tone: "red" },
+              { label: "Delayed", value: summary.delayed_tasks.length, tone: "orange" },
+              { label: "No update", value: summary.no_update_tasks.length, tone: "yellow" },
+            ]}/>
+          </PaneCard>
+        </div>
+
+        {/* U17: how finished work landed against the frozen baseline. Early is
+            shown rather than folded into "not late" - a task delivered ahead of
+            plan is a schedule saving, and hiding it would lose every gain the
+            project made. */}
+        {variance && <PaneCard title="Finished work against the baseline">
+          <StatStrip items={[
+            { label: "Finished early", value: variance.early_count, tone: "green" },
+            { label: "On time", value: variance.on_time_count, tone: "blue" },
+            { label: "Finished late", value: variance.late_count, tone: "orange" },
+            { label: "Worst overrun", value: variance.worst_late_days ? `${variance.worst_late_days}d` : 0, tone: "red" },
+          ]}/>
+        </PaneCard>}
+
+        <div className="grid items-start gap-4 xl:grid-cols-2">
+          <TaskListCard title="Overdue tasks" tone="red" items={summary.overdue_tasks} renderMeta={item => `Planned finish ${shortDate(item.due_on)}`}/>
+          <TaskListCard title="Approval gates at risk" tone="red" items={summary.approval_gates_at_risk} renderMeta={item => item.due_at ? `Due ${shortDate(item.due_at)}` : null}/>
+          <TaskListCard title="Pending approvals" tone="violet" items={summary.pending_approvals}/>
+          <TaskListCard title="Pending verifications" tone="violet" items={summary.pending_verifications}/>
+          <TaskListCard title="No recent update" tone="yellow" items={summary.no_update_tasks} renderMeta={item => `Last activity ${shortDate(item.last_activity_at)}, update due every ${item.update_sla_hours}h`}/>
+        </div>
+      </>}
   </div>;
 }

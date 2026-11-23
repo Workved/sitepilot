@@ -239,11 +239,11 @@ export function CommunicationHubPage({ user, action }) {
   if (loading) return <div className="grid min-h-40 place-items-center"><LoadingSpinner label="Loading vendor hub..." /></div>;
 
   return <div className="grid gap-6">
-    <section className="grid gap-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_12px_40px_rgba(15,23,42,.06)]">
+    <section className="grid gap-5 rounded-2xl border border-slate-200 bg-white p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-black uppercase tracking-[.18em] text-blue-700">Vendor Hub</p>
-          <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Vendors, contacts & site communication</h2>
+          <p className="text-xs font-medium text-slate-500">Vendor Hub</p>
+          <h2 className="mt-2 text-3xl font-normal tracking-tight text-slate-950">Vendors, contacts & site communication</h2>
           <span className="mt-2 block text-sm text-slate-500">Centralized directory of vendors and contacts across all projects.</span>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -251,7 +251,7 @@ export function CommunicationHubPage({ user, action }) {
           <RefreshButton loading={loading} onClick={() => load()}/>
           {canManage && <div ref={addMenuRef} className="relative shrink-0">
             <button type="button" onClick={() => setAddMenuOpen(v => !v)}
-              className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(29,78,216,0.22)] transition hover:bg-blue-800">
+              className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-black text-white transition hover:bg-slate-800">
               <Plus size={17}/> Add vendor <ChevronDown size={15}/>
             </button>
             {addMenuOpen && <div className="absolute right-0 top-[calc(100%+8px)] z-20 grid w-52 gap-0.5 rounded-xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_50px_rgba(15,23,42,.14)]">
@@ -272,7 +272,7 @@ export function CommunicationHubPage({ user, action }) {
       </div>
     </section>
 
-    <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_12px_40px_rgba(15,23,42,.06)]">
+    <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-56 flex-1">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
@@ -294,12 +294,12 @@ export function CommunicationHubPage({ user, action }) {
           </button>
           {filtersOpen && <div className="absolute right-0 top-[calc(100%+8px)] z-20 grid w-64 gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-[0_18px_50px_rgba(15,23,42,.14)]">
             <div>
-              <p className="px-1 pb-1.5 text-[10px] font-black uppercase tracking-wide text-slate-400">Type</p>
+              <p className="px-1 pb-1.5 text-xs font-medium text-slate-500">Type</p>
               <div className="grid gap-0.5">{TYPE_OPTIONS.map(([value, label]) => <button key={value} type="button" onClick={() => setType(value)}
                 className={cn("rounded-lg px-2.5 py-1.5 text-left text-sm font-bold transition", type === value ? "bg-blue-700 text-white" : "text-slate-700 hover:bg-slate-50")}>{label}</button>)}</div>
             </div>
             <div>
-              <p className="px-1 pb-1.5 text-[10px] font-black uppercase tracking-wide text-slate-400">Category</p>
+              <p className="px-1 pb-1.5 text-xs font-medium text-slate-500">Category</p>
               <div className="grid max-h-48 gap-0.5 overflow-y-auto">
                 <button type="button" onClick={() => setCategoryId("")} className={cn("rounded-lg px-2.5 py-1.5 text-left text-sm font-bold transition", !categoryId ? "bg-blue-700 text-white" : "text-slate-700 hover:bg-slate-50")}>All categories</button>
                 {filterCategories.map(category => <button key={category.id} type="button" onClick={() => setCategoryId(category.id)}

@@ -21,7 +21,7 @@ export function Metric({ icon, value, label, hint, action, tone = "border-slate-
     <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/70 text-blue-700">{icon}</span>
     <div className="min-w-0 flex-1">
       <p className="text-xs font-bold text-slate-500">{label}</p>
-      <p className="text-2xl font-black leading-tight text-slate-950">{value}</p>
+      <p className="text-2xl font-normal leading-tight text-slate-950">{value}</p>
       {action ? action : hint && <p className="truncate text-[11px] font-semibold text-slate-500">{hint}</p>}
     </div>
   </div>;
@@ -70,7 +70,7 @@ export function VendorRow({ vendor, primary, projectCount, selected, layout = "l
   ];
 
   return <article onClick={onSelect}
-    className={cn("grid cursor-pointer gap-3 rounded-2xl border p-4 transition hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,23,42,.06)]",
+    className={cn("grid cursor-pointer gap-3 rounded-2xl border p-4 transition hover:border-blue-200",
       selected ? "border-blue-300 bg-blue-50/40 ring-2 ring-blue-500/40" : "border-slate-200 bg-white",
       layout === "list" && "sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto_auto] sm:items-center")}>
     <div className="flex items-center gap-3">
@@ -97,7 +97,7 @@ export function VendorRow({ vendor, primary, projectCount, selected, layout = "l
     <div className="flex shrink-0 items-center gap-3">
       <div className="text-right">
         <strong className="block text-sm font-black text-slate-950">{projectCount}</strong>
-        <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Projects</span>
+        <span className="block text-xs font-bold text-slate-500">Projects</span>
       </div>
       <BlacklistPill vendor={vendor}/>
       <RowMenu items={menuItems}/>
@@ -106,7 +106,7 @@ export function VendorRow({ vendor, primary, projectCount, selected, layout = "l
 }
 
 function SectionHeading({ icon: Icon, eyebrow, title, text }) {
-  return <header className="col-span-full flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-950 text-white"><Icon size={18}/></span><div><p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">{eyebrow}</p><h3 className="mt-1 text-lg font-black text-slate-950">{title}</h3>{text && <p className="mt-1 text-sm leading-6 text-slate-500">{text}</p>}</div></header>;
+  return <header className="col-span-full flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-950 text-white"><Icon size={18}/></span><div><p className="text-xs font-medium text-slate-500">{eyebrow}</p><h3 className="mt-1 text-lg font-black text-slate-950">{title}</h3>{text && <p className="mt-1 text-sm leading-6 text-slate-500">{text}</p>}</div></header>;
 }
 
 function VendorForm({ formId, vendor, categories, fixedMainVendor, includeContact, onSubmit }) {
@@ -124,7 +124,7 @@ function VendorForm({ formId, vendor, categories, fixedMainVendor, includeContac
   }
 
   return <form id={formId} className="grid grid-cols-2 gap-5 max-[720px]:grid-cols-1" onSubmit={submit}>
-    {fixedMainVendor && <div className="col-span-full flex items-center gap-4 rounded-2xl border border-blue-200 bg-blue-50 p-4"><span className="grid size-11 place-items-center rounded-xl bg-blue-700 text-white"><Building2 size={20}/></span><div><span className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-700">Approved parent vendor</span><strong className="mt-1 block text-slate-950">{fixedMainVendor.name}</strong></div><ShieldCheck className="ml-auto text-blue-700"/><input type="hidden" name="main_contractor_id" value={fixedMainVendor.id}/></div>}
+    {fixedMainVendor && <div className="col-span-full flex items-center gap-4 rounded-2xl border border-blue-200 bg-blue-50 p-4"><span className="grid size-11 place-items-center rounded-xl bg-blue-700 text-white"><Building2 size={20}/></span><div><span className="text-xs font-medium text-slate-500">Approved parent vendor</span><strong className="mt-1 block text-slate-950">{fixedMainVendor.name}</strong></div><ShieldCheck className="ml-auto text-blue-700"/><input type="hidden" name="main_contractor_id" value={fixedMainVendor.id}/></div>}
 
     <section className="col-span-full grid grid-cols-2 gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-5 max-[720px]:grid-cols-1">
       <SectionHeading icon={Building2} eyebrow="Company" title="Vendor profile" text="Core identity."/>
@@ -152,7 +152,7 @@ function VendorForm({ formId, vendor, categories, fixedMainVendor, includeContac
   </form>;
 }
 
-const submitButtonClass = "min-h-12 rounded-xl bg-blue-700 px-6 font-black text-white shadow-[0_10px_24px_rgba(29,78,216,0.22)] transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60";
+const submitButtonClass = "min-h-12 rounded-xl bg-slate-950 px-6 font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60";
 
 export function CompanyModal({ title, categories, fixedMainContractor, saving = false, onClose, onSubmit }) {
   const formId = "vendor-company-form";

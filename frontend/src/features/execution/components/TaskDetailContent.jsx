@@ -427,7 +427,7 @@ function EarlyStartModal({ task, onConfirm, onClose }) {
 
 function Card({ title, icon: Icon, children, className = "" }) {
   return <section className={`rounded-2xl border border-slate-200 bg-white p-4 ${className}`}>
-    {title && <h4 className="mb-3 flex items-center gap-1.5 text-xs font-black uppercase tracking-wide text-slate-500">{Icon && <Icon size={14}/>} {title}</h4>}
+    {title && <h4 className="mb-3 flex items-center gap-1.5 text-xs font-medium text-slate-500">{Icon && <Icon size={14}/>} {title}</h4>}
     {children}
   </section>;
 }
@@ -482,7 +482,7 @@ function OverviewPane({ task, detail, project, candidates, externalApprovals, on
           <div className="flex items-start gap-2">
             <User size={15} className="mt-0.5 shrink-0 text-slate-400"/>
             <div>
-              <span className="block text-[10px] font-black uppercase tracking-wide text-slate-400">Primary Responsible</span>
+              <span className="block text-xs font-medium text-slate-500">Primary Responsible</span>
               {supervisor ? <>
                 <strong className="block text-sm text-slate-900">{supervisor.name}</strong>
                 <span className="text-xs text-slate-500">Role: Site Supervisor</span>
@@ -492,7 +492,7 @@ function OverviewPane({ task, detail, project, candidates, externalApprovals, on
           <div className="flex items-start gap-2">
             <Users size={15} className="mt-0.5 shrink-0 text-slate-400"/>
             <div>
-              <span className="block text-[10px] font-black uppercase tracking-wide text-slate-400">Support / Delegated To</span>
+              <span className="block text-xs font-medium text-slate-500">Support / Delegated To</span>
               {activeAssignments.length ? (
                 <span className="text-sm text-slate-800">{activeAssignments.map(a => nameFor(a.employee_id)).join(", ")}</span>
               ) : <span className="text-sm text-slate-500">Not delegated</span>}
@@ -501,7 +501,7 @@ function OverviewPane({ task, detail, project, candidates, externalApprovals, on
           {pmName && <div className="flex items-start gap-2">
             <ShieldCheck size={15} className="mt-0.5 shrink-0 text-slate-400"/>
             <div>
-              <span className="block text-[10px] font-black uppercase tracking-wide text-slate-400">PM / Approval Owner</span>
+              <span className="block text-xs font-medium text-slate-500">PM / Approval Owner</span>
               <span className="text-sm text-slate-800">{pmName}</span>
             </div>
           </div>}

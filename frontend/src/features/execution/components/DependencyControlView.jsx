@@ -100,7 +100,7 @@ function DependencyDetailDrawer({ dependency, onClose, onOpenTask }) {
     >
       <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-6 py-5">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.2em] text-blue-700"><GitBranch size={14}/> Dependency Detail</div>
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-500"><GitBranch size={14}/> Dependency Detail</div>
           <h2 className="mt-1 text-lg font-black leading-snug text-slate-950">{dependency.predecessor_code} &rarr; {dependency.successor_code}</h2>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <Pill tone={chip.tone}><chip.Icon size={11}/> {chip.label}</Pill>
@@ -116,7 +116,7 @@ function DependencyDetailDrawer({ dependency, onClose, onOpenTask }) {
       <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-6 py-5">
         <div className="grid gap-4">
           <section>
-            <h4 className="text-[10px] font-black uppercase tracking-wide text-slate-400">Predecessor Task</h4>
+            <h4 className="text-xs font-medium text-slate-500">Predecessor Task</h4>
             <div className="mt-1 flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3">
               <TaskRef code={dependency.predecessor_code} title={dependency.predecessor_title} task={dependency.predecessorTask}/>
               <TaskStatusChip task={dependency.predecessorTask}/>
@@ -124,7 +124,7 @@ function DependencyDetailDrawer({ dependency, onClose, onOpenTask }) {
           </section>
 
           <section>
-            <h4 className="text-[10px] font-black uppercase tracking-wide text-slate-400">Successor Task</h4>
+            <h4 className="text-xs font-medium text-slate-500">Successor Task</h4>
             <div className="mt-1 flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3">
               <TaskRef code={dependency.successor_code} title={dependency.successor_title} task={dependency.successorTask}/>
               <TaskStatusChip task={dependency.successorTask}/>
@@ -132,24 +132,24 @@ function DependencyDetailDrawer({ dependency, onClose, onOpenTask }) {
           </section>
 
           <section>
-            <h4 className="text-[10px] font-black uppercase tracking-wide text-slate-400">Dependency Type</h4>
+            <h4 className="text-xs font-medium text-slate-500">Dependency Type</h4>
             <Pill tone={TYPE_CHIP_TONE[dependency.dependency_type] || "gray"} className="mt-1">{DEPENDENCY_TYPE_LABEL[dependency.dependency_type] || humanizeStatus(dependency.dependency_type)}</Pill>
           </section>
 
           <section>
-            <h4 className="text-[10px] font-black uppercase tracking-wide text-slate-400">Impact</h4>
+            <h4 className="text-xs font-medium text-slate-500">Impact</h4>
             <p className="mt-1 text-sm text-slate-700">{dependency.impact ? `${dependency.impact} task${dependency.impact === 1 ? " is" : "s are"} waiting on this dependency.` : "Impact not calculated."}</p>
           </section>
 
           <section>
-            <h4 className="text-[10px] font-black uppercase tracking-wide text-slate-400">{dependency.status === "satisfied" ? "Status" : "Why is this blocking?"}</h4>
+            <h4 className="text-xs font-medium text-slate-500">{dependency.status === "satisfied" ? "Status" : "Why is this blocking?"}</h4>
             {dependency.status === "satisfied" && <p className="mt-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">Dependency condition is satisfied.</p>}
             {dependency.status === "blocking" && <p className="mt-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-800">{WHY_BLOCKING_TEXT[dependency.dependency_type] || "This dependency's condition has not been met yet."}</p>}
             {dependency.status === "unknown" && <p className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">The predecessor task's current status isn't available, so this can't be determined yet.</p>}
           </section>
 
           <section>
-            <h4 className="text-[10px] font-black uppercase tracking-wide text-slate-400">Dates</h4>
+            <h4 className="text-xs font-medium text-slate-500">Dates</h4>
             <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
               <dt className="text-slate-400">Planned Start (Predecessor)</dt><dd className="text-right font-bold text-slate-700">{dependency.predecessorTask ? formatDateShort(dependency.predecessorTask.planned_start_date) : "—"}</dd>
               <dt className="text-slate-400">Planned Finish (Predecessor)</dt><dd className="text-right font-bold text-slate-700">{dependency.predecessorTask ? formatDateShort(dependency.predecessorTask.planned_end_date) : "—"}</dd>
@@ -331,7 +331,7 @@ export function DependencyControlView({ projectId, project, user, dependencies }
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-wide text-slate-400">
+              <tr className="border-b border-slate-100 text-xs font-medium text-slate-500">
                 <th className="px-4 py-3 font-black">Predecessor Task</th>
                 <th className="px-4 py-3 font-black">Dependency Type</th>
                 <th className="px-4 py-3 font-black">Successor Task</th>

@@ -18,7 +18,7 @@ function EmptyPanel({ icon: Icon, title, text, action }) {
 }
 
 function DetailItem({ icon: Icon, label, value }) {
-  return <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-600"><Icon size={16}/></span><div className="min-w-0"><span className="block text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{label}</span><strong className="mt-1 block break-words text-sm leading-6 text-slate-800">{value || "Not provided"}</strong></div></div>;
+  return <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4"><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-600"><Icon size={16}/></span><div className="min-w-0"><span className="block text-xs font-medium text-slate-500">{label}</span><strong className="mt-1 block break-words text-sm leading-6 text-slate-800">{value || "Not provided"}</strong></div></div>;
 }
 
 function CapabilityGroups({ vendor, categories }) {
@@ -27,7 +27,7 @@ function CapabilityGroups({ vendor, categories }) {
     .filter(category => !category.parent_id && (selected.has(category.id) || categories.some(child => child.parent_id === category.id && selected.has(child.id))))
     .map(root => ({ root, children: categories.filter(child => child.parent_id === root.id && selected.has(child.id)) }));
   return <section className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5">
-    <header className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-blue-700 text-white"><Wrench size={18}/></span><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Capabilities</p><h4 className="font-black text-slate-950">Categories selected</h4></div></header>
+    <header className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-blue-700 text-white"><Wrench size={18}/></span><div><p className="text-xs font-medium text-slate-500">Capabilities</p><h4 className="font-black text-slate-950">Categories selected</h4></div></header>
     <div className="mt-4 grid gap-2">{roots.map(({ root, children }) => <div key={root.id} className="rounded-xl border border-white/80 bg-white/80 p-3 shadow-sm"><strong className="text-sm text-slate-900">{root.name}</strong>{children.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{children.map(child => <span key={child.id} className="rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-bold text-blue-900">{child.name}</span>)}</div>}</div>)}{!roots.length && <p className="rounded-xl border border-dashed border-slate-300/80 p-4 text-sm text-slate-500">No capabilities selected.</p>}</div>
   </section>;
 }
@@ -60,7 +60,7 @@ function VendorProjectMappingForm({ vendor, unmappedProjects, mapToProjects }) {
   }
 
   return <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4">
-    <span className="block text-[10px] font-black uppercase tracking-wide text-blue-800">Map to project(s)</span>
+    <span className="block text-xs font-medium text-blue-800">Map to project(s)</span>
     {unmappedProjects.length
       ? <div className="mt-2 flex flex-wrap gap-2">{unmappedProjects.map(project => {
           const checked = selectedIds.has(project.id);
@@ -142,7 +142,7 @@ export function VendorDetailPanel({ vendor, parentVendor, subVendors = [], conta
     <section className="shrink-0 border-b border-slate-200 p-4 sm:p-5">
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-blue-600 text-base font-black text-white shadow-[0_10px_24px_rgba(37,99,235,.25)]">{vendor.name.slice(0, 2).toUpperCase()}</div>
+          <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-blue-600 text-base font-black text-white">{vendor.name.slice(0, 2).toUpperCase()}</div>
           <div className="min-w-0">
             <h2 className="truncate text-lg font-black tracking-tight text-slate-950">{vendor.name}</h2>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -168,7 +168,7 @@ export function VendorDetailPanel({ vendor, parentVendor, subVendors = [], conta
       {activeTab === "overview" && <div className="grid gap-5">
         <CapabilityGroups vendor={vendor} categories={categories}/>
         <section className="grid grid-cols-2 gap-3 max-[720px]:grid-cols-1"><DetailItem icon={Building2} label="Engagement" value={pending ? "Parent mapping required" : isMain ? "Main vendor" : `Sub-vendor of ${parentVendor?.name || "approved parent"}`}/><DetailItem icon={ShieldCheck} label="GST number" value={vendor.gst_number}/><DetailItem icon={Mail} label="Email" value={vendor.email}/><DetailItem icon={MapPin} label="Address" value={vendor.address}/></section>
-        <section className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Internal context</p><h3 className="mt-2 font-black text-slate-950">Operations notes</h3><p className="mt-2 text-sm leading-7 text-slate-600">{vendor.notes || "No internal vendor notes have been added."}</p></section>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-xs font-medium text-slate-500">Internal context</p><h3 className="mt-2 font-black text-slate-950">Operations notes</h3><p className="mt-2 text-sm leading-7 text-slate-600">{vendor.notes || "No internal vendor notes have been added."}</p></section>
       </div>}
 
       {activeTab === "contacts" && <section className="grid gap-3"><header className="mb-1 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-black text-slate-950">Vendor contacts</h3><p className="mt-1 text-sm text-slate-500">People available for site coordination.</p></div>{canManage && <button type="button" onClick={addContact} className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white"><Plus size={17}/> Add contact</button>}</header>{contacts.map(contact => <article key={contact.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 max-[640px]:grid-cols-[auto_minmax(0,1fr)]"><span className="grid size-11 place-items-center rounded-xl bg-slate-100 font-black text-slate-700">{contact.name.slice(0, 2).toUpperCase()}</span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-slate-950">{contact.name}</strong>{contact.is_primary && <Pill tone="blue">Primary</Pill>}</div><span className="mt-1 block text-sm text-slate-500">{contact.designation || "Contact person"}</span><a href={`tel:${cleanPhone(contact.phone)}`} className="mt-1 block text-sm font-bold text-slate-700">{contact.phone}</a></div><div className="max-[640px]:col-span-2"><ContactActions contact={contact}/></div></div><ContactMessagingStatus contact={contact} canManage={canManage}/><ContactWorkSummary projects={contactProjects.filter(row => row.contact_id === contact.id)} tasks={contactTasks.filter(row => row.contact_id === contact.id)}/></article>)}{!contacts.length && <EmptyPanel icon={UserRound} title="No contacts yet" text="Add a primary site contact so assignments and WhatsApp messages reach the right person." action={canManage && <button type="button" onClick={addContact} className="mt-4 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white">Add first contact</button>}/>}</section>}

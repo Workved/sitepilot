@@ -8,11 +8,13 @@ const longDate = value => (value
   : "Not set");
 
 function ReadinessRow({ label, ready, detail }) {
-  return <div className={`flex items-start gap-2 rounded-xl border px-3 py-2.5 text-sm ${ready ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-slate-200 bg-white text-slate-500"}`}>
-    {ready ? <Check size={16} className="mt-0.5 shrink-0"/> : <Clock3 size={16} className="mt-0.5 shrink-0"/>}
+  return <div className="flex items-start gap-3 rounded-xl border border-line bg-white px-3.5 py-3 text-sm">
+    <span className={`grid size-6 shrink-0 place-items-center rounded-full ${ready ? "bg-emerald-600 text-white" : "border border-dashed border-slate-300 text-slate-400"}`}>
+      {ready ? <Check size={14}/> : <Clock3 size={13}/>}
+    </span>
     <span className="min-w-0">
-      <strong className="block font-bold">{label}</strong>
-      {detail && <span className="block text-xs opacity-80">{detail}</span>}
+      <strong className={`block font-normal ${ready ? "text-slate-950" : "text-slate-600"}`}>{label}</strong>
+      {detail && <span className="block truncate text-xs text-slate-500">{detail}</span>}
     </span>
   </div>;
 }
@@ -64,21 +66,23 @@ export function ProjectSetupPane({ project, activity, templates = [], user, onCh
   const readyCount = [setup.has_project_manager, setup.has_site_supervisor, setup.has_template, setup.has_target_handover_date].filter(Boolean).length;
   const activationReady = setup.activation_ready && hasTasks;
 
-  return <div className="grid gap-3">
+  return <div className="grid gap-4">
     {error && <Alert tone="danger">{error}</Alert>}
 
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-2">
+    <section className="rounded-[20px] border border-line bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-black text-slate-950">{activationReady ? "Ready to activate" : "Setup incomplete"}</h3>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <h3 className="text-[17px] font-medium text-slate-950">{activationReady ? "Ready to activate" : "Setup incomplete"}</h3>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500">
             The schedule is prepared automatically when a project is created. This project stays Draft until an Admin activates it.
           </p>
         </div>
         <Pill tone={activationReady ? "green" : "orange"}>{readyCount}/4 activation details</Pill>
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden="true"><div className="h-full rounded-full bg-emerald-600" style={{ width: `${readyCount * 25}%` }}/></div>
+
+      <div className="mt-4 grid gap-2 md:grid-cols-2">
         <ReadinessRow label="Project Manager" ready={setup.has_project_manager} detail={project.memberships?.find(item => item.project_role === "project_manager")?.name}/>
         <ReadinessRow label="Site Supervisor" ready={setup.has_site_supervisor} detail={project.memberships?.find(item => item.project_role === "site_supervisor")?.name}/>
         <ReadinessRow label="Approved template" ready={setup.has_template} detail={selectedTemplate?.template_name}/>
@@ -95,7 +99,7 @@ export function ProjectSetupPane({ project, activity, templates = [], user, onCh
         />
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+      <div className="mt-5 flex flex-wrap gap-2 border-t border-line pt-4">
         <Button variant="secondary" onClick={() => onOpenPane("template-review")}>Review tasks</Button>
         <Button variant="secondary" onClick={() => onOpenPane("dependencies")}>Review dependencies</Button>
         <Button variant="secondary" onClick={() => onOpenPane("external-gates")}>Review approvals</Button>
@@ -107,12 +111,12 @@ export function ProjectSetupPane({ project, activity, templates = [], user, onCh
 
     {/* Only reachable for drafts created before setup became automatic, or if
         generation was rolled back. New projects never see this. */}
-    {!hasTasks && <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
+    {!hasTasks && <section className="rounded-[20px] border border-orange-100 bg-orange-50 p-5">
       <div className="flex items-start gap-2">
-        <CircleAlert size={16} className="mt-0.5 shrink-0 text-amber-700"/>
+        <CircleAlert size={17} className="mt-0.5 shrink-0 text-orange-600"/>
         <div className="min-w-0">
-          <h3 className="text-sm font-black text-amber-900">This draft has no task schedule</h3>
-          <p className="mt-1 text-xs leading-5 text-amber-800">
+          <h3 className="text-[15px] font-medium text-orange-950">This draft has no task schedule</h3>
+          <p className="mt-1 text-[13px] leading-5 text-orange-900">
             It was created before the schedule was prepared automatically. Activation needs at least one included
             task, so prepare it here.
           </p>
@@ -120,13 +124,13 @@ export function ProjectSetupPane({ project, activity, templates = [], user, onCh
       </div>
 
       {isAdmin ? <div className="mt-3 grid gap-2">
-        <div className="grid gap-1 rounded-xl border border-amber-200 bg-white p-3 text-xs">
+        <div className="grid gap-1 rounded-xl border border-orange-100 bg-white p-3 text-xs">
           <strong className="text-slate-900">{selectedTemplate?.template_name || "Attached published template"}</strong>
           <span className="text-slate-500">
             {selectedTemplate ? `${selectedTemplate.template_code} · Version ${selectedTemplate.version_no} · ${selectedTemplate.duration_days} days` : "Published reference"}
           </span>
         </div>
-        <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-amber-200 bg-white p-2.5 text-xs text-slate-700">
+        <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-orange-100 bg-white p-3 text-[13px] text-slate-700">
           <input type="checkbox" checked={confirmed} disabled={Boolean(busy)} onChange={event => setConfirmed(event.target.checked)} className="mt-0.5 size-4"/>
           <span>I confirm the selected published template is correct. The project stays Draft.</span>
         </label>
@@ -135,11 +139,11 @@ export function ProjectSetupPane({ project, activity, templates = [], user, onCh
             {error ? "Retry generation" : "Generate tasks"}
           </Button>
         </div>
-      </div> : <p className="mt-2 text-xs font-bold text-amber-800">Only Admin can prepare the task schedule.</p>}
+      </div> : <p className="mt-2 text-[13px] text-orange-900">Only Admin can prepare the task schedule.</p>}
     </section>}
 
-    {hasTasks && isAdmin && ((counts.dependencies === 0) || (counts.gates === 0)) && <section className="rounded-2xl border border-slate-200 bg-white p-4">
-      <h3 className="text-sm font-black text-slate-950">Finish preparing this draft</h3>
+    {hasTasks && isAdmin && ((counts.dependencies === 0) || (counts.gates === 0)) && <section className="rounded-[20px] border border-line bg-white p-5">
+      <h3 className="text-[15px] font-medium text-slate-950">Finish preparing this draft</h3>
       <p className="mt-1 text-xs text-slate-500">
         {counts.dependencies === 0 ? "Dependencies" : "Approval gates"} were not prepared for this project. Activation
         does not require them, but the schedule is incomplete without them.
@@ -150,8 +154,8 @@ export function ProjectSetupPane({ project, activity, templates = [], user, onCh
       </div>
     </section>}
 
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-      <h3 className="text-sm font-black text-slate-950">Captured at creation</h3>
+    <section className="rounded-[20px] border border-line bg-white p-5">
+      <h3 className="text-[15px] font-medium text-slate-950">Captured at creation</h3>
       <dl className="mt-3 grid gap-3 sm:grid-cols-4">
         {[
           ["Project Manager", project.memberships?.find(item => item.project_role === "project_manager")?.name || "Not assigned"],
@@ -159,8 +163,8 @@ export function ProjectSetupPane({ project, activity, templates = [], user, onCh
           ["Start", longDate(project.start_date)],
           ["Handover", longDate(project.target_handover_date)],
         ].map(([label, value]) => <div key={label}>
-          <dt className="font-mono text-[10px] uppercase tracking-[.1em] text-slate-400">{label}</dt>
-          <dd className="mt-0.5 truncate text-sm font-semibold text-slate-900">{value}</dd>
+          <dt className="text-xs text-slate-500">{label}</dt>
+          <dd className="mt-0.5 truncate text-sm text-slate-950">{value}</dd>
         </div>)}
       </dl>
     </section>

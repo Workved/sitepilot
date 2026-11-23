@@ -109,7 +109,7 @@ function App() {
     setUser(null);
   }
 
-  if (loading && !user) return <main className="grid min-h-screen place-items-center bg-slate-950 text-sm font-bold text-blue-100">Opening secure workspace…</main>;
+  if (loading && !user) return <main className="grid min-h-screen place-items-center bg-canvas text-sm text-slate-500">Opening secure workspace…</main>;
   if (!user) return <LoginPage onGoogle={loginWithGoogle} onPassword={loginWithPassword} error={error} devLoginEnabled={devLoginEnabled} onDevLogin={loginAsDev}/>;
   return <Dashboard initialUser={user} onLogout={logout}/>;
 }

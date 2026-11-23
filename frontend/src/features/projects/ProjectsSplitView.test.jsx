@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { projectsApi } from "../../api/projectsApi";
 import { ProjectsPage } from "./ProjectsPage";
@@ -42,6 +42,16 @@ const attentionItem = {
   project_id: "p-draft", project_code: "PRJ-DRAFT", pane: "overview", due_label: null,
 };
 
+// The phone layout repeats the selected project's name on its list toggle,
+// so list assertions look inside the list itself.
+const list = () => within(screen.getByRole("navigation", { name: "Project list" }));
+
+// Status filter and sort live in one menu beside the search box.
+function chooseFilter(name) {
+  fireEvent.click(screen.getByRole("button", { name: /change filter or sort/i }));
+  fireEvent.click(screen.getByRole("menuitemradio", { name }));
+}
+
 function setup(role = "admin") {
   return render(<ProjectsPage user={{ role, id: "u-admin" }} action={vi.fn(async operation => {
     try { await operation(); return { ok: true }; } catch (error) { return { ok: false, error: error.message }; }
@@ -59,6 +69,26 @@ beforeEach(() => {
 });
 
 describe("Projects split view", () => {
+  it("keeps the filter to one control that names the current status and its count", async () => {
+    setup();
+    await screen.findByTestId("workspace");
+    const control = screen.getByRole("button", { name: /change filter or sort/i });
+    expect(control).toHaveTextContent("Active1");
+    expect(screen.queryByRole("menuitemradio", { name: /^draft/i })).not.toBeInTheDocument();
+  });
+
+  it("puts projects needing attention first, then sorts by name on request", async () => {
+    projectsApi.list.mockResolvedValue([project(), project({ id: "p-b", code: "PRJ-B", name: "Andheri Studio" }), project({ id: "p-c", code: "PRJ-C", name: "Zenith Labs" })]);
+    projectsApi.attention.mockResolvedValue([{ ...attentionItem, id: "z1", project_id: "p-c", project_code: "PRJ-C" }]);
+    setup();
+    await screen.findByTestId("workspace");
+    const order = () => within(screen.getByRole("navigation", { name: "Project list" }))
+      .getAllByText(/^(Zenith Labs|Andheri Studio|Marathon Neo)$/).map(node => node.textContent);
+    await waitFor(() => expect(order()[0]).toBe("Zenith Labs"));
+    chooseFilter(/^name/i);
+    expect(order()).toEqual(["Andheri Studio", "Marathon Neo", "Zenith Labs"]);
+  });
+
   it("opens straight into the first active project instead of an empty pane", async () => {
     setup();
     expect(await screen.findByTestId("workspace")).toHaveTextContent("p-active:overview");
@@ -67,12 +97,12 @@ describe("Projects split view", () => {
   it("filters to active projects by default and hides drafts behind a chip", async () => {
     setup();
     await screen.findByTestId("workspace");
-    expect(screen.getByText("Marathon Neo")).toBeInTheDocument();
-    expect(screen.queryByText("Lodha Amara")).not.toBeInTheDocument();
+    expect(list().getByText("Marathon Neo")).toBeInTheDocument();
+    expect(list().queryByText("Lodha Amara")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /^draft/i }));
-    expect(await screen.findByText("Lodha Amara")).toBeInTheDocument();
-    expect(screen.queryByText("Marathon Neo")).not.toBeInTheDocument();
+    chooseFilter(/^draft/i);
+    expect(await list().findByText("Lodha Amara")).toBeInTheDocument();
+    expect(list().queryByText("Marathon Neo")).not.toBeInTheDocument();
   });
 
   it("renders progress and relative activity from the summaries contract", async () => {
@@ -85,7 +115,7 @@ describe("Projects split view", () => {
   it("shows a setup meter rather than a progress bar for a draft", async () => {
     setup();
     await screen.findByTestId("workspace");
-    fireEvent.click(screen.getByRole("button", { name: /^draft/i }));
+    chooseFilter(/^draft/i);
     // The draft fixture has a PM and a template but no Supervisor and no
     // handover date.
     expect(await screen.findByText("2/4")).toBeInTheDocument();
@@ -100,7 +130,7 @@ describe("Projects split view", () => {
     // p-draft is not in the default Active filter; selecting it must widen
     // the filter so the highlighted row is actually on screen.
     await waitFor(() => expect(screen.getByTestId("workspace")).toHaveTextContent("p-draft:overview"));
-    expect(screen.getByText("Lodha Amara")).toBeInTheDocument();
+    expect(list().getByText("Lodha Amara")).toBeInTheDocument();
   });
 
   it("reflects the selected project and pane in the URL so the view is linkable", async () => {
@@ -120,7 +150,7 @@ describe("Projects split view", () => {
     projectsApi.attention.mockRejectedValue(new Error("Not Found"));
     setup();
     await screen.findByTestId("workspace");
-    expect(screen.getByText("Marathon Neo")).toBeInTheDocument();
+    expect(list().getByText("Marathon Neo")).toBeInTheDocument();
     expect(screen.queryByText("72%")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /needs attention/i })).not.toBeInTheDocument();
   });

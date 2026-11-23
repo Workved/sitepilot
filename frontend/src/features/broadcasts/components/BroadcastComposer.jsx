@@ -114,10 +114,10 @@ export function BroadcastComposer({ projects, templates, action, onCreated, onTe
   const includedCount = recipients.filter(item => !excludedKeys.has(item.key)).length;
   const selectedProject = projects.find(project => project.id === projectId);
 
-  return <section className={cn("grid gap-5", !embedded && "rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,.06)]")}>
+  return <section className={cn("grid gap-5", !embedded && "rounded-2xl border border-slate-200 bg-white p-5")}>
     <div className="flex flex-wrap items-center justify-between gap-3">
       {!embedded && <div>
-        <p className="text-xs font-black uppercase tracking-[.16em] text-blue-700">Create</p>
+        <p className="text-xs font-medium text-slate-500">Create</p>
         <h3 className="mt-1 text-lg font-black text-slate-950">New Broadcast</h3>
       </div>}
       <div className={cn("flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1", embedded && "ml-auto")}>
@@ -189,8 +189,8 @@ export function BroadcastComposer({ projects, templates, action, onCreated, onTe
           {form.meetingDate ? formatDateShort(form.meetingDate) : "No date set"}{form.meetingTime ? ` · ${form.meetingTime}` : ""}
           {form.locationOrLink ? ` · ${form.locationOrLink}` : ""}
         </p>
-        {form.agenda && <div><p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Agenda</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{form.agenda}</p></div>}
-        <div><p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Message</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{form.messageBody || "No message written yet."}</p></div>
+        {form.agenda && <div><p className="text-xs font-medium text-slate-500">Agenda</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{form.agenda}</p></div>}
+        <div><p className="text-xs font-medium text-slate-500">Message</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{form.messageBody || "No message written yet."}</p></div>
       </div>
     </Modal>}
 

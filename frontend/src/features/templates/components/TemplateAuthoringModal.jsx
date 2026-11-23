@@ -141,15 +141,15 @@ export function TemplateAuthoringModal({ mode, source, onClose, onSuccess }) {
         <div className="flex items-start gap-3 border-b border-slate-200 bg-slate-950 p-4 text-white sm:p-5">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-600"><Copy size={19}/></span>
           <div className="min-w-0">
-            <span className="text-[10px] font-black uppercase tracking-[.18em] text-blue-300">Source remains unchanged</span>
+            <span className="text-xs font-medium text-blue-300">Source remains unchanged</span>
             <h3 className="mt-1 truncate text-lg font-black">{source.template_name}</h3>
             <p className="mt-1 text-xs font-semibold text-slate-300">{source.template_code} · Version {source.version_no} · {source.status}</p>
           </div>
         </div>
         <div className="grid gap-3 p-4 text-sm text-slate-600 sm:grid-cols-3 sm:p-5">
-          <div><span className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Duration</span><strong className="mt-1 block text-slate-900">{source.duration_days} days</strong></div>
-          <div><span className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Tasks</span><strong className="mt-1 block text-slate-900">{source.task_count}</strong></div>
-          <div><span className="block text-[10px] font-black uppercase tracking-wider text-slate-400">New version</span><strong className="mt-1 block text-slate-900">Separate draft</strong></div>
+          <div><span className="block text-xs font-medium text-slate-500">Duration</span><strong className="mt-1 block text-slate-900">{source.duration_days} days</strong></div>
+          <div><span className="block text-xs font-medium text-slate-500">Tasks</span><strong className="mt-1 block text-slate-900">{source.task_count}</strong></div>
+          <div><span className="block text-xs font-medium text-slate-500">New version</span><strong className="mt-1 block text-slate-900">Separate draft</strong></div>
         </div>
       </section> : <section className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-blue-950">
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-700 text-white"><FilePlus2 size={19}/></span>

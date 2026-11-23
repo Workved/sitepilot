@@ -1,8 +1,8 @@
-import { ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { projectsApi } from "../../../api/projectsApi";
 import { Alert, Button, Field, Input, Select } from "../../../components/ui";
 import { isOrgAdmin } from "../../../utils/constants";
+import { PaneHeader } from "./PaneKit";
 
 const actionLabel = value => value.toLowerCase().replaceAll("_", " ").replace(/(^|\s)\S/g, match => match.toUpperCase());
 
@@ -15,6 +15,29 @@ const TRANSITIONS = {
   admin: ORG_ADMIN_TRANSITIONS,
   project_manager: { active: ["on_hold", "completed"], on_hold: ["completed"] },
 };
+
+// The lifecycle as a line of stages, so the reader sees where the project
+// is and what comes next before choosing a transition. On hold sits beside
+// Active rather than after it: it is a pause, not a step forward.
+const STAGES = [["draft", "Draft"], ["active", "Active"], ["completed", "Completed"], ["archived", "Archived"]];
+
+function LifecycleTrack({ status }) {
+  const currentIndex = status === "on_hold" ? 1 : STAGES.findIndex(([key]) => key === status);
+  return <ol className="flex flex-wrap items-center gap-y-3" aria-label="Lifecycle stages">
+    {STAGES.map(([key, label], index) => {
+      const done = index < currentIndex;
+      const current = index === currentIndex;
+      const name = current && status === "on_hold" ? "Active, on hold" : label;
+      return <li key={key} className="flex items-center" aria-current={current ? "step" : undefined}>
+        <span className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] ${current ? (status === "on_hold" ? "bg-orange-50 text-orange-900 ring-1 ring-orange-200" : "bg-slate-950 text-white") : done ? "text-slate-700" : "text-slate-400"}`}>
+          <span className={`size-2 rounded-full ${current ? (status === "on_hold" ? "bg-behind" : "bg-white") : done ? "bg-emerald-500" : "bg-slate-300"}`} aria-hidden="true"/>
+          {name}
+        </span>
+        {index < STAGES.length - 1 && <span className={`mx-1 h-px w-6 sm:w-10 ${done ? "bg-emerald-400" : "bg-slate-200"}`} aria-hidden="true"/>}
+      </li>;
+    })}
+  </ol>;
+}
 
 export function ProjectLifecyclePane({ project, user, onChanged, onDeleted }) {
   const transitions = TRANSITIONS[user.role]?.[project.status] || [];
@@ -94,38 +117,38 @@ export function ProjectLifecyclePane({ project, user, onChanged, onDeleted }) {
       : project.status === "completed"
         ? "This project is complete. Only an Admin can archive it from here."
         : "Your role cannot change this project's lifecycle state. Activating, archiving and deleting a project are Admin-only actions.";
-    return <p className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">{message}</p>;
+    return <div className="grid gap-5">
+      <PaneHeader title="Lifecycle" description="Every transition requires a reason and is retained in activity."/>
+      <section className="rounded-[20px] border border-line bg-white p-5"><LifecycleTrack status={project.status}/></section>
+      <p className="rounded-2xl border border-line bg-slate-50 px-4 py-3 text-sm text-slate-600">{message}</p>
+    </div>;
   }
 
   const activationBlocked = target === "active" && project.status === "draft" && !project.setup.activation_ready;
 
-  return <div className="grid gap-3">
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-      <div className="flex items-center gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700"><ShieldCheck size={18} aria-hidden="true"/></span>
-        <div>
-          <h3 className="text-sm font-black text-slate-950">Project lifecycle</h3>
-          <p className="text-xs text-slate-500">Every transition requires a reason and is retained in activity.</p>
-        </div>
-      </div>
+  return <div className="grid gap-5">
+    <PaneHeader title="Lifecycle" description="Every transition requires a reason and is retained in activity."/>
+    <section className="rounded-[20px] border border-line bg-white p-5"><LifecycleTrack status={project.status}/></section>
 
-      {error && <Alert tone="danger" className="mt-4">{error}</Alert>}
+    {error && <Alert tone="danger">{error}</Alert>}
 
-      {canRestore && <form onSubmit={restore} className="mt-4 grid gap-3">
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800">
-          This project is archived. Restoring returns it to the state it held before archiving — a project
-          that was active comes back <strong className="font-black">on hold</strong>, so work is never
-          silently resumed.
-        </p>
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-          <Field label="Reason for restoring">
-            <Input value={reason} onChange={event => setReason(event.target.value)} minLength={4} required placeholder="Why is this project being restored?"/>
-          </Field>
-          <Button type="submit" loading={busy} disabled={reason.trim().length < 4}>Restore project</Button>
-        </div>
-      </form>}
+    {canRestore && <section className="rounded-[20px] border border-line bg-white p-5">
+      <h4 className="text-[15px] font-medium text-slate-950">Restore project</h4>
+      <p className="mt-1 text-[13px] leading-5 text-slate-600">
+        Restoring returns it to the state it held before archiving. A project that was active comes back <strong className="font-medium">on hold</strong>, so work is never silently resumed.
+      </p>
+      <form onSubmit={restore} className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <Field label="Reason for restoring">
+          <Input value={reason} onChange={event => setReason(event.target.value)} minLength={4} required placeholder="Why is this project being restored?"/>
+        </Field>
+        <Button type="submit" loading={busy} disabled={reason.trim().length < 4}>Restore project</Button>
+      </form>
+    </section>}
 
-      {transitions.length > 0 && <form onSubmit={changeStatus} className="mt-4 grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)_auto] sm:items-end">
+    {transitions.length > 0 && <section className="rounded-[20px] border border-line bg-white p-5">
+      <h4 className="text-[15px] font-medium text-slate-950">Change status</h4>
+      <p className="mt-1 text-[13px] text-slate-500">Pick where the project goes next and say why.</p>
+      <form onSubmit={changeStatus} className="mt-4 grid gap-3 md:grid-cols-[200px_minmax(0,1fr)_auto] md:items-end">
         <Field label="Move project to">
           <Select value={target} onChange={event => setTarget(event.target.value)}>
             {transitions.map(value => <option key={value} value={value}>{actionLabel(value)}</option>)}
@@ -135,22 +158,22 @@ export function ProjectLifecyclePane({ project, user, onChanged, onDeleted }) {
           <Input value={reason} onChange={event => setReason(event.target.value)} minLength={4} required placeholder="Operational reason for this change"/>
         </Field>
         <Button type="submit" loading={busy} disabled={activationBlocked}>Confirm</Button>
-        {activationBlocked && <p className="text-xs font-bold text-amber-700 sm:col-span-3">
+        {activationBlocked && <p className="rounded-xl bg-orange-50 px-3 py-2 text-[13px] text-orange-900 md:col-span-3">
           Complete all four activation details first, and generate the task snapshot — activation also requires at least one included task.
         </p>}
-      </form>}
+      </form>
+    </section>}
 
-      {canDelete && <div className="mt-5 border-t border-slate-100 pt-5">
-        <h4 className="text-sm font-black text-rose-700">Delete unused draft</h4>
-        <p className="mt-1 text-xs leading-5 text-slate-500">
-          Only a draft with no team and no template can be permanently deleted. Type <strong>{project.code}</strong> and provide the reason.
-        </p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)_auto] sm:items-end">
-          <Field label="Project code"><Input value={confirmation} onChange={event => setConfirmation(event.target.value)} placeholder={project.code}/></Field>
-          <Field label="Deletion reason"><Input value={reason} onChange={event => setReason(event.target.value)} minLength={4} placeholder="Why is this draft being removed?"/></Field>
-          <Button variant="danger" disabled={confirmation !== project.code || reason.length < 4} loading={busy} onClick={removeDraft}>Delete draft</Button>
-        </div>
-      </div>}
-    </section>
+    {canDelete && <section className="rounded-[20px] border border-rose-100 bg-white p-5">
+      <h4 className="text-[15px] font-medium text-rose-700">Delete unused draft</h4>
+      <p className="mt-1 text-[13px] leading-5 text-slate-500">
+        Only a draft with no team and no template can be permanently deleted. Type <strong className="font-medium text-slate-800">{project.code}</strong> and provide the reason.
+      </p>
+      <div className="mt-4 grid gap-3 md:grid-cols-[200px_minmax(0,1fr)_auto] md:items-end">
+        <Field label="Project code"><Input value={confirmation} onChange={event => setConfirmation(event.target.value)} placeholder={project.code}/></Field>
+        <Field label="Deletion reason"><Input value={reason} onChange={event => setReason(event.target.value)} minLength={4} placeholder="Why is this draft being removed?"/></Field>
+        <Button variant="danger" disabled={confirmation !== project.code || reason.length < 4} loading={busy} onClick={removeDraft}>Delete draft</Button>
+      </div>
+    </section>}
   </div>;
 }

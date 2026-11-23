@@ -1,12 +1,107 @@
 @import "tailwindcss";
 
+/*
+ * SiteOps design tokens.
+ *
+ * The whole app is themed here rather than per component: Tailwind v4 reads
+ * these to generate every utility, so overriding the slate/blue scales, the
+ * font weights and the radii restyles all ~100 screens at once without
+ * touching feature code. Ink and greys are neutral (not blue-tinted slate),
+ * blue is the single accent, and weights are pulled down a step so the
+ * existing font-black/font-bold markup reads as the lighter Onest look.
+ */
 @theme {
-  --font-sans: "Aptos", "Segoe UI Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Bahnschrift", "Aptos Display", ui-sans-serif, system-ui, sans-serif;
-  --color-brand-50: #eff6ff;
-  --color-brand-600: #2563eb;
-  --color-brand-950: #071a33;
+  --font-sans: "Onest", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Onest", ui-sans-serif, system-ui, sans-serif;
+
+  --font-weight-semibold: 500;
+  --font-weight-bold: 500;
+  --font-weight-extrabold: 600;
+  --font-weight-black: 600;
+
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.75rem;
+
+  --color-slate-50: #f7f8f9;
+  --color-slate-100: #f1f2f4;
+  --color-slate-200: #e6e8ec;
+  --color-slate-300: #d3d7dd;
+  --color-slate-400: #7d838c;
+  --color-slate-500: #5f6670;
+  --color-slate-600: #4a5059;
+  --color-slate-700: #363b42;
+  --color-slate-800: #24282d;
+  --color-slate-900: #1a1d21;
+  --color-slate-950: #15171a;
+
+  --color-blue-50: #eef3fe;
+  --color-blue-100: #dce5fb;
+  --color-blue-200: #bfd0f8;
+  --color-blue-300: #93aff2;
+  --color-blue-400: #6189ea;
+  --color-blue-500: #3f6ce6;
+  --color-blue-600: #2f5fe0;
+  --color-blue-700: #244fcb;
+  --color-blue-800: #1f43a8;
+  --color-blue-900: #1e3a85;
+  --color-blue-950: #152451;
+
+  --color-brand-50: #eef3fe;
+  --color-brand-600: #2f5fe0;
+  --color-brand-950: #15171a;
+
+  /* Named roles used by the shell and the Overview dashboard. */
+  --color-canvas: #eceef1;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f7f8f9;
+  --color-line: #eceef1;
+  --color-ink: #15171a;
+  --color-ink-muted: #5f6670;
+  --color-behind: #ee8a3c;
+  --color-behind-soft: #fbd9bd;
+  --color-gate: #8b7cf6;
+  --color-ok: #2f9e5b;
 }
+
+html { background: var(--color-canvas); }
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1, "cv11" 1;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: #dce5fb; }
+:focus-visible { outline-color: #2f5fe0; }
+
+/* Thin, quiet scrollbars for the many horizontally scrolling rails. */
+.so-scroll { scrollbar-width: thin; scrollbar-color: #d3d7dd transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+/* Overview dashboard: chart and today panel on top, health spanning down
+   the left, open work beside it, and the project rail under both. */
+.ov-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, .86fr); }
+.ov-chart { grid-column: 1 / 3; grid-row: 1; }
+.ov-today { grid-column: 3; grid-row: 1 / 3; }
+.ov-health { grid-column: 1; grid-row: 2 / 4; }
+.ov-open { grid-column: 2; grid-row: 2; }
+.ov-projects { grid-column: 2 / 4; grid-row: 3; }
+@media (max-width: 1279px) {
+  .ov-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ov-chart, .ov-today, .ov-projects { grid-column: 1 / 3; grid-row: auto; }
+  .ov-health { grid-column: 1; grid-row: auto; }
+  .ov-open { grid-column: 2; grid-row: auto; }
+}
+@media (max-width: 767px) {
+  .ov-grid { grid-template-columns: minmax(0, 1fr); }
+  .ov-chart, .ov-today, .ov-health, .ov-open, .ov-projects { grid-column: 1; grid-row: auto; }
+}
+
 /* SVAR Gantt (calendar): weekend and today shading, key-date milestones. */
 .siteops-gantt .wx-weekend { background: #f8fafc; }
 .siteops-gantt .siteops-today { background: #ffe4e6; }

@@ -8,7 +8,7 @@ import { DashboardTab } from "./DashboardTab";
 export function Dashboard({ initialUser, onLogout }) {
   const [data, setData] = useState(null);
   const [route, setRoute] = useRoute();
-  const tab = route.tab || "projects";
+  const tab = route.tab || "overview";
   const [notice, setNotice] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -19,8 +19,8 @@ export function Dashboard({ initialUser, onLogout }) {
     setRoute({ tab: next, project: "", pane: "" });
   }
 
-  function openProject(code) {
-    setRoute({ tab: "projects", project: code, pane: "overview" });
+  function openProject(code, pane = "overview") {
+    setRoute({ tab: "projects", project: code, pane });
   }
 
   async function refresh() {
@@ -79,7 +79,7 @@ export function Dashboard({ initialUser, onLogout }) {
       notice={notice}
       onClearNotice={() => setNotice(null)}
     >
-      <DashboardTab tab={tab} loading={loading} data={data} user={user} action={action} onOpenProject={openProject} onRefresh={refresh} />
+      <DashboardTab tab={tab} loading={loading} data={data} user={user} tabs={tabs} action={action} onOpenProject={openProject} onTabChange={changeTab} onRefresh={refresh} />
     </AppLayout>
   );
 }

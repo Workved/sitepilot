@@ -58,7 +58,7 @@ export function VendorsPage({ data, action }) {
               <col className="w-[8%]" />
             </colgroup>
             <thead>
-              <tr className="data-row border-b border-slate-100 [&>td]:px-5 [&>td]:py-4 [&>td>small]:mt-1 [&>td>small]:block [&>td>small]:text-xs [&>td>small]:text-slate-500 table-head bg-slate-50 text-xs uppercase tracking-wider text-slate-500 [&>th]:px-5 [&>th]:py-4">
+              <tr className="data-row border-b border-slate-100 [&>td]:px-5 [&>td]:py-4 [&>td>small]:mt-1 [&>td>small]:block [&>td>small]:text-xs [&>td>small]:text-slate-500 table-head bg-slate-50 text-xs text-slate-500 [&>th]:px-5 [&>th]:py-4">
                 <th scope="col">Vendor</th>
                 <th scope="col">Category</th>
                 <th scope="col">Contact Person</th>

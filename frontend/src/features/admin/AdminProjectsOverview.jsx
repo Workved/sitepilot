@@ -73,7 +73,7 @@ function StatTile({ icon, tone, label, value, hint, className }) {
     <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/70">{icon}</span>
     <div className="min-w-0">
       <p className="text-xs font-bold text-slate-500">{label}</p>
-      <p className="text-2xl font-black leading-tight text-slate-950">{value}</p>
+      <p className="text-2xl font-normal leading-tight text-slate-950">{value}</p>
       {hint && <p className="text-[11px] font-semibold text-slate-500">{hint}</p>}
     </div>
   </div>;
@@ -81,10 +81,10 @@ function StatTile({ icon, tone, label, value, hint, className }) {
 
 function ProjectRow({ project, dense, onOpen }) {
   const health = HEALTH_META[project.health] || HEALTH_META.draft;
-  return <article className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(15,23,42,.08)]">
+  return <article className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-200">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0">
-        <span className="text-[10px] font-black uppercase tracking-[.16em] text-blue-700">{project.code}</span>
+        <span className="text-xs font-medium text-slate-500">{project.code}</span>
         <h3 className="mt-0.5 truncate font-black text-slate-950">{project.name}</h3>
         <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">
           {project.pm_name ? `PM: ${project.pm_name}` : "PM: Unassigned"} &bull; Site: {project.site}
@@ -111,7 +111,7 @@ function ProjectRow({ project, dense, onOpen }) {
 
     {!dense && <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
       {COUNT_TILES.map(([key, label, tone]) => <div key={key} className={cn("rounded-xl border p-2 text-center", TILE_TONE_CLASSES[project[key] > 0 ? tone : "slate"])}>
-        <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</p>
+        <p className="text-xs font-medium text-slate-500">{label}</p>
         <p className="text-lg font-black text-slate-950">{project[key]}</p>
       </div>)}
     </div>}
@@ -211,11 +211,11 @@ export function AdminProjectsOverview({ onOpenProject }) {
     <div className="grid min-w-0 gap-6">
       {error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div>}
 
-      <section ref={listTopRef} className="grid gap-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_12px_40px_rgba(15,23,42,.06)]">
+      <section ref={listTopRef} className="grid gap-5 rounded-2xl border border-slate-200 bg-white p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[.18em] text-blue-700">Portfolio</p>
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Portfolio Rollup</h2>
+            <p className="text-xs font-medium text-slate-500">Portfolio</p>
+            <h2 className="mt-2 text-3xl font-normal tracking-tight text-slate-950">Portfolio Rollup</h2>
             <span className="mt-2 block text-sm text-slate-500">Cross-project performance, status, and activity overview</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -289,7 +289,7 @@ export function AdminProjectsOverview({ onOpenProject }) {
     </div>
 
     <div className="grid min-w-0 gap-6">
-      <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,.06)]">
+      <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-5">
         <div className="flex items-center justify-between">
           <h3 className="flex items-center gap-2 text-sm font-black text-slate-950">Attention Needed
             {summary.flagged > 0 && <span className="grid min-w-5 place-items-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-black text-white">{summary.flagged}</span>}
@@ -316,7 +316,7 @@ export function AdminProjectsOverview({ onOpenProject }) {
         </div>
       </section>
 
-      <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,.06)]">
+      <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-5">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-black text-slate-950">Recent Activity</h3>
         </div>

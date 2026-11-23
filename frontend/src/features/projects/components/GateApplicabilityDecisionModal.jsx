@@ -84,14 +84,14 @@ export function GateApplicabilityControls({ projectId, gate, onDecided, canDecid
 
     {decision && <Modal title={decision === "not_applicable" ? "Mark gate Not Applicable" : "Mark gate Applicable"} subtitle={`${gate.code} - ${gate.approval_name}`} onClose={() => { if (!submitting) setDecision(null); }} className="sm:max-w-xl">
       <form className="grid gap-5" onSubmit={submit}>
-        <div className={`rounded-2xl border p-4 ${decision === "not_applicable" ? "border-rose-200 bg-rose-50" : "border-emerald-200 bg-emerald-50"}`}>
-          <p className={`text-sm font-black ${decision === "not_applicable" ? "text-rose-950" : "text-emerald-950"}`}>{decision === "not_applicable" ? "This gate will be retained but excluded from the project requirement set." : "This gate will remain part of the project requirement set."}</p>
+        <div className={`rounded-2xl border p-4 ${decision === "not_applicable" ? "border-rose-100 bg-rose-50" : "border-emerald-100 bg-emerald-50"}`}>
+          <p className={`text-sm ${decision === "not_applicable" ? "text-rose-950" : "text-emerald-950"}`}>{decision === "not_applicable" ? "This gate will be retained but excluded from the project requirement set." : "This gate will remain part of the project requirement set."}</p>
           <p className="mt-1 text-xs leading-5 text-slate-600">The decision is project-specific, append-only in history, and does not change the source template.</p>
         </div>
         <Field label={decision === "not_applicable" ? "Reason (required)" : "Reason (optional)"} htmlFor="gate-decision-reason">
           <Textarea id="gate-decision-reason" value={reason} onChange={event => setReason(event.target.value)} maxLength={2000} placeholder={decision === "not_applicable" ? "Explain why this gate does not apply" : "Optional confirmation note"}/>
         </Field>
-        {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
+        {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>}
         <div className="grid gap-2 sm:grid-cols-2">
           <Button variant="secondary" disabled={submitting} onClick={() => setDecision(null)}>Cancel</Button>
           <Button type="submit" variant={decision === "not_applicable" ? "danger" : "primary"} loading={submitting}>{decision === "not_applicable" ? "Confirm Not Applicable" : "Confirm Applicable"}</Button>
@@ -101,9 +101,9 @@ export function GateApplicabilityControls({ projectId, gate, onDecided, canDecid
 
     {historyOpen && <Modal title="Gate applicability history" subtitle={`${gate.code} - ${gate.approval_name}`} onClose={() => setHistoryOpen(false)} className="sm:max-w-xl">
       {historyLoading ? <div className="grid min-h-48 place-items-center"><LoadingSpinner label="Loading gate history..."/></div>
-        : historyError ? <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">{historyError}</div>
-        : history.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center"><History className="mx-auto text-slate-400" size={22}/><p className="mt-3 font-black text-slate-900">No decisions recorded</p><p className="mt-1 text-sm text-slate-500">This gate is still Pending Review.</p></div>
-        : <ol className="grid gap-3">{history.map(item => <li key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-2"><Pill tone={tone(item.decision)}>{label(item.decision)}</Pill><span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500"><Clock3 size={13}/>{formatTime(item.decided_at)}</span></div><p className="mt-3 text-sm leading-6 text-slate-700">{item.reason}</p><p className="mt-2 text-xs font-bold text-slate-500">By {item.actor_name}</p></li>)}</ol>}
+        : historyError ? <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{historyError}</div>
+        : history.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center"><History className="mx-auto text-slate-400" size={22}/><p className="mt-3 font-medium text-slate-900">No decisions recorded</p><p className="mt-1 text-sm text-slate-500">This gate is still Pending Review.</p></div>
+        : <ol className="grid gap-3">{history.map(item => <li key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-2"><Pill tone={tone(item.decision)}>{label(item.decision)}</Pill><span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500"><Clock3 size={13}/>{formatTime(item.decided_at)}</span></div><p className="mt-3 text-sm leading-6 text-slate-700">{item.reason}</p><p className="mt-2 text-xs font-bold text-slate-500">By {item.actor_name}</p></li>)}</ol>}
     </Modal>}
   </>;
 }
