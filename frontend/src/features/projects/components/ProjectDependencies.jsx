@@ -1,5 +1,5 @@
 import { AlertTriangle, ArrowRight, Check, GitBranch, Plus, RotateCcw, Search } from "lucide-react";
-import { PaneHeader, PaneLoading } from "./PaneKit";
+import { PaneHeader, PaneLoading } from "../../../components/layout/PaneKit";
 import { useEffect, useRef, useState } from "react";
 import { projectsApi } from "../../../api/projectsApi";
 import { Button, EmptyState, Pill } from "../../../components/ui";

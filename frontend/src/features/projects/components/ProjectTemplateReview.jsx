@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, EmptyState, Input, LoadingSpinner, Pill, Select } from "../../../components/ui";
 import { projectsApi } from "../../../api/projectsApi";
 import { TaskApplicabilityControls } from "./TaskApplicabilityDecisionModal";
-import { PaneHeader, StatStrip } from "./PaneKit";
+import { PaneHeader, StatStrip } from "../../../components/layout/PaneKit";
 import { ProjectManualTaskModal } from "./ProjectManualTaskModal";
 import { canAddTasks, canAddToTemplate } from "./TaskScope";
 import { ProjectTaskClassification } from "./ProjectTaskClassification";

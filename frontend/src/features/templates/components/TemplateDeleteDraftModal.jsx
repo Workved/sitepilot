@@ -38,7 +38,7 @@ export function TemplateDeleteDraftModal({ version, onClose, onSuccess }) {
 
   return <div role="dialog" aria-modal="true" aria-labelledby="delete-draft-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4">
     <form onSubmit={submit} className="w-full max-w-xl rounded-[24px] bg-white p-5 shadow-2xl sm:p-6">
-      <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-rose-100 text-rose-700"><Trash2 size={19}/></span><div><h2 id="delete-draft-title" className="text-xl font-black text-slate-950">Delete unused draft</h2><p className="mt-1 text-sm text-slate-600">Version {version.version_no} and its draft tasks, dependencies and gates will be permanently removed.</p></div></div>
+      <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-rose-100 text-rose-700"><Trash2 size={19}/></span><div><h2 id="delete-draft-title" className="text-xl font-medium text-slate-950">Delete unused draft</h2><p className="mt-1 text-sm text-slate-600">Version {version.version_no} and its draft tasks, dependencies and gates will be permanently removed.</p></div></div>
       <Alert tone="danger" className="mt-5"><AlertTriangle size={18}/><div><strong>This cannot be undone.</strong><span className="mt-1 block font-medium">Published and archived versions cannot be deleted through this action.</span></div></Alert>
       <div className="mt-5 grid gap-4">
         <label className="grid gap-2 text-sm font-bold text-slate-700">Deletion reason<Input aria-label="Draft deletion reason" value={reason} onChange={event => setReason(event.target.value)} placeholder="Example: Remove test draft created during validation" required/></label>

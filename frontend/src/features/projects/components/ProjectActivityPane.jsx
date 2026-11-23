@@ -1,6 +1,6 @@
 import { Activity } from "lucide-react";
 import { EmptyState } from "../../../components/ui";
-import { PaneHeader } from "./PaneKit";
+import { PaneHeader } from "../../../components/layout/PaneKit";
 
 const actionLabel = value => value.toLowerCase().replaceAll("_", " ").replace(/^\S/, match => match.toUpperCase());
 const dayKey = value => new Date(value).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, UserX } from "lucide-react";
 import { projectsApi } from "../../../api/projectsApi";
 import { Alert, EmptyState, LoadingSpinner } from "../../../components/ui";
-import { PaneCard, PaneHeader, StatStrip } from "./PaneKit";
+import { PaneCard, PaneHeader, StatStrip } from "../../../components/layout/PaneKit";
 
 // Phase 3 U2: read-only summary view over U1's ProjectVisibilityService.
 // Renders whatever the dashboard endpoint returns - it does not derive any

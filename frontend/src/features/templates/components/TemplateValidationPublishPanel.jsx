@@ -46,7 +46,7 @@ function PublishModal({ initialNote, busy, error, onClose, onPublish }) {
 function IssueList({ title, tone, issues, subjectOf, onFix }) {
   if (!issues.length) return null;
   return <section role="region" aria-label={title} className="grid gap-2">
-    <h3 className={`text-sm font-black ${tone === "red" ? "text-rose-800" : "text-amber-800"}`}>{title}</h3>
+    <h3 className={`text-sm font-medium ${tone === "red" ? "text-rose-800" : "text-amber-800"}`}>{title}</h3>
     {issues.map((issue, index) => {
       const { problem, why } = issueCopy(issue);
       const subject = subjectOf(issue);
@@ -150,7 +150,7 @@ export function TemplateValidationPublishPanel({ summary, active, tasks = [], ga
 
     {publishError && !publishOpen && <Alert tone="danger" role="alert" className="items-center"><AlertCircle size={18}/><div className="flex-1"><strong>{publishState === "stale" ? "The draft changed" : "Not published"}</strong><span className="mt-1 block">{responseMessage(publishError)}</span></div><Button size="sm" variant="secondary" onClick={onRefresh}>Refresh draft</Button></Alert>}
 
-    <footer className="rounded-2xl border border-slate-200 bg-white p-4">
+    <footer className="rounded-[20px] border border-line bg-white p-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><strong className="text-sm text-slate-950">Publish</strong><p className="mt-1 text-xs font-semibold text-slate-500">Available once there is nothing left to fix.</p></div><Button className="w-full sm:w-auto" disabled={!canPublish} onClick={() => { setPublishError(null); setPublishOpen(true); }}><Rocket size={16}/> Publish</Button></div>
     </footer>
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { projectsApi } from "../../../api/projectsApi";
 import { Button, Field, Input, Modal, Select } from "../../../components/ui";
 import { initials } from "../../../utils/format";
-import { PaneHeader } from "./PaneKit";
+import { PaneHeader } from "../../../components/layout/PaneKit";
 import { PendingRoleChangesPanel } from "./PendingRoleChangesPanel";
 import { ProjectTeamReplaceModal } from "./ProjectTeamReplaceModal";
 

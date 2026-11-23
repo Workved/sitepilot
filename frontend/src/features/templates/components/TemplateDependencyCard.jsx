@@ -19,7 +19,7 @@ export function dependencyTaskMeta(task) {
 export function DependencyTaskLink({ task, onFocusTask }) {
   if (!task) return <span className="font-bold text-rose-700">Missing task</span>;
   return <button type="button" className="group min-w-0 text-left" onClick={() => onFocusTask?.(task.code)} title={`Open ${task.code} in Tasks`}>
-    <span className="font-mono text-[11px] font-black tracking-[.1em] text-blue-700 underline-offset-4 group-hover:underline">{task.code}</span>
+    <span className="tabular-nums text-xs font-medium text-slate-600 underline-offset-4 group-hover:underline">{task.code}</span>
     <strong className="mt-1 block text-sm leading-5 text-slate-950">{task.title || "Untitled task"}</strong>
     <span className="mt-1 block text-xs font-semibold text-slate-500">{dependencyTaskMeta(task)}</span>
   </button>;
@@ -29,7 +29,7 @@ export function TemplateDependencyCard({ dependency, onFocusTask }) {
   const invalid = dependency.validation_state === "invalid";
   return <article data-testid={`dependency-card-${dependency.id}`} className={`rounded-2xl border bg-white p-4 ${invalid ? "border-amber-300" : "border-slate-200"}`}>
     <div className="flex items-center justify-between gap-3">
-      <span className="inline-flex items-center gap-2 text-xs font-medium text-slate-500"><GitBranch size={15} className="text-cyan-700"/> Link {dependency.sequence_no}</span>
+      <span className="inline-flex items-center gap-2 text-xs font-medium text-slate-500"><GitBranch size={15} className="text-slate-500"/> Link {dependency.sequence_no}</span>
       <Pill tone={invalid ? "orange" : "green"}>{invalid ? "Review" : "Valid"}</Pill>
     </div>
     <div className="mt-4 grid grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)] items-center gap-2">
