@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import SessionLocal
-from app.routes import admin_visibility_v2, auth, broadcasts, channel_toggle, communication, dashboard, execution_tasks_v2, permissions, project_dashboard_v2, project_task_references_v2, project_read_models_v2, project_vendors_v2, projects_v2, reports_v2, telegram_connect_codes, telegram_webhook, templates_v2, users, vendors, dependencies_v2, whatsapp_webhook_v2
+from app.routes import admin_visibility_v2, auth, broadcasts, communication, dashboard, execution_tasks_v2, permissions, project_dashboard_v2, project_task_references_v2, project_read_models_v2, project_vendors_v2, projects_v2, reports_v2, templates_v2, users, vendors, dependencies_v2, whatsapp_webhook_v2
 from app.seed import ensure_seed_data
 from app.services.daily_task_prompts_scheduler import start_daily_task_prompts_scheduler, stop_daily_task_prompts_scheduler
 from app.services.evidence_retention_scheduler import start_retention_scheduler, stop_retention_scheduler
@@ -76,9 +76,6 @@ def create_app() -> FastAPI:
     app.include_router(project_vendors_v2.router)
     app.include_router(project_vendors_v2.vendors_router)
     app.include_router(whatsapp_webhook_v2.router)
-    app.include_router(telegram_webhook.router)
-    app.include_router(telegram_connect_codes.router)
-    app.include_router(channel_toggle.router)
     app.include_router(dependencies_v2.router)
     app.include_router(templates_v2.router)
     app.include_router(broadcasts.router)

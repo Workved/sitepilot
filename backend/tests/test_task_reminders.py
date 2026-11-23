@@ -1,31 +1,49 @@
-"""Telegram T3-T5 and T7: scheduled task reminders on Asia/Kolkata time
-(app/services/task_reminders.py), who receives them (message_dispatch.py),
-their buttons (telegram_task_render.py), and the readiness / Report Delay
-button flows (telegram_task_callback.py).
+"""Scheduled task reminders on Asia/Kolkata time
+(app/services/task_reminders.py) and who receives them (message_dispatch.py).
 """
 
 from __future__ import annotations
 
+import unittest
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import create_engine, event, select
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.execution_models import (
+    FileObject,
+    InboundMessage,
     OutboxEvent,
+    ProjectExternalApproval,
+    ProjectExternalApprovalTask,
     Task,
+    TaskApprovalDecision,
     TaskBlocker,
     TaskDelayEvent,
+    TaskDependency,
+    TaskEvidence,
+    TaskProgressUpdate,
     TaskReadinessDeclaration,
     TaskReminderLog,
+    TaskSupportAssignment,
+    TaskVerification,
 )
+from app.models import EmployeeProfile, User, UserRole
+from app.project_models import V2AuditEvent, V2Project, V2ProjectExternalGate, V2ProjectMembership
 from app.services.message_dispatch import MessageDispatchService
 from app.services.task_reminders import IST, TaskReminderService
-from app.services.telegram_callback import TelegramCallbackService
-from app.services.telegram_message import task_callback
-from app.services.telegram_render import render_telegram
-from app.vendor_models import TaskVendorAssignment
-from tests.test_telegram_task_callback import EMPLOYEE_CHAT, TaskButtonHarness
+from app.template_models import V2TemplateVersion  # noqa: F401 - FK target for V2Project
+from app.vendor_models import TaskVendorAssignment, V2VendorContact
+
+
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(_type, _compiler, **_kw):
+    return "JSON"
+
 
 TODAY = date(2026, 9, 28)
 
@@ -34,14 +52,89 @@ def ist(hour: int, minute: int = 0, day: date = TODAY) -> datetime:
     return datetime(day.year, day.month, day.day, hour, minute, tzinfo=IST)
 
 
-class ReminderHarness(TaskButtonHarness):
+class ReminderHarness(unittest.TestCase):
     def setUp(self):
-        super().setUp()
+        self.engine = create_engine(
+            "sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool,
+        )
+
+        @event.listens_for(self.engine, "connect")
+        def attach_schema(dbapi_connection, _connection_record):
+            dbapi_connection.execute("ATTACH DATABASE ':memory:' AS siteops_v2")
+            dbapi_connection.create_function("btrim", 1, lambda value: value.strip() if value is not None else None)
+
         for table in (
-            TaskReminderLog.__table__, TaskReadinessDeclaration.__table__, TaskDelayEvent.__table__,
-            TaskVendorAssignment.__table__,
+            User.__table__, EmployeeProfile.__table__, V2Project.__table__, V2ProjectMembership.__table__,
+            V2ProjectExternalGate.__table__, ProjectExternalApproval.__table__, ProjectExternalApprovalTask.__table__,
+            Task.__table__, TaskDependency.__table__, TaskSupportAssignment.__table__, TaskVerification.__table__,
+            TaskApprovalDecision.__table__, V2AuditEvent.__table__, OutboxEvent.__table__, InboundMessage.__table__,
+            V2VendorContact.__table__, TaskProgressUpdate.__table__, TaskEvidence.__table__, FileObject.__table__,
+            TaskBlocker.__table__, TaskReminderLog.__table__, TaskReadinessDeclaration.__table__,
+            TaskDelayEvent.__table__, TaskVendorAssignment.__table__,
         ):
             table.create(self.engine)
+        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        self.session = self.Session()
+
+        with self.session.begin():
+            self.admin = self._person("Niddhi", UserRole.admin)
+            self.supervisor = self._person("Deepak", UserRole.supervisor)
+            self.employee = self._person("Rohan", UserRole.internal_employee)
+            self.pm = self._person("Prachit", UserRole.project_manager)
+
+            self.project = self._project("PRJ-A")
+            self.other_project = self._project("PRJ-B")
+            self._member(self.project, self.supervisor, "site_supervisor")
+            self._member(self.project, self.pm, "project_manager")
+            self._member(self.other_project, self.supervisor, "site_supervisor")
+            self._member(self.project, self.employee, "internal_employee")
+
+            yesterday = date.today() - timedelta(days=1)
+            self.task = self._task(self.project, "T001", "planned", yesterday)
+            self.session.add(TaskSupportAssignment(
+                task_id=self.task.id, project_id=self.project.id, employee_id=self.employee[1].id,
+                responsibility="Execution", assigned_by=self.supervisor[0].id,
+            ))
+
+    def tearDown(self):
+        self.session.close()
+
+    def _person(self, name, role):
+        user = User(
+            id=uuid.uuid4(), name=name, email=f"{name.lower()}@example.com", phone="+919000000000",
+            role=role, active=True,
+        )
+        self.session.add(user)
+        self.session.flush()
+        profile = EmployeeProfile(user_id=user.id, employee_code=f"E-{name}", designation=name, availability="available")
+        self.session.add(profile)
+        self.session.flush()
+        return user, profile
+
+    def _project(self, code):
+        project = V2Project(
+            code=code, name=code, client_name="Client", site_address="Site", start_date=date(2026, 9, 1),
+            status="active", created_by=self.admin[0].id,
+        )
+        self.session.add(project)
+        self.session.flush()
+        return project
+
+    def _member(self, project, person, role):
+        self.session.add(V2ProjectMembership(
+            project_id=project.id, employee_id=person[1].id, project_role=role, assigned_by=self.admin[0].id,
+            assignment_reason="seed",
+        ))
+
+    def _task(self, project, code, status, planned_start):
+        task = Task(
+            project_id=project.id, baseline_id=uuid.uuid4(), baseline_task_id=uuid.uuid4(), original_code=code,
+            template_sequence=1, title=f"Task {code}", schedule_classification="execution", applicability="mandatory",
+            task_kind="work", lifecycle_status=status, planned_start_date=planned_start,
+        )
+        self.session.add(task)
+        self.session.flush()
+        return task
 
     def make_task(self, code, status="planned", start=None, end=None, project=None, **extra) -> Task:
         with self.session.begin():
@@ -169,121 +262,3 @@ class ReminderAudienceTests(ReminderHarness):
         self.assertEqual(
             self.recipients("task.start_check"), {self.employee[1].id, self.supervisor[1].id, self.pm[1].id},
         )
-
-
-class ReminderMessageTests(ReminderHarness):
-    def render(self, event_type: str, recipient, status: str | None = None, **payload):
-        self.session.commit()
-        if status:
-            self.set_status(self.task, status)
-        body = {"task_id": str(self.task.id), "project_id": str(self.project.id), "lifecycle_status": status or "planned", **payload}
-        return render_telegram(self.session, event_type, body, recipient[1].id)
-
-    def buttons(self, message) -> list[str]:
-        return [b["text"] for row in message.button_rows() for b in row]
-
-    def test_prestart_warning_offers_report_blocker(self):
-        message = self.render("task.prestart_warning", self.employee)
-        self.assertIn("Task Starts Tomorrow", message.text)
-        self.assertEqual(self.buttons(message), ["Report Blocker"])
-
-    def test_readiness_check_offers_ready_need_help_issue(self):
-        message = self.render("task.readiness_check", self.employee)
-        self.assertIn("Can This Task Start Tomorrow?", message.text)
-        self.assertEqual(self.buttons(message), ["Ready", "Need Help", "Issue"])
-
-    def test_start_check_offers_the_next_lifecycle_step(self):
-        message = self.render("task.start_check", self.employee, status="ready")
-        self.assertIn("Task Starts Today", message.text)
-        self.assertEqual(self.buttons(message)[0], "Start Task")
-
-    def test_midday_and_eod_offer_progress_and_submit_to_the_executor(self):
-        midday = self.render("task.midday_check", self.employee, status="in_progress")
-        self.assertEqual(self.buttons(midday), ["Add Progress", "Submit for Review", "Report Blocker"])
-        eod = self.render("task.eod_check", self.employee, status="in_progress")
-        self.assertEqual(self.buttons(eod), ["Add Progress", "Submit for Review", "Report Delay", "Report Blocker"])
-
-    def test_overdue_offers_submit_now_and_report_delay(self):
-        message = self.render("task.sla_overdue", self.employee, status="in_progress", planned_end_date="2026-09-27")
-        self.assertIn("Task Overdue", message.text)
-        self.assertEqual(self.buttons(message), ["Add Progress", "Submit Now", "Report Delay"])
-
-    def test_escalation_names_the_assignee_and_links_to_the_web_app(self):
-        message = self.render("task.sla_escalated", self.pm, status="in_progress", planned_end_date="2026-09-27")
-        self.assertIn("Escalation: Task Overdue", message.text)
-        self.assertIn("Assigned to: Rohan", message.text)
-        self.assertIn("Last progress: None logged", message.text)
-        self.assertEqual(message.button_rows(), [])
-
-
-class ReadinessAndDelayButtonTests(ReminderHarness):
-    def text(self, body: str):
-        self.update_id += 1
-        return TelegramCallbackService(self.session).handle_text(
-            update_id=self.update_id, chat_id=EMPLOYEE_CHAT, text=body, chat_type="private",
-        )
-
-    def declarations(self) -> list[TaskReadinessDeclaration]:
-        self.session.expire_all()
-        return list(self.session.scalars(select(TaskReadinessDeclaration)))
-
-    def delays(self) -> list[TaskDelayEvent]:
-        self.session.expire_all()
-        return list(self.session.scalars(select(TaskDelayEvent)))
-
-    def test_ready_records_a_declaration_without_changing_the_status(self):
-        self.assertTrue(self.press(EMPLOYEE_CHAT, task_callback("yr", self.task.id)))
-        [declaration] = self.declarations()
-        self.assertEqual((declaration.status, declaration.note), ("ready", None))
-        self.assertEqual(self.status(self.task), "planned")
-        self.assertIn("Readiness Recorded: Ready", self.last_reply())
-
-    def test_issue_asks_for_a_note_then_records_it(self):
-        self.press(EMPLOYEE_CHAT, task_callback("yi", self.task.id))
-        self.assertIn("What is missing", self.last_reply())
-        self.assertEqual(self.declarations(), [])
-        self.assertEqual(self.text("No power on site"), (True, True))
-        [declaration] = self.declarations()
-        self.assertEqual((declaration.status, declaration.note), ("issue", "No power on site"))
-        self.assertIn("Your Supervisor and PM have been told", self.last_reply())
-
-    def test_cancelling_the_note_records_nothing(self):
-        self.press(EMPLOYEE_CHAT, task_callback("yh", self.task.id))
-        self.press(EMPLOYEE_CHAT, task_callback("yc", self.task.id))
-        self.assertIn("Readiness not recorded", self.last_reply())
-        self.assertEqual(self.text("late note"), (False, False))
-        self.assertEqual(self.declarations(), [])
-
-    def test_report_delay_asks_cause_days_and_reason_then_records_it(self):
-        self.set_status(self.task, "in_progress")
-        self.press(EMPLOYEE_CHAT, task_callback("dl", self.task.id))
-        causes = [b["text"] for row in self.calls("sendMessage")[-1]["reply_markup"]["inline_keyboard"] for b in row]
-        self.assertEqual(causes, ["Client", "Approval", "Design", "Site Readiness", "Internal", "Other", "Cancel"])
-        self.assertNotIn("Vendor", causes)
-
-        self.press(EMPLOYEE_CHAT, task_callback("dt", self.task.id, "client"))
-        self.assertIn("By how many days", self.last_reply())
-        self.assertEqual(self.text("two"), (True, False))
-        self.assertIn("That wasn't a number of days", self.last_reply())
-        self.assertEqual(self.text("2"), (True, False))
-        self.assertIn("What is the reason", self.last_reply())
-        self.assertEqual(self.text("Client has not approved the drawings"), (True, True))
-
-        [delay] = self.delays()
-        self.assertEqual(
-            (delay.responsibility_type, delay.impact_days, delay.reason),
-            ("client", 2, "Client has not approved the drawings"),
-        )
-        self.assertIn("Delay Recorded", self.last_reply())
-        self.assertEqual(self.status(self.task), "in_progress")
-
-    def test_vendor_cause_is_refused_even_if_sent_directly(self):
-        self.press(EMPLOYEE_CHAT, task_callback("dt", self.task.id, "vendor"))
-        self.assertIn("no longer available", self.last_reply())
-
-    def test_cancelling_a_delay_records_nothing(self):
-        self.press(EMPLOYEE_CHAT, task_callback("dt", self.task.id, "design"))
-        self.press(EMPLOYEE_CHAT, task_callback("dc", self.task.id))
-        self.assertIn("Delay report cancelled", self.last_reply())
-        self.assertEqual(self.text("3"), (False, False))
-        self.assertEqual(self.delays(), [])

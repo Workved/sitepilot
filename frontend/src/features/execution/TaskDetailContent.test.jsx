@@ -191,10 +191,10 @@ describe("TaskDetailContent - Action Forms tab", () => {
     });
   });
 
-  // Telegram task plan U2: the backend counts only updates no decision has
+  // The backend counts only updates no decision has
   // covered yet (`reviewed_at` null), for work AND approval-gate tasks. The
   // board must refuse the same submissions before any request is sent.
-  // Telegram task plan U12: Resolve follows the backend's resolver rule.
+  // Resolve follows the backend's resolver rule.
   describe("blocker Resolve visibility", () => {
     const withOpenBlocker = { ...detail, lifecycle_status: "in_progress", blockers: [
       { id: "b1", task_id: "t1", project_id: "p1", type: "Material", description: "Tiles not delivered", resolved_at: null },

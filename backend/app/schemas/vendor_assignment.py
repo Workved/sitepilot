@@ -178,7 +178,7 @@ class VendorAcknowledgementIn(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     response: Literal["accepted", "declined", "clarification_requested"]
-    channel: Literal["portal", "whatsapp", "telegram", "system"] = "portal"
+    channel: Literal["portal", "whatsapp", "system"] = "portal"
     note: str | None = Field(default=None, max_length=2000)
 
 

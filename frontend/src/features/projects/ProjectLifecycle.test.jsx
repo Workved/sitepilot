@@ -80,7 +80,7 @@ describe("Archived project lifecycle", () => {
 describe("Draft-to-active activation", () => {
   // Regression: the Activate button used to call setStatus, which flips the
   // project to active but never emits the project.activated outbox event -
-  // no Telegram/WhatsApp notification ever went out. Only /activate does.
+  // no WhatsApp notification ever went out. Only /activate does.
   it("calls the dedicated activate endpoint, not setStatus", async () => {
     projectsApi.activate.mockResolvedValue({ id: "p1", status: "active" });
     renderPane({ role: "admin", id: "u-admin" }, { status: "draft" });

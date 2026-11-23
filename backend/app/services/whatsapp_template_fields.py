@@ -7,7 +7,7 @@ person can read and reply with: "T003 - Flooring", "Project Futurex",
 
 `template_fields` adds those as extra keys on a copy of the payload, which
 `message_templates.TEMPLATE_REGISTRY` entries then name in their
-`variable_order`. Same rule as `telegram_render.py`: it only reads
+`variable_order`. It only reads
 records, never mutates, and a missing record degrades to a placeholder
 instead of raising.
 """

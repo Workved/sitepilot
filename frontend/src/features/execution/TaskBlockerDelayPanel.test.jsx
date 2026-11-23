@@ -65,7 +65,7 @@ describe("TaskBlockerDelayPanel", () => {
     expect(onChanged).toHaveBeenCalledTimes(1);
   });
 
-  // Telegram task plan U12: the backend lets only the Supervisor, PM or an
+  // The backend lets only the Supervisor, PM or an
   // Admin resolve a blocker, so nobody else is offered the button.
   it("hides Resolve from someone who may not resolve blockers, but keeps the blocker visible", () => {
     const withBlocker = { ...task, blockers: [{ id: "b1", type: "material", description: "Waiting on cement.", resolved_at: null }] };

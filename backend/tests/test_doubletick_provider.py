@@ -1,8 +1,7 @@
 """DoubleTick WhatsApp sender (`DoubleTickAdapter`) and the
 `whatsapp_provider` switch in `outbox_scheduler._build_adapter`.
 
-Mocks `httpx.post` directly (no real network calls), mirroring
-`test_telegram_provider.py`'s pattern.
+Mocks `httpx.post` directly (no real network calls).
 """
 
 import unittest

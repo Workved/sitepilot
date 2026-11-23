@@ -67,21 +67,11 @@ class EmployeeProfile(Base):
     designation: Mapped[str] = mapped_column(Text, nullable=False)
     department: Mapped[str | None] = mapped_column(Text)
     availability: Mapped[str] = mapped_column(Text, nullable=False, default="available")
-    # U4 (docs/plans/2026-09-16-001-feat-telegram-messaging-channel-plan.md):
-    # set once this person opens the bot's Start link with a valid
-    # connect-token (U13). Nullable and unused by any code path until then.
-    telegram_chat_id: Mapped[str | None] = mapped_column(Text, unique=True)
-    # U5 (docs/plans/2026-09-16-001-feat-telegram-messaging-channel-plan.md,
-    # KTD1): which channel this person is actually reachable on right now.
-    # Defaults to 'whatsapp' for every existing and new row so behavior is
-    # unchanged until an Admin/Super-Admin explicitly toggles someone (U15).
-    active_channel: Mapped[str] = mapped_column(Text, nullable=False, default="whatsapp")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         CheckConstraint("availability in ('available', 'restricted', 'unavailable')", name="ck_employee_profile_availability"),
-        CheckConstraint("active_channel in ('whatsapp', 'telegram')", name="ck_employee_profile_active_channel"),
     )
 
 

@@ -806,48 +806,25 @@ class MessageDeliveryDispatchTests(unittest.TestCase):
             self.assertEqual((delivery.status, delivery.failure_code, delivery.attempt_count),
                              ("failed", "missing_phone", 1))
 
-    def _set_telegram(self, employee_id: uuid.UUID, chat_id: str | None) -> None:
-        with self.Session() as session:
-            profile = session.get(EmployeeProfile, employee_id)
-            profile.active_channel = "telegram"
-            profile.telegram_chat_id = chat_id
-            session.commit()
-
-    def test_missed_telegram_messages_are_delivered_once_the_recipient_links_telegram(self):
-        from unittest.mock import MagicMock, patch
-
-        from app.config import settings
-
-        self._set_telegram(self.pm_employee_id, None)
+    def test_delivery_left_over_from_the_removed_telegram_channel_is_never_retried(self):
         with self.Session() as session:
             event_id = self._create_event(
                 session, event_type="project.activated", aggregate_type="project",
-                aggregate_id=self.project2_id, payload={}, key="test:missed-telegram",
+                aggregate_id=self.project2_id, payload={}, key="test:channel-removed",
             )
             session.commit()
         with self.Session() as session:
             MessageDispatchService(session).process_pending(limit=50)
-        [delivery] = self._deliveries_for(event_id)
-        self.assertEqual((delivery.status, delivery.failure_code), ("failed", "missing_chat_id"))
+        with self.Session() as session:
+            for delivery in session.scalars(select(MessageDelivery).where(MessageDelivery.outbox_event_id == event_id)):
+                delivery.status = "failed"
+                delivery.failure_code = "channel_removed"
+                delivery.attempt_count = 1
+            session.commit()
 
-        with self.Session() as session:  # not linked yet: left alone
+        with self.Session() as session:
+            self.assertEqual(MessageDispatchService(session)._select_events(limit=50), [])
             self.assertEqual(MessageDispatchService(session).process_pending(limit=50), 0)
-
-        self._set_telegram(self.pm_employee_id, "777000")
-        response = MagicMock(status_code=200)
-        response.json.return_value = {"ok": True, "result": {"message_id": 42}}
-        original_token = settings.telegram_access_token
-        settings.telegram_access_token = "test-token"
-        try:
-            with patch("app.services.telegram_provider.httpx.post", return_value=response) as post:
-                with self.Session() as session:
-                    self.assertEqual(MessageDispatchService(session).process_pending(limit=50), 1)
-        finally:
-            settings.telegram_access_token = original_token
-
-        self.assertEqual(post.call_args.kwargs["json"]["chat_id"], "777000")
-        [delivery] = self._deliveries_for(event_id)
-        self.assertEqual((delivery.status, delivery.channel, delivery.attempt_count), ("sent", "telegram", 2))
 
     def test_newly_reachable_recipient_is_not_starved_by_repeatedly_failing_retries(self):
         # 50 older events whose deliveries keep failing for a non-address
@@ -1588,7 +1565,7 @@ class MessageDeliveryDispatchTests(unittest.TestCase):
             )
         self.assertEqual(recipients, [])
 
-    # ---- Telegram task plan U4: participants, active members, noise rules ----
+    # ---- participants and active members ----
 
     def _dispatch_one(self, event_type: str, payload: dict | None = None) -> list[MessageDelivery]:
         with self.Session() as session:
@@ -1662,19 +1639,18 @@ class MessageDeliveryDispatchTests(unittest.TestCase):
         deliveries = self._dispatch_one("task.approval_recorded", {"decision": "approved"})
         self.assertIn(self.admin_employee_id, self._recipient_ids(deliveries))
 
-    def test_telegram_skips_progress_items_and_decision_status_steps_but_whatsapp_does_not(self):
-        self._set_telegram(self.supervisor_employee_id, "555000")
+    def test_progress_items_and_decision_status_steps_reach_every_reviewer(self):
         for event_type, payload in (
             ("task.evidence_submitted", {"progress_update_id": str(uuid.uuid4())}),
             ("task.status_changed", {"target_status": "in_progress", "cause": "decision"}),
         ):
             with self.subTest(event_type=event_type):
                 deliveries = self._dispatch_one(event_type, payload)
-                # The Telegram Supervisor gets no row at all; the WhatsApp PM
-                # still gets it exactly as before.
-                self.assertEqual(self._recipient_ids(deliveries), {self.pm_employee_id})
+                self.assertTrue(
+                    {self.pm_employee_id, self.supervisor_employee_id} <= self._recipient_ids(deliveries)
+                )
 
-    # ---- Telegram task plan U8 (KTD20): Admin only when nobody eligible can review ----
+    # ---- Admin only when nobody eligible can review ----
 
     def _end_membership(self, employee_id) -> None:
         with self.Session.begin() as session:
@@ -1706,26 +1682,6 @@ class MessageDeliveryDispatchTests(unittest.TestCase):
         self.assertNotIn(self.admin_employee_id, self._recipient_ids(self._submitted(INTERNAL_EMPLOYEE_ID)))
         self._end_membership(self.pm_employee_id)
         self.assertIn(self.admin_employee_id, self._recipient_ids(self._submitted(INTERNAL_EMPLOYEE_ID)))
-
-    def test_telegram_still_gets_a_status_change_that_no_decision_caused(self):
-        from unittest.mock import MagicMock, patch
-
-        from app.config import settings
-
-        self._set_telegram(self.supervisor_employee_id, "555000")
-        response = MagicMock(status_code=200)
-        response.json.return_value = {"ok": True, "result": {"message_id": 1}}
-        original_token = settings.telegram_access_token
-        settings.telegram_access_token = "test-token"
-        try:
-            with patch("app.services.telegram_provider.httpx.post", return_value=response) as post:
-                deliveries = self._dispatch_one("task.status_changed", {"target_status": "ready"})
-        finally:
-            settings.telegram_access_token = original_token
-        self.assertIn(self.supervisor_employee_id, self._recipient_ids(deliveries))
-        sent_text = post.call_args.kwargs["json"]["text"]
-        self.assertIn("<b>Task Ready</b>", sent_text)
-        self.assertEqual(post.call_args.kwargs["json"]["parse_mode"], "HTML")
 
     # ---- Milestone 1 Phase 3 & Phase 4: inactive-user leakage & TBD template guards ----
 

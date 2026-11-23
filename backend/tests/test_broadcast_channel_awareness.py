@@ -1,7 +1,5 @@
-"""U11 (docs/plans/2026-09-16-001-feat-telegram-messaging-channel-plan.md):
-`broadcast_service.py`'s three recipient resolvers read the recipient's
-actual `active_channel` instead of inferring the channel from phone-number
-presence alone.
+"""`broadcast_service.py`'s three recipient resolvers: WhatsApp is the only
+messaging channel, offered whenever the recipient has a number on file.
 """
 
 from __future__ import annotations
@@ -52,14 +50,14 @@ class BroadcastChannelAwarenessTests(unittest.TestCase):
 
     # ---- step 1: _internal_recipients -----------------------------------
 
-    def _add_member(self, *, phone, active_channel="whatsapp", telegram_chat_id=None):
+    def _add_member(self, *, phone):
         user_id = uuid.uuid4()
         with self.session.begin():
             self.session.add(User(id=user_id, name="Member", email=f"{user_id}@example.com", phone=phone, role=UserRole.supervisor, active=True))
             self.session.flush()
             profile = EmployeeProfile(
                 user_id=user_id, employee_code=f"EMP-{user_id.hex[:6]}", designation="Supervisor",
-                availability="available", active_channel=active_channel, telegram_chat_id=telegram_chat_id,
+                availability="available",
             )
             self.session.add(profile)
             self.session.flush()
@@ -70,22 +68,14 @@ class BroadcastChannelAwarenessTests(unittest.TestCase):
         return user_id
 
     def test_internal_recipient_on_whatsapp_with_phone_resolves_whatsapp(self):
-        self._add_member(phone="+911234567890", active_channel="whatsapp")
+        self._add_member(phone="+911234567890")
         results = _internal_recipients(self.session, self.project_id, "site_supervisor")
         self.assertIn("whatsapp", results[0]["channels"])
-        self.assertNotIn("telegram", results[0]["channels"])
 
-    def test_internal_recipient_on_telegram_resolves_telegram_even_with_phone(self):
-        self._add_member(phone="+911234567890", active_channel="telegram", telegram_chat_id="555")
-        results = _internal_recipients(self.session, self.project_id, "site_supervisor")
-        self.assertIn("telegram", results[0]["channels"])
-        self.assertNotIn("whatsapp", results[0]["channels"])
-
-    def test_internal_recipient_with_neither_contact_resolves_no_messaging_channel(self):
-        self._add_member(phone=None, active_channel="whatsapp")
+    def test_internal_recipient_with_no_phone_resolves_no_messaging_channel(self):
+        self._add_member(phone=None)
         results = _internal_recipients(self.session, self.project_id, "site_supervisor")
         self.assertNotIn("whatsapp", results[0]["channels"])
-        self.assertNotIn("telegram", results[0]["channels"])
 
     # ---- step 2: _vendor_recipients ---------------------------------------
 
@@ -96,16 +86,6 @@ class BroadcastChannelAwarenessTests(unittest.TestCase):
             self.session.flush()
             self.session.add(ProjectVendor(project_id=self.project_id, vendor_id=vendor.id, mapped_by=uuid.uuid4()))
         return vendor.id
-
-    def test_vendor_with_primary_contact_on_telegram_resolves_telegram(self):
-        vendor_id = self._add_vendor()
-        with self.session.begin():
-            self.session.add(V2VendorContact(
-                vendor_id=vendor_id, name="Primary", phone="+911234567890",
-                is_primary=True, active_channel="telegram", telegram_chat_id="777",
-            ))
-        results = _vendor_recipients(self.session, self.project_id)
-        self.assertIn("telegram", results[0]["channels"])
 
     def test_vendor_with_primary_contact_on_whatsapp_resolves_whatsapp(self):
         vendor_id = self._add_vendor()
@@ -137,15 +117,12 @@ class BroadcastChannelAwarenessTests(unittest.TestCase):
 
     # ---- step 3: _vendor_contact_recipients -------------------------------
 
-    def test_vendor_contact_on_telegram_resolves_telegram(self):
+    def test_vendor_contact_with_phone_resolves_whatsapp(self):
         vendor_id = self._add_vendor()
         with self.session.begin():
-            self.session.add(V2VendorContact(
-                vendor_id=vendor_id, name="Contact", phone="+911234567890",
-                active_channel="telegram", telegram_chat_id="888",
-            ))
+            self.session.add(V2VendorContact(vendor_id=vendor_id, name="Contact", phone="+911234567890"))
         results = _vendor_contact_recipients(self.session, self.project_id)
-        self.assertIn("telegram", results[0]["channels"])
+        self.assertEqual(results[0]["channels"], ["whatsapp"])
 
     def test_vendor_contact_with_no_contact_info_is_skipped_no_channel(self):
         vendor_id = self._add_vendor()

@@ -1,7 +1,7 @@
-"""U7 (docs/plans/2026-09-16-001-feat-telegram-messaging-channel-plan.md):
-'telegram' added as a valid value to `TaskProgressUpdate.source`,
-`VendorAcknowledgement.channel`, and `VendorAcknowledgementIn.channel`.
-No code path emits 'telegram' yet - this only widens what's accepted.
+"""Channel/source CHECK constraints on `TaskProgressUpdate.source` and
+`VendorAcknowledgement.channel`. 'telegram' stays a valid stored value so
+rows recorded before the Telegram channel was removed keep loading, but the
+API (`VendorAcknowledgementIn.channel`) no longer accepts it.
 
 FK targets (tasks/projects/task_vendor_assignments/users) are not created
 in this minimal harness - SQLite does not enforce foreign keys unless a
@@ -15,6 +15,7 @@ import unittest
 import uuid
 from datetime import datetime, timezone
 
+from pydantic import ValidationError
 from sqlalchemy import create_engine, event
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
@@ -89,9 +90,9 @@ class ChannelEnumWideningModelTests(unittest.TestCase):
 
 
 class VendorAcknowledgementInSchemaTests(unittest.TestCase):
-    def test_accepts_telegram_as_a_valid_channel_literal(self):
-        payload = VendorAcknowledgementIn(response="accepted", channel="telegram")
-        self.assertEqual(payload.channel, "telegram")
+    def test_telegram_is_no_longer_accepted_from_clients(self):
+        with self.assertRaises(ValidationError):
+            VendorAcknowledgementIn(response="accepted", channel="telegram")
 
     def test_still_defaults_to_portal(self):
         payload = VendorAcknowledgementIn(response="accepted")

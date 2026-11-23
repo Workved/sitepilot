@@ -367,7 +367,6 @@ export function CommunicationHubPage({ user, action }) {
       canManage={canManage} onClose={() => setSelected(null)}
       remove={() => deleteCompany(selectedVendor)} edit={() => setForm("edit")} blacklist={() => openBlacklist(selectedVendor, "blacklist")} unblacklist={() => openBlacklist(selectedVendor, "remove")}
       addContact={() => setForm("contact")} addSubcontractor={() => setForm("sub")} selectVendor={setSelected}
-      onContactChanged={load}
       user={user} saving={saving}
       pastProjects={hub.past_projects.filter(item => item.vendor_id === selectedVendor.id)}
       projectHistory={hub.project_history.filter(item => item.vendor_id === selectedVendor.id)}

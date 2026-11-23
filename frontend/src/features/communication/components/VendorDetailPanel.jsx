@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, Building2, ChevronRight, ClipboardList, FolderKanban, KeyRound, Mail, MapPin, MessageCircle, MoreVertical, Pencil, Phone, Plus, ShieldAlert, ShieldCheck, ShieldOff, Ban, Unlink, UserRound, UsersRound, Wrench, X } from "lucide-react";
-import { channelToggleApi } from "../../../api/channelToggleApi";
-import { telegramConnectApi } from "../../../api/telegramConnectApi";
+import { Building2, ChevronRight, ClipboardList, FolderKanban, Mail, MapPin, MessageCircle, MoreVertical, Pencil, Phone, Plus, ShieldAlert, ShieldCheck, ShieldOff, Ban, UserRound, UsersRound, Wrench, X } from "lucide-react";
 import { Button, ConfirmModal, Pill } from "../../../components/ui";
 import { ContactWorkSummary } from "./ContactWorkSummary";
 import { BlacklistBanner, BlacklistPill, canBlacklist, canUnblacklist, isBlocked } from "./VendorBlacklist";
@@ -77,113 +75,11 @@ function VendorProjectMappingForm({ vendor, unmappedProjects, mapToProjects }) {
   </div>;
 }
 
-// Telegram connect-code generation, unlink, and WhatsApp/Telegram channel
-// switch for one vendor contact - mirrors ChannelPanel's equivalent section
-// in UserModals.jsx exactly (same copy, same flow, same gating), just for
-// a V2VendorContact instead of an EmployeeProfile.
-function ContactTelegramControl({ contact, canManage, onChanged }) {
-  const [channel, setChannel] = useState(contact.active_channel || "whatsapp");
-  const [connected, setConnected] = useState(!!contact.telegram_connected);
-  const [switchBusy, setSwitchBusy] = useState(false);
-  const [switchError, setSwitchError] = useState("");
-  const [codeBusy, setCodeBusy] = useState(false);
-  const [codeError, setCodeError] = useState("");
-  const [connectCode, setConnectCode] = useState(null);
-  const [unlinkBusy, setUnlinkBusy] = useState(false);
-  const [unlinkError, setUnlinkError] = useState("");
-
-  useEffect(() => {
-    setChannel(contact.active_channel || "whatsapp");
-    setConnected(!!contact.telegram_connected);
-    setConnectCode(null);
-  }, [contact.id, contact.active_channel, contact.telegram_connected]);
-
-  if (!canManage) return null;
-
-  const other = channel === "telegram" ? "whatsapp" : "telegram";
-  const otherLabel = other === "telegram" ? "Telegram" : "WhatsApp";
-  const canSwitchToOther = other !== "telegram" || connected;
-  // Same deliberate non-auto-fallback as ChannelPanel: a contact left on
-  // "telegram" with no connected chat is shown as not-ready rather than
-  // silently treated as reachable on WhatsApp instead.
-  const messagingReady = channel === "telegram" ? connected : !!contact.phone;
-
-  async function switchTo(target) {
-    setSwitchBusy(true);
-    setSwitchError("");
-    try {
-      const response = await channelToggleApi.toggleVendorContact(contact.id, target);
-      const result = response.results?.[0];
-      if (!result?.success) setSwitchError(result?.error || "Could not switch channel.");
-      else { setChannel(target); await onChanged?.(); }
-    } catch (err) {
-      setSwitchError(err.message || "Could not switch channel.");
-    } finally {
-      setSwitchBusy(false);
-    }
-  }
-
-  async function generateCode() {
-    setCodeBusy(true);
-    setCodeError("");
-    try {
-      const response = await telegramConnectApi.generateVendorContactCode(contact.id);
-      setConnectCode(response);
-    } catch (err) {
-      setCodeError(err.message || "Could not generate a connect code.");
-    } finally {
-      setCodeBusy(false);
-    }
-  }
-
-  async function unlinkTelegram() {
-    // eslint-disable-next-line no-alert -- deliberately simple, mirrors
-    // UserModals.jsx's employee unlink: an Admin-only, low-frequency
-    // identity action, not worth a full modal.
-    if (!window.confirm("Unlink Telegram from this contact? They'll need a new connect code to reconnect, and this frees their chat for someone else to use.")) return;
-    setUnlinkBusy(true);
-    setUnlinkError("");
-    try {
-      await telegramConnectApi.unlinkVendorContact(contact.id);
-      setConnected(false);
-      setConnectCode(null);
-      await onChanged?.();
-    } catch (err) {
-      setUnlinkError(err.message || "Could not unlink Telegram.");
-    } finally {
-      setUnlinkBusy(false);
-    }
-  }
-
-  return <div className="mt-3 border-t border-slate-100 pt-3">
-    <div className="flex flex-wrap items-center gap-2">
-      <Pill tone={channel === "telegram" ? "blue" : "green"}>{channel === "telegram" ? "Telegram" : "WhatsApp"}</Pill>
-      {!connected && <Pill tone="gray">Telegram not connected yet</Pill>}
-      {!messagingReady && <Pill tone="orange">Messaging Not Ready</Pill>}
-    </div>
-    {!canSwitchToOther && <p className="mt-2 text-xs font-semibold text-amber-700">They must connect Telegram (below) before they can be switched over.</p>}
-    {switchError && <p className="mt-2 text-xs font-semibold text-rose-600">{switchError}</p>}
-    <div className="mt-2 flex flex-wrap gap-2">
-      <Button type="button" size="sm" variant="secondary" loading={switchBusy} disabled={!canSwitchToOther} onClick={() => switchTo(other)}>
-        <ArrowLeftRight size={14}/> Switch to {otherLabel}
-      </Button>
-      {connected && <Button type="button" size="sm" variant="ghost" loading={unlinkBusy} onClick={unlinkTelegram}><Unlink size={14}/> Unlink Telegram</Button>}
-    </div>
-    {unlinkError && <p className="mt-1 text-xs font-semibold text-rose-600">{unlinkError}</p>}
-
-    {!connected && <div className="mt-2 rounded-xl border border-dashed border-blue-200 bg-blue-50/60 p-3">
-      {!connectCode ? <>
-        <p className="text-xs leading-5 text-slate-600">Generates a one-time code. They open Telegram, find the bot themselves, and send the code as a message - no link needed.</p>
-        {codeError && <p className="mt-2 text-xs font-semibold text-rose-600">{codeError}</p>}
-        <Button type="button" variant="secondary" size="sm" className="mt-2" loading={codeBusy} onClick={generateCode}><KeyRound size={14}/> Generate code</Button>
-      </> : <>
-        <p className="text-sm leading-6 text-slate-700">Tell them to open Telegram, search for the bot, and send this message:</p>
-        <code className="mt-2 block rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-900 shadow-sm">{connectCode.start_command}</code>
-        <p className="mt-2 text-xs font-semibold text-slate-500">Expires {new Date(connectCode.expires_at).toLocaleTimeString("en-GB")}. Refresh this record afterward to confirm it connected.</p>
-        <Button type="button" variant="secondary" size="sm" className="mt-2" loading={codeBusy} onClick={generateCode}><KeyRound size={14}/> Generate a new code</Button>
-      </>}
-    </div>}
-  </div>;
+// WhatsApp is the only messaging channel: flags a contact who has no number
+// to message.
+function ContactMessagingStatus({ contact, canManage }) {
+  if (!canManage || contact.whatsapp || contact.phone) return null;
+  return <div className="mt-3 border-t border-slate-100 pt-3"><Pill tone="orange">Messaging Not Ready</Pill></div>;
 }
 
 function HeaderMenu({ onDelete }) {
@@ -203,7 +99,7 @@ function HeaderMenu({ onDelete }) {
   </div>;
 }
 
-export function VendorDetailPanel({ vendor, parentVendor, subVendors = [], contacts = [], projects = [], unmappedProjects = [], mapToProjects, categories = [], canManage, onClose, remove, edit, blacklist, unblacklist, addContact, addSubcontractor, selectVendor, onContactChanged, user, saving = false, pastProjects = [], projectHistory = [], savePastProject, deletePastProject, contactProjects = [], contactTasks = [] }) {
+export function VendorDetailPanel({ vendor, parentVendor, subVendors = [], contacts = [], projects = [], unmappedProjects = [], mapToProjects, categories = [], canManage, onClose, remove, edit, blacklist, unblacklist, addContact, addSubcontractor, selectVendor, user, saving = false, pastProjects = [], projectHistory = [], savePastProject, deletePastProject, contactProjects = [], contactTasks = [] }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -275,7 +171,7 @@ export function VendorDetailPanel({ vendor, parentVendor, subVendors = [], conta
         <section className="rounded-2xl border border-slate-200 bg-white p-5"><p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Internal context</p><h3 className="mt-2 font-black text-slate-950">Operations notes</h3><p className="mt-2 text-sm leading-7 text-slate-600">{vendor.notes || "No internal vendor notes have been added."}</p></section>
       </div>}
 
-      {activeTab === "contacts" && <section className="grid gap-3"><header className="mb-1 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-black text-slate-950">Vendor contacts</h3><p className="mt-1 text-sm text-slate-500">People available for site coordination.</p></div>{canManage && <button type="button" onClick={addContact} className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white"><Plus size={17}/> Add contact</button>}</header>{contacts.map(contact => <article key={contact.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 max-[640px]:grid-cols-[auto_minmax(0,1fr)]"><span className="grid size-11 place-items-center rounded-xl bg-slate-100 font-black text-slate-700">{contact.name.slice(0, 2).toUpperCase()}</span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-slate-950">{contact.name}</strong>{contact.is_primary && <Pill tone="blue">Primary</Pill>}</div><span className="mt-1 block text-sm text-slate-500">{contact.designation || "Contact person"}</span><a href={`tel:${cleanPhone(contact.phone)}`} className="mt-1 block text-sm font-bold text-slate-700">{contact.phone}</a></div><div className="max-[640px]:col-span-2"><ContactActions contact={contact}/></div></div><ContactTelegramControl contact={contact} canManage={canManage} onChanged={onContactChanged}/><ContactWorkSummary projects={contactProjects.filter(row => row.contact_id === contact.id)} tasks={contactTasks.filter(row => row.contact_id === contact.id)}/></article>)}{!contacts.length && <EmptyPanel icon={UserRound} title="No contacts yet" text="Add a primary site contact so assignments and WhatsApp messages reach the right person." action={canManage && <button type="button" onClick={addContact} className="mt-4 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white">Add first contact</button>}/>}</section>}
+      {activeTab === "contacts" && <section className="grid gap-3"><header className="mb-1 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-black text-slate-950">Vendor contacts</h3><p className="mt-1 text-sm text-slate-500">People available for site coordination.</p></div>{canManage && <button type="button" onClick={addContact} className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white"><Plus size={17}/> Add contact</button>}</header>{contacts.map(contact => <article key={contact.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 max-[640px]:grid-cols-[auto_minmax(0,1fr)]"><span className="grid size-11 place-items-center rounded-xl bg-slate-100 font-black text-slate-700">{contact.name.slice(0, 2).toUpperCase()}</span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-slate-950">{contact.name}</strong>{contact.is_primary && <Pill tone="blue">Primary</Pill>}</div><span className="mt-1 block text-sm text-slate-500">{contact.designation || "Contact person"}</span><a href={`tel:${cleanPhone(contact.phone)}`} className="mt-1 block text-sm font-bold text-slate-700">{contact.phone}</a></div><div className="max-[640px]:col-span-2"><ContactActions contact={contact}/></div></div><ContactMessagingStatus contact={contact} canManage={canManage}/><ContactWorkSummary projects={contactProjects.filter(row => row.contact_id === contact.id)} tasks={contactTasks.filter(row => row.contact_id === contact.id)}/></article>)}{!contacts.length && <EmptyPanel icon={UserRound} title="No contacts yet" text="Add a primary site contact so assignments and WhatsApp messages reach the right person." action={canManage && <button type="button" onClick={addContact} className="mt-4 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white">Add first contact</button>}/>}</section>}
 
       {activeTab === "projects" && <section className="grid gap-3"><header className="mb-1"><h3 className="text-lg font-black text-slate-950">Assigned projects</h3><p className="mt-1 text-sm text-slate-500">Current project visibility and inherited access.</p></header>{isMain && canManage && !blocked && <VendorProjectMappingForm vendor={vendor} unmappedProjects={unmappedProjects} mapToProjects={mapToProjects}/>}{projects.map(project => <article key={project.id} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><FolderKanban size={19}/></span><div className="min-w-0 flex-1"><strong className="block truncate text-slate-950">{project.name}</strong><span className="mt-1 block text-xs text-slate-500">{isMain ? "Direct project mapping" : "Inherited through parent vendor"}</span></div><Pill tone={project.status === "active" ? "green" : "orange"}>{projectStatusLabel(project.status)}</Pill></article>)}{!projects.length && <EmptyPanel icon={FolderKanban} title="No project mapping" text={isMain ? "Map this vendor to a project before assigning its team to project tasks." : "This sub-vendor will inherit project visibility from its parent vendor."}/>}<VendorWorkHistory user={user} pastProjects={pastProjects} projectHistory={projectHistory} categories={categories} saving={saving} savePastProject={savePastProject} deletePastProject={deletePastProject}/></section>}
 

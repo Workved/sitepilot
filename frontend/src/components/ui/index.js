@@ -11,7 +11,6 @@ export { LoadingSpinner } from "./LoadingSpinner";
 export { ManagementHeader } from "./ManagementHeader";
 export { ManagementTable } from "./ManagementTable";
 export { Modal } from "./Modal";
-export { AcknowledgementPill } from "./AcknowledgementPill";
 export { Pill } from "./Pill";
 export { RefreshButton } from "./RefreshButton";
 export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./Table";

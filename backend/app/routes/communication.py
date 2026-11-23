@@ -237,7 +237,6 @@ def get_hub(user: User = Depends(current_user), db: Session = Depends(get_db)):
         "contacts": [{
             "id": str(c.id), "vendor_id": str(c.vendor_id), "name": c.name, "designation": c.designation,
             "phone": c.phone, "whatsapp": c.whatsapp, "is_primary": c.is_primary,
-            "active_channel": c.active_channel, "telegram_connected": bool(c.telegram_chat_id),
         } for c in contacts],
         # Sub-vendor parentage lives solely on `V2Vendor.parent_vendor_id`;
         # the legacy `contractor_relationships` mirror was never migrated

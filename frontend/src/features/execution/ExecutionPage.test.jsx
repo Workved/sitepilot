@@ -196,7 +196,7 @@ describe("ExecutionPage - external approval decisions", () => {
 });
 
 describe("ExecutionPage - link to a project's External Approvals", () => {
-  // The Telegram review message links to ?tab=execution&project=<code>&pane=approvals.
+  // A notification can link to ?tab=execution&project=<code>&pane=approvals.
   const projects = [
     { id: "p1", name: "Sample Fitout Project", code: "P1", status: "active" },
     { id: "p2", name: "SIS Interior", code: "P2", status: "active" },
