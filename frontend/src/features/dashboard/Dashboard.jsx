@@ -16,11 +16,11 @@ export function Dashboard({ initialUser, onLogout }) {
   // holding, otherwise ?project= survives into Templates and reappears when
   // you come back - stale and confusing.
   function changeTab(next) {
-    setRoute({ tab: next, project: "", pane: "", vendor: "" });
+    setRoute({ tab: next, project: "", pane: "", vendor: "", broadcast: "" });
   }
 
   function openProject(code, pane = "overview") {
-    setRoute({ tab: "projects", project: code, pane, vendor: "" });
+    setRoute({ tab: "projects", project: code, pane, vendor: "", broadcast: "" });
   }
 
   async function refresh() {
@@ -51,7 +51,7 @@ export function Dashboard({ initialUser, onLogout }) {
     if (data && !tabs.some(([key]) => key === tab)) {
       // replace, not push: an unreachable tab in the URL should not become a
       // history entry the Back button can return the user to.
-      setRoute({ tab: tabs[0]?.[0] || "execution", project: "", pane: "", vendor: "" }, { replace: true });
+      setRoute({ tab: tabs[0]?.[0] || "execution", project: "", pane: "", vendor: "", broadcast: "" }, { replace: true });
     }
   }, [data, tab]);
 
