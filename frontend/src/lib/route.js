@@ -19,7 +19,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const ROUTE_KEYS = ["tab", "project", "pane", "vendor", "broadcast"];
+const ROUTE_KEYS = ["tab", "project", "pane", "vendor", "broadcast", "person"];
 
 export function readRoute() {
   const params = new URLSearchParams(window.location.search);
@@ -29,6 +29,7 @@ export function readRoute() {
     pane: params.get("pane") || "",
     vendor: params.get("vendor") || "",
     broadcast: params.get("broadcast") || "",
+    person: params.get("person") || "",
   };
 }
 

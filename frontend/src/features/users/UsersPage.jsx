@@ -1,106 +1,180 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  BadgeCheck,
-  BriefcaseBusiness,
-  Check,
-  ChevronRight,
-  CircleUserRound,
-  Pencil,
-  Search,
-  ShieldCheck,
-  UserPlus,
-  UsersRound,
-} from "lucide-react";
-import { Button, Input, Pill, RefreshButton } from "../../components/ui";
+import { ArrowDown, ArrowUp, Check, ChevronRight, CircleUserRound, Pencil, Search, UserPlus, UsersRound } from "lucide-react";
+import { Button, Pill } from "../../components/ui";
 import { projectsApi } from "../../api/projectsApi";
 import { usersApi } from "../../api/usersApi";
+import { useRoute } from "../../lib/route";
+import { cn } from "../../utils/cn";
 import { roles } from "../../utils/constants";
 import { initials } from "../../utils/format";
-import { CreateUserModal, EditMyProfileModal, UserModal } from "./components/UserModals";
+import { AccountStatus, CreateUserModal, EditMyProfileModal } from "./components/UserModals";
+import { lastActiveLabel, PersonPanel } from "./components/PersonPanel";
+import { ATTENTION, attentionFor, filterPeople, ROLE_ORDER, sortPeople, STATUS_FILTERS, summaryLine } from "./teamHelpers";
 
 const managementRoles = new Set(["super_admin", "admin"]);
+const COLUMNS = "md:grid-cols-[minmax(0,1.6fr)_8.5rem_minmax(0,1fr)_8rem_8.5rem_1.25rem]";
 
 function Avatar({ name, large = false }) {
-  return <span className={`grid shrink-0 place-items-center bg-blue-100 font-medium text-blue-800 ${large ? "size-16 rounded-[18px] text-lg" : "size-11 rounded-xl text-sm"}`}>{initials(name)}</span>;
+  return <span className={`grid shrink-0 place-items-center bg-blue-50 font-medium text-blue-800 ${large ? "size-16 rounded-[18px] text-lg" : "size-9 rounded-[10px] text-xs"}`}>{initials(name)}</span>;
 }
 
-function AccountStatus({ person }) {
-  if (!person.active) return <Pill tone="gray">Offboarded</Pill>;
-  if (person.activation_status === "setup_pending") return <Pill tone="orange">Setup pending</Pill>;
-  return <Pill tone="green">Active</Pill>;
+function WhatsAppState({ person }) {
+  return person.phone
+    ? <span className="inline-flex items-center gap-1 text-[13px] text-slate-700"><Check size={14} className="text-ok" aria-hidden="true"/>Ready</span>
+    : <span className="text-[13px] text-orange-700">No mobile</span>;
 }
 
-function Metric({ icon, label, value, tone = "blue" }) {
-  const tones = {
-    blue: "bg-blue-50 text-blue-700",
-    green: "bg-emerald-50 text-emerald-700",
-    violet: "bg-violet-50 text-violet-700",
-  };
-  return <article className="rounded-[20px] border border-line bg-white p-4 sm:p-5"><span className={`grid size-10 place-items-center rounded-2xl ${tones[tone]}`}>{icon}</span><strong className="mt-5 block text-3xl font-normal tracking-[-.04em] text-slate-950">{value}</strong><span className="mt-1 block text-sm font-semibold text-slate-500">{label}</span></article>;
+const PROBLEM_SHORT = { not_signed_in: "Never signed in", no_phone: "No mobile", no_profile: "No employee profile" };
+
+function PersonRow({ person, isSelf, selected, onOpen }) {
+  const profile = person.employee_profile;
+  const flags = attentionFor(person);
+  const lastActive = lastActiveLabel(person).replace(/^Active /, "");
+  return <button type="button" onClick={onOpen} aria-label={`Open ${person.name}`} aria-current={selected ? "true" : undefined}
+    className={cn("grid w-full items-center gap-x-4 px-4 py-3 text-left transition-colors hover:bg-slate-50 md:px-5", COLUMNS, selected && "bg-slate-100", !person.active && "opacity-60")}>
+    <span className="flex min-w-0 items-center gap-3">
+      <Avatar name={person.name}/>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5 text-sm text-slate-950"><span className="truncate">{person.name}</span>{isSelf && <Pill tone="gray" className="shrink-0">You</Pill>}{flags.length > 0 && <span className="size-1.5 shrink-0 rounded-full bg-orange-500" title="Needs attention" aria-label="Needs attention"/>}</span>
+        <span className="block truncate text-xs text-slate-500">{person.email}</span>
+        {/* Phones: one compact line instead of four stacked cells. */}
+        <span className="mt-0.5 block truncate text-xs text-slate-500 md:hidden">
+          {roles[person.role] || person.role} · {lastActive}
+          {flags.filter(key => key !== "not_signed_in").map(key => <span key={key} className="text-orange-700"> · {PROBLEM_SHORT[key]}</span>)}
+        </span>
+      </span>
+      <ChevronRight size={16} className="shrink-0 text-slate-400 md:hidden" aria-hidden="true"/>
+    </span>
+    <span className="hidden text-[13px] text-slate-700 md:block">{roles[person.role] || person.role}</span>
+    <span className="hidden min-w-0 md:block">
+      {profile
+        ? <><span className="block truncate text-[13px] text-slate-950">{profile.designation}</span><span className="block truncate text-xs tabular-nums text-slate-500">{profile.employee_code}</span></>
+        : <span className={cn("text-[13px]", flags.includes("no_profile") ? "text-orange-700" : "text-slate-400")}>No employee profile</span>}
+    </span>
+    <span className="hidden md:block"><WhatsAppState person={person}/></span>
+    <span className={cn("hidden text-[13px] md:block", person.last_login_at ? "text-slate-700" : "text-slate-400")}>{lastActive}</span>
+    <ChevronRight size={16} className="hidden text-slate-400 md:block" aria-hidden="true"/>
+  </button>;
 }
 
-function EmptyState() {
-  return <div className="grid place-items-center px-5 py-16 text-center"><span className="grid size-14 place-items-center rounded-[20px] bg-slate-100 text-slate-400"><UsersRound size={25}/></span><h3 className="mt-4 font-medium text-slate-900">No matching identities</h3><p className="mt-1 max-w-xs text-sm leading-6 text-slate-500">Try a different name, email, or role filter.</p></div>;
-}
-
-function AccessDirectory({ data, user, action, onRefresh }) {
-  const users = data.users || [];
+function TeamDirectory({ data, user, action }) {
+  const people = useMemo(() => data.users || [], [data.users]);
   const catalog = data.access_catalog || [];
   const manageableRoles = data.manageable_roles || [];
-  const [selected, setSelected] = useState(null);
+  const [route, setRoute] = useRoute();
   const [inviting, setInviting] = useState(false);
   const [query, setQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("active");
+  const [role, setRole] = useState("all");
+  const [status, setStatus] = useState("active");
+  const [attention, setAttention] = useState("");
+  const [sort, setSort] = useState({ key: "name", direction: "asc" });
+  const [rolesOpen, setRolesOpen] = useState(false);
+
+  const selected = people.find(person => person.id === route.person) || null;
+  const openPerson = id => setRoute({ person: id || "" });
 
   async function invite(event) {
     event.preventDefault();
-    const result = await action(() => usersApi.invite(Object.fromEntries(new FormData(event.currentTarget))), "Added to roster - they can now sign in");
-    if (result?.ok !== false) { setInviting(false); onRefresh?.(); }
+    const result = await action(() => usersApi.invite(Object.fromEntries(new FormData(event.currentTarget))), "Added - they can sign in now");
+    if (result?.ok !== false) setInviting(false);
   }
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return users.filter(item => {
-      const matchesText = !needle || [item.name, item.email, item.phone, item.employee_profile?.employee_code, item.employee_profile?.designation].some(value => String(value || "").toLowerCase().includes(needle));
-      const matchesRole = roleFilter === "all" || item.role === roleFilter;
-      const matchesStatus = statusFilter === "all" || (statusFilter === "active" ? item.active : !item.active);
-      return matchesText && matchesRole && matchesStatus;
-    });
-  }, [users, query, roleFilter, statusFilter]);
+  const shown = useMemo(() => sortPeople(filterPeople(people, { query, role, status, attention }), sort.key, sort.direction), [people, query, role, status, attention, sort]);
+  const inStatus = useMemo(() => filterPeople(people, { status }), [people, status]);
+  const roleCounts = Object.fromEntries(ROLE_ORDER.map(key => [key, inStatus.filter(person => person.role === key).length]));
+  const attentionCounts = ATTENTION.map(([key, many, one, test]) => ({ key, many, one, count: people.filter(test).length })).filter(item => item.count > 0);
+  const filtersOn = Boolean(query || role !== "all" || status !== "active" || attention);
 
-  const activeCount = users.filter(item => item.active).length;
-  const profiledCount = users.filter(item => item.employee_profile).length;
+  function toggleSort(key) {
+    setSort(current => current.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: key === "last_active" ? "desc" : "asc" });
+  }
+  function clearFilters() { setQuery(""); setRole("all"); setStatus("active"); setAttention(""); }
 
-  return <div className="grid gap-5 sm:gap-6">
-    <section className="rounded-[22px] border border-line bg-white px-5 py-6 sm:px-7">
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div><p className="text-xs font-medium text-slate-500">Identity and access</p><h2 className="mt-1 text-[28px] font-normal tracking-[-0.02em] text-slate-950">Users & Access</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">One auditable directory for employee identity, fixed role boundaries, and account status.</p></div>
-        <div className="flex flex-wrap items-center gap-2"><Pill tone="blue">Google or password sign-in</Pill><Button onClick={() => setInviting(true)}><UserPlus size={17}/>Add team member</Button>{onRefresh && <RefreshButton onClick={onRefresh}/>}</div>
+  const SortButton = ({ column, label }) => {
+    const active = sort.key === column;
+    return <button type="button" onClick={() => toggleSort(column)} aria-label={`Sort by ${label}`} className={cn("inline-flex items-center gap-1 text-left hover:text-slate-950", active && "text-slate-950")}>
+      {label}{active && (sort.direction === "asc" ? <ArrowUp size={13}/> : <ArrowDown size={13}/>)}
+    </button>;
+  };
+
+  return <div className="grid gap-4">
+    <header className="flex flex-wrap items-end justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-[17px] font-medium text-slate-950">Team</h2>
+        <p className="mt-0.5 text-sm text-slate-500">{summaryLine(people)}</p>
       </div>
-    </section>
+      {manageableRoles.length > 0 && <Button onClick={() => setInviting(true)}><UserPlus size={17}/> Add team member</Button>}
+    </header>
 
-    <section className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-      <Metric icon={<UsersRound size={19}/>} label="Total identities" value={users.length}/>
-      <Metric icon={<BadgeCheck size={19}/>} label="Active access" value={activeCount} tone="green"/>
-      <div className="col-span-2 lg:col-span-1"><Metric icon={<BriefcaseBusiness size={19}/>} label="Employee profiles" value={profiledCount} tone="violet"/></div>
-    </section>
+    {attentionCounts.length > 0 && <section aria-label="Needs attention" className="flex flex-wrap items-center gap-1.5">
+      <span className="mr-1 text-sm text-slate-500">Needs attention:</span>
+      {attentionCounts.map(item => <button key={item.key} type="button" aria-pressed={attention === item.key}
+        onClick={() => { setAttention(attention === item.key ? "" : item.key); if (attention !== item.key) setStatus("active"); }}
+        className={cn("h-8 rounded-full px-3 text-[13px] transition", attention === item.key ? "bg-slate-950 text-white" : "bg-orange-50 text-orange-800 hover:bg-orange-100")}>
+        {item.count} {item.count === 1 ? item.one : item.many}
+      </button>)}
+    </section>}
 
-    <section className="overflow-hidden rounded-[26px] border border-slate-200 bg-white">
-      <div className="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-[minmax(0,1fr)_180px_180px] sm:p-5">
-        <label className="relative"><Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/><Input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search name, email or employee code" className="pl-11"/></label>
-        <select value={roleFilter} onChange={event => setRoleFilter(event.target.value)} className="min-h-12 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"><option value="all">All roles</option>{catalog.map(item => <option key={item.role} value={item.role}>{item.label}</option>)}</select><select value={statusFilter} onChange={event => setStatusFilter(event.target.value)} className="min-h-12 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"><option value="active">Active employees</option><option value="inactive">Offboarded employees</option><option value="all">All account statuses</option></select>
+    <div className="grid gap-2 rounded-[20px] border border-line bg-white p-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative min-w-[220px] flex-1">
+          <span className="sr-only">Search people</span>
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/>
+          <input value={query} onChange={event => setQuery(event.target.value)} autoComplete="off" placeholder="Search name, email, phone or employee code"
+            className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:border-blue-600 focus:bg-white"/>
+        </label>
+        <div role="group" aria-label="Account status" className="so-scroll flex max-w-full gap-0.5 overflow-x-auto rounded-[10px] bg-slate-100 p-[3px]">
+          {STATUS_FILTERS.map(([value, label]) => <button key={value} type="button" aria-pressed={status === value} onClick={() => setStatus(value)}
+            className={cn("h-8 shrink-0 whitespace-nowrap rounded-lg px-2.5 text-[13px] transition", status === value ? "bg-white text-slate-950 shadow-[0_1px_3px_rgba(21,23,26,.12)]" : "text-slate-500 hover:text-slate-950")}>{label}</button>)}
+        </div>
+        {filtersOn && <button type="button" onClick={clearFilters} className="h-9 rounded-lg px-2 text-[13px] text-slate-600 hover:bg-slate-100">Clear</button>}
       </div>
+      <div role="group" aria-label="Role" className="flex flex-wrap gap-1 px-0.5 pb-0.5">
+        <button type="button" aria-pressed={role === "all"} onClick={() => setRole("all")}
+          className={cn("h-8 rounded-full px-3 text-[13px] transition", role === "all" ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-600 hover:text-slate-950")}>
+          All <span className={cn("tabular-nums", role === "all" ? "text-white/70" : "text-slate-400")}>{inStatus.length}</span>
+        </button>
+        {ROLE_ORDER.filter(key => roleCounts[key] > 0 || role === key).map(key => <button key={key} type="button" aria-pressed={role === key} onClick={() => setRole(role === key ? "all" : key)}
+          className={cn("h-8 rounded-full px-3 text-[13px] transition", role === key ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-600 hover:text-slate-950")}>
+          {roles[key]} <span className={cn("tabular-nums", role === key ? "text-white/70" : "text-slate-400")}>{roleCounts[key]}</span>
+        </button>)}
+      </div>
+    </div>
 
-      {filtered.length === 0 ? <EmptyState/> : <>
-        <div className="divide-y divide-slate-100 md:hidden">{filtered.map(item => <button type="button" key={item.id} onClick={() => setSelected(item)} className="flex w-full items-center gap-3 p-4 text-left transition active:bg-blue-50"><Avatar name={item.name}/><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2"><strong className="truncate text-sm text-slate-950">{item.name}</strong><AccountStatus person={item}/></span><span className="mt-1 block truncate text-xs text-slate-500">{item.email}</span><span className="mt-1 block text-xs font-bold text-blue-700">{roles[item.role] || item.role}</span></span><ChevronRight className="shrink-0 text-slate-400" size={20}/></button>)}</div>
-        <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[880px] text-left"><thead className="bg-slate-50 text-xs font-medium text-slate-500"><tr><th className="px-5 py-4">Identity</th><th className="px-5 py-4">Role</th><th className="px-5 py-4">Employee profile</th><th className="px-5 py-4">Status</th><th className="px-5 py-4 text-right">View</th></tr></thead><tbody className="divide-y divide-slate-100">{filtered.map(item => <tr key={item.id} onClick={() => setSelected(item)} className="cursor-pointer transition hover:bg-blue-50/50"><td className="px-5 py-4"><span className="flex items-center gap-3"><Avatar name={item.name}/><span className="min-w-0"><strong className="block truncate text-sm text-slate-950">{item.name}</strong><small className="mt-1 block truncate text-xs text-slate-500">{item.email}</small></span></span></td><td className="px-5 py-4"><Pill>{roles[item.role] || item.role}</Pill></td><td className="px-5 py-4"><strong className="block text-sm text-slate-700">{item.employee_profile?.designation || "Profile pending"}</strong><small className="mt-1 block text-xs text-slate-500">{item.employee_profile?.employee_code || "No employee code"}</small></td><td className="px-5 py-4"><span className="flex flex-wrap items-center gap-2"><AccountStatus person={item}/></span></td><td className="px-5 py-4 text-right"><ChevronRight className="ml-auto text-slate-400" size={20}/></td></tr>)}</tbody></table></div>
-      </>}
+    <section aria-label="People" className="overflow-hidden rounded-[20px] border border-line bg-white">
+      {shown.length === 0
+        ? <div className="grid place-items-center px-5 py-14 text-center">
+            <UsersRound size={26} className="text-slate-300" aria-hidden="true"/>
+            <h3 className="mt-3 text-sm text-slate-950">No one matches</h3>
+            <p className="mt-1 max-w-xs text-sm text-slate-500">Try a different search, role or status.</p>
+            {filtersOn && <Button variant="secondary" size="sm" className="mt-3" onClick={clearFilters}>Clear filters</Button>}
+          </div>
+        : <>
+          <div className={cn("hidden gap-x-4 border-b border-line bg-slate-50 px-5 py-2.5 text-[13px] text-slate-500 md:grid", COLUMNS)}>
+            <SortButton column="name" label="Person"/><SortButton column="role" label="Role"/><span>Employee profile</span><span>WhatsApp</span><SortButton column="last_active" label="Last active"/><span className="sr-only">Open</span>
+          </div>
+          <div className="divide-y divide-line">
+            {shown.map(person => <PersonRow key={person.id} person={person} isSelf={person.id === user.id} selected={person.id === route.person} onOpen={() => openPerson(person.id)}/>)}
+          </div>
+          <footer className="border-t border-line bg-slate-50 px-5 py-2.5 text-xs text-slate-500">Showing {shown.length} of {people.length}</footer>
+        </>}
     </section>
 
-    <section className="grid gap-3 lg:grid-cols-3">{catalog.map(item => <article key={item.role} className="rounded-[20px] border border-line bg-white p-5"><div className="flex items-start justify-between gap-3"><span className="grid size-10 place-items-center rounded-2xl bg-blue-50 text-blue-700"><ShieldCheck size={19}/></span><Pill tone={manageableRoles.includes(item.role) ? "blue" : "gray"}>{manageableRoles.includes(item.role) ? "Manageable" : "Fixed"}</Pill></div><h3 className="mt-4 font-medium text-slate-950">{item.label}</h3><p className="mt-1 text-sm leading-6 text-slate-500">{item.summary}</p></article>)}</section>
+    <section aria-label="What each role can do" className="rounded-[20px] border border-line bg-white">
+      <button type="button" aria-expanded={rolesOpen} onClick={() => setRolesOpen(value => !value)} className="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left text-sm text-slate-700">
+        What each role can do
+        <ChevronRight size={16} className={cn("text-slate-400 transition", rolesOpen && "rotate-90")} aria-hidden="true"/>
+      </button>
+      {rolesOpen && <ul className="divide-y divide-line border-t border-line">
+        {catalog.map(item => <li key={item.role} className="grid gap-1 px-5 py-3.5 sm:grid-cols-[10rem_minmax(0,1fr)_auto] sm:items-baseline sm:gap-4">
+          <span className="text-sm text-slate-950">{item.label}</span>
+          <span className="text-[13px] leading-5 text-slate-600">{item.summary}{item.capabilities?.length ? ` ${item.capabilities.join(", ")}.` : ""}</span>
+          <span className="text-xs text-slate-500">{manageableRoles.includes(item.role) ? "You can manage" : "Managed above you"}</span>
+        </li>)}
+      </ul>}
+    </section>
 
-    {selected && <UserModal selectedUser={selected} actor={user} catalog={catalog} manageableRoles={manageableRoles} onClose={() => setSelected(null)} action={action}/>}
+    {selected && <PersonPanel key={selected.id} person={selected} actor={user} catalog={catalog} manageableRoles={manageableRoles} action={action} onClose={() => openPerson("")}/>}
     {inviting && <CreateUserModal create={invite} catalog={catalog} manageableRoles={manageableRoles} onClose={() => setInviting(false)}/>}
   </div>;
 }
@@ -200,5 +274,5 @@ function PersonalProfile({ data, user, action, onOpenProject }) {
 }
 
 export function UsersPage(props) {
-  return managementRoles.has(props.user.role) ? <AccessDirectory {...props}/> : <PersonalProfile {...props}/>;
+  return managementRoles.has(props.user.role) ? <TeamDirectory {...props}/> : <PersonalProfile {...props}/>;
 }
