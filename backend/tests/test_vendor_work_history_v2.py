@@ -30,6 +30,7 @@ from app.vendor_models import (
     V2VendorCapability,
     V2VendorContact,
     V2VendorPastProject,
+    V2VendorProjectFeedback,
 )
 
 
@@ -88,6 +89,7 @@ class VendorWorkHistoryTests(unittest.TestCase):
             V2VendorContact.__table__,
             ProjectVendor.__table__,
             V2VendorPastProject.__table__,
+            V2VendorProjectFeedback.__table__,
         ):
             table.create(self.engine)
 
@@ -233,14 +235,18 @@ class VendorWorkHistoryTests(unittest.TestCase):
         names = [item["project_name"] for item in self.client.get("/api/communication-hub").json()["past_projects"]]
         self.assertEqual(names, ["Newer", "Older", "Undated"])
 
-    def test_ended_siteops_projects_listed_with_visibility_rules(self):
+    def test_ended_siteops_projects_listed_for_everyone(self):
         admin_history = self.client.get("/api/communication-hub").json()["project_history"]
         self.assertEqual({item["project_name"] for item in admin_history}, {"Tower A", "Mall B"})
         self.assertTrue(all(item["ended_at"] for item in admin_history))
+        self.assertTrue(all(item["removed"] for item in admin_history))
 
+        # Work history (and the feedback on it) is shown to everyone who can
+        # see the vendor, so it helps whoever picks a vendor for new work -
+        # including projects this supervisor was never on.
         self.act_as(SUPERVISOR_ID)
         supervisor_history = self.client.get("/api/communication-hub").json()["project_history"]
-        self.assertEqual([item["project_name"] for item in supervisor_history], ["Tower A"])
+        self.assertEqual({item["project_name"] for item in supervisor_history}, {"Tower A", "Mall B"})
 
 
 if __name__ == "__main__":

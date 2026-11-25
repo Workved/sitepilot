@@ -7,6 +7,7 @@ import { initials } from "../../../utils/format";
 import { ContactWorkSummary } from "./ContactWorkSummary";
 import { BlacklistBanner, BlacklistPill, canBlacklist, canUnblacklist, isBlocked } from "./VendorBlacklist";
 import { VendorWorkHistory } from "./VendorWorkHistory";
+import { RatingSummary, summarizeFeedback } from "../vendorFeedback";
 
 /*
  * A vendor's profile as a full page (linked by ?vendor=<id>), replacing the
@@ -120,7 +121,9 @@ export function VendorProfile({
   vendor, parentVendor, subVendors = [], contacts = [], projects = [], unmappedProjects = [], mapToProjects, categories = [],
   canManage, onBack, remove, edit, blacklist, unblacklist, addContact, addSubcontractor, selectVendor, user, saving = false,
   pastProjects = [], projectHistory = [], savePastProject, deletePastProject, contactProjects = [], contactTasks = [],
+  feedback = [], saveFeedback, deleteFeedback,
 }) {
+  const rating = summarizeFeedback(feedback);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   useEffect(() => { setConfirmDelete(false); setDeleteError(""); window.scrollTo?.({ top: 0 }); }, [vendor.id]);
@@ -169,6 +172,10 @@ export function VendorProfile({
               <BlacklistPill vendor={vendor}/>
             </p>
             {trades.length > 0 && <div className="mt-2.5 flex flex-wrap gap-1.5">{trades.map(trade => <span key={trade} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{trade}</span>)}</div>}
+            {rating.count > 0 && <p className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1" aria-label="Vendor rating">
+              <RatingSummary summary={rating}/>
+              <span className="text-sm text-slate-500">{rating.rehire.yes + rating.rehire.conditional} of {rating.count} would hire again</span>
+            </p>}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -186,8 +193,9 @@ export function VendorProfile({
       { label: "Live projects", value: liveProjects.length, tone: "blue" },
       { label: "Contacts", value: contacts.length, tone: "violet" },
       { label: "Past projects", value: pastProjects.length + projectHistory.length, tone: "green" },
+      { label: "Rating", value: rating.count ? rating.average.toFixed(1) : 0, hint: rating.count ? `${rating.count} ${rating.count === 1 ? "review" : "reviews"}` : "No reviews yet", tone: "yellow" },
       ...(isMain ? [{ label: "Sub-vendors", value: subVendors.length, tone: "orange" }] : []),
-    ]}/>
+    ]} className={isMain ? "xl:grid-cols-5" : undefined}/>
 
     <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="grid min-w-0 gap-4">
@@ -205,7 +213,8 @@ export function VendorProfile({
         </Card>
 
         <section className="rounded-[20px] border border-line bg-white p-5">
-          <VendorWorkHistory user={user} pastProjects={pastProjects} projectHistory={projectHistory} categories={categories} saving={saving} savePastProject={savePastProject} deletePastProject={deletePastProject}/>
+          <VendorWorkHistory user={user} vendorName={vendor.name} pastProjects={pastProjects} projectHistory={projectHistory} feedback={feedback} categories={categories} saving={saving}
+            savePastProject={savePastProject} deletePastProject={deletePastProject} saveFeedback={saveFeedback} deleteFeedback={deleteFeedback}/>
         </section>
 
         {isMain && <Card title={`Sub-vendors ${subVendors.length ? `(${subVendors.length})` : ""}`.trim()} action={canManage && !blocked ? <button type="button" onClick={addSubcontractor} className="flex items-center gap-1 text-[13px] text-blue-700 hover:text-blue-900"><Plus size={14}/> Add sub-vendor</button> : null}>

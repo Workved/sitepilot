@@ -18,7 +18,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Numeric, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Numeric, SmallInteger, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -308,6 +308,51 @@ class V2VendorPastProject(Base):
     approx_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     notes: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class V2VendorProjectFeedback(Base):
+    """How a vendor performed on one SiteOps project, from one reviewer.
+
+    Mirrors `supabase/migrations/202611250001_v2_vendor_project_feedback.sql`.
+    Who may write it and when (only once the work is over) is enforced in
+    `app/services/vendor_feedback.py`."""
+
+    __tablename__ = "vendor_project_feedback"
+    __table_args__ = (
+        CheckConstraint("rating between 1 and 5", name="ck_v2_vendor_feedback_rating"),
+        CheckConstraint("quality is null or quality between 1 and 5", name="ck_v2_vendor_feedback_quality"),
+        CheckConstraint("timeliness is null or timeliness between 1 and 5", name="ck_v2_vendor_feedback_timeliness"),
+        CheckConstraint("conduct is null or conduct between 1 and 5", name="ck_v2_vendor_feedback_conduct"),
+        CheckConstraint("would_rehire in ('yes', 'conditional', 'no')", name="ck_v2_vendor_feedback_rehire"),
+        CheckConstraint(
+            "(rating > 2 and would_rehire <> 'no') or (comment is not null and trim(comment) <> '')",
+            name="ck_v2_vendor_feedback_reason",
+        ),
+        UniqueConstraint("vendor_id", "project_id", "author_user_id", name="uq_v2_vendor_feedback_author"),
+        Index("ix_v2_vendor_feedback_vendor", "vendor_id"),
+        Index("ix_v2_vendor_feedback_project", "project_id"),
+        {"schema": V2_SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    vendor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.vendors.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{V2_SCHEMA}.projects.id", ondelete="CASCADE"), nullable=False
+    )
+    author_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
+    author_role: Mapped[str] = mapped_column(Text, nullable=False)
+    rating: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    quality: Mapped[int | None] = mapped_column(SmallInteger)
+    timeliness: Mapped[int | None] = mapped_column(SmallInteger)
+    conduct: Mapped[int | None] = mapped_column(SmallInteger)
+    would_rehire: Mapped[str] = mapped_column(Text, nullable=False)
+    comment: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False

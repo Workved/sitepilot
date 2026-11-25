@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Building2, MessageCircle, MoreVertical, Phone, ShieldCheck, UserRound } from "lucide-react";
+import { Building2, MessageCircle, MoreVertical, Phone, ShieldCheck, Star, UserRound } from "lucide-react";
 import { Modal } from "../../../components/ui";
 import { cn } from "../../../utils/cn";
 import { CategorySelector } from "./CategorySelector";
@@ -38,11 +38,11 @@ function RowMenu({ items }) {
 }
 
 // Columns shared by the list header and every row.
-export const VENDOR_COLUMNS = "md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.3fr)_5.5rem_7.5rem]";
+export const VENDOR_COLUMNS = "md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.3fr)_6.5rem_5rem_7.5rem]";
 
 // One vendor as a table-style row. Sub-vendors render indented under their
 // main vendor (`nested`), so the hierarchy reads at a glance.
-export function VendorRow({ vendor, primary, projectCount, selected, nested = false, parentName, onSelect, onEdit, onDelete, onBlacklist, onUnblacklist, canBlacklist = false, canUnblacklist = false }) {
+export function VendorRow({ vendor, primary, projectCount, rating, selected, nested = false, parentName, onSelect, onEdit, onDelete, onBlacklist, onUnblacklist, canBlacklist = false, canUnblacklist = false }) {
   const isMain = vendor.engagement_type === "main";
   const trades = (vendor.categories?.length ? vendor.categories : [vendor.category]).filter(Boolean);
   const menuItems = [
@@ -74,6 +74,10 @@ export function VendorRow({ vendor, primary, projectCount, selected, nested = fa
         : <span className="text-xs text-orange-700">No contact yet</span>}
       <QuickActions contact={primary}/>
     </div>
+
+    <div className="text-sm">{rating?.count
+      ? <span className="inline-flex items-center gap-1" aria-label={`Rated ${rating.average} from ${rating.count} ${rating.count === 1 ? "review" : "reviews"}`}><Star size={13} className="fill-amber-400 text-amber-400" aria-hidden="true"/><span className="tabular-nums text-slate-950">{rating.average.toFixed(1)}</span><span className="text-xs text-slate-400">({rating.count})</span></span>
+      : <span className="text-xs text-slate-400">No reviews</span>}</div>
 
     <div className="text-sm tabular-nums text-slate-950 md:text-right"><span className="text-xs text-slate-500 md:hidden">Projects </span>{projectCount}</div>
 

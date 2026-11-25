@@ -19,12 +19,12 @@ const TAB_COMPONENTS = {
   users: UsersPage,
 };
 
-export function DashboardTab({ tab, loading, data, user, tabs, action, onOpenProject, onTabChange, onRefresh }) {
+export function DashboardTab({ tab, loading, data, user, tabs, action, onOpenProject, onOpenVendor, onTabChange, onRefresh }) {
   if (loading) {
     return <section className="rounded-[22px] border border-line bg-white p-6"><LoadingSpinner label="Loading workspace..." /></section>;
   }
   const Component = TAB_COMPONENTS[tab];
   if (!Component) return null;
   const identityKey = `${user?.id || user?.email || "anonymous"}:${user?.role || "unknown"}`;
-  return <Component key={`${tab}:${identityKey}`} data={data} user={user} tabs={tabs} action={action} onOpenProject={onOpenProject} onTabChange={onTabChange} onRefresh={onRefresh} />;
+  return <Component key={`${tab}:${identityKey}`} data={data} user={user} tabs={tabs} action={action} onOpenProject={onOpenProject} onOpenVendor={onOpenVendor} onTabChange={onTabChange} onRefresh={onRefresh} />;
 }

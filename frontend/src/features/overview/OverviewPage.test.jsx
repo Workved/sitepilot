@@ -1,10 +1,14 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { communicationApi } from "../../api/communicationApi";
 import { projectsApi } from "../../api/projectsApi";
 import { CHART_LIMIT, cardStatus, OverviewPage, plannedPercent, sortRows, standingOf } from "./OverviewPage";
 
 vi.mock("../../api/projectsApi", () => ({
   projectsApi: { timeline: vi.fn(), attention: vi.fn() },
+}));
+vi.mock("../../api/communicationApi", () => ({
+  communicationApi: { pendingFeedback: vi.fn() },
 }));
 
 function row(overrides) {
@@ -155,5 +159,33 @@ describe("Open work", () => {
 
   it("never calls a draft behind plan", () => {
     expect(cardStatus({ status: "draft", health: "on_track", days_late: 0, overdue_count: 0, blocked_count: 0, behind: false }).text).toBe("Not activated");
+  });
+});
+
+describe("vendor feedback nudge", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    projectsApi.timeline.mockResolvedValue(TIMELINE);
+    projectsApi.attention.mockResolvedValue([]);
+    communicationApi.pendingFeedback.mockResolvedValue([
+      { vendor_id: "v1", vendor_name: "Acme Electric", project_id: "p1", project_name: "Tower A" },
+      { vendor_id: "v2", vendor_name: "Bright Paints", project_id: "p1", project_name: "Tower A" },
+    ]);
+  });
+
+  it("asks a supervisor to rate vendors from finished projects and opens the vendor", async () => {
+    const onOpenVendor = vi.fn();
+    render(<OverviewPage user={{ name: "Sam", role: "supervisor" }} tabs={[["overview"], ["communication"]]} onOpenVendor={onOpenVendor}/>);
+    const nudge = within(await screen.findByRole("region", { name: "Rate your vendors" }));
+    expect(screen.getByText(/2 vendors from finished projects are waiting for your feedback/)).toBeInTheDocument();
+    fireEvent.click(nudge.getByRole("button", { name: /Acme Electric/ }));
+    expect(onOpenVendor).toHaveBeenCalledWith("v1");
+  });
+
+  it("does not ask admins", async () => {
+    render(<OverviewPage user={{ name: "Ada", role: "admin" }} tabs={[["overview"], ["communication"]]}/>);
+    await screen.findByText("Progress against plan");
+    expect(communicationApi.pendingFeedback).not.toHaveBeenCalled();
+    expect(screen.queryByRole("region", { name: "Rate your vendors" })).toBeNull();
   });
 });
