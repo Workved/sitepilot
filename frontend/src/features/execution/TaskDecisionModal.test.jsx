@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { taskExecutionApi } from "../../api/taskExecutionApi";
-import { TaskDecisionModal } from "./components/TaskDecisionModal";
+import { reviewStateFor, TaskDecisionModal } from "./components/TaskDecisionModal";
 
 vi.mock("../../api/taskExecutionApi", () => ({ taskExecutionApi: { verify: vi.fn(), approve: vi.fn() } }));
 
@@ -165,5 +165,32 @@ describe("TaskDecisionModal", () => {
       fireEvent.click(await screen.findByRole("button", { name: /confirm verification/i }));
       await waitFor(() => expect(taskExecutionApi.verify).toHaveBeenCalled());
     });
+  });
+});
+
+describe("self-verification", () => {
+  const project = { memberships: [
+    { user_id: "u-pm", name: "Prachi", project_role: "project_manager" },
+    { user_id: "u-sup", name: "Deepak", project_role: "site_supervisor" },
+  ] };
+  const submittedBySupervisor = { ...workTask, progress_updates: [
+    { id: "a", submitted_by: "u-pm", created_at: "2026-11-24T09:00:00Z" },
+    { id: "b", submitted_by: "u-sup", created_at: "2026-11-25T09:00:00Z" },
+  ] };
+
+  it("never offers Verify to whoever submitted the latest progress, and names who can", () => {
+    render(<TaskDecisionModal projectId="p1" project={project} task={submittedBySupervisor} user={{ id: "u-sup", role: "supervisor" }} onDecided={vi.fn()}/>);
+    expect(screen.queryByRole("button", { name: "Verify completion" })).toBeNull();
+    expect(screen.getByText("You submitted this work, so someone else has to verify it: Prachi or an admin.")).toBeInTheDocument();
+  });
+
+  it("lets the other accountable member and admins verify", () => {
+    expect(reviewStateFor(submittedBySupervisor, { id: "u-pm", role: "project_manager" }, project)).toMatchObject({ action: "verify", canAct: true });
+    expect(reviewStateFor(submittedBySupervisor, { id: "u-sup", role: "admin" }, project)).toMatchObject({ canAct: true, selfSubmitted: false });
+    expect(reviewStateFor(submittedBySupervisor, { id: "u-sup", role: "supervisor" }, project)).toMatchObject({ canAct: false, selfSubmitted: true, waitingOn: "Prachi or an admin" });
+  });
+
+  it("says who approval is waiting on", () => {
+    expect(reviewStateFor(classATask, { id: "u-sup", role: "supervisor" }, project)).toMatchObject({ action: "approve", canAct: false, waitingOn: "Prachi" });
   });
 });

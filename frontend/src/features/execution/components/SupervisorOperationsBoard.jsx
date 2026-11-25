@@ -2,7 +2,7 @@ import { CalendarClock, ClipboardCheck, Clock3, Rocket, Search, ShieldAlert, Shi
 import { useEffect, useMemo, useState } from "react";
 import { projectsApi } from "../../../api/projectsApi";
 import { taskExecutionApi } from "../../../api/taskExecutionApi";
-import { Button, EmptyState, LoadingSpinner, Pill, Select } from "../../../components/ui";
+import { Button, EmptyState, LoadingSpinner, Pill } from "../../../components/ui";
 import { todayIso } from "../../../utils/format";
 import { STATUS_TONE } from "./TaskDetailContent";
 import { TaskDetailDrawer } from "./TaskDetailDrawer";
@@ -18,16 +18,16 @@ function offsetDay(day, delta) {
 
 function columnLabel(date, kind) {
   const weekday = date.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" });
-  const formatted = date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
-  return { kind, formatted: `${formatted} (${weekday})` };
+  const formatted = date.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  return { kind, formatted: `${weekday} ${formatted}` };
 }
 
 const ATTENTION_KEYS = [
   ["delayed", "Delayed", Clock3, task => task.variance?.status === "late"],
-  ["started_early", "Started Early", Rocket, task => startedEarlyDays(task) > 0],
+  ["started_early", "Started early", Rocket, task => startedEarlyDays(task) > 0],
   ["blocked", "Blocked", ShieldAlert, task => task.readiness?.state === "blocked"],
-  ["needs_review", "Needs Review", ClipboardCheck, needsReview],
-  ["approval_pending", "Approval Pending", ShieldCheck, task => task.lifecycle_status === "approval_pending"],
+  ["needs_review", "Needs review", ClipboardCheck, needsReview],
+  ["approval_pending", "Approval pending", ShieldCheck, task => task.lifecycle_status === "approval_pending"],
 ];
 
 // Delayed and early-started tasks need to be seen first, not buried
@@ -47,32 +47,34 @@ export function sortByAttention(tasks) {
 function TaskCard({ task, onOpen }) {
   const late = task.variance?.status === "late";
   const earlyDays = startedEarlyDays(task);
-  return <button type="button" onClick={() => onOpen(task.id)} className="grid w-full min-w-0 gap-1 rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-blue-300 hover:shadow-sm">
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <span className="font-mono text-[11px] font-black text-blue-700">{task.original_code}</span>
-      <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900">{task.title}</span>
-    </div>
-    <div className="flex flex-wrap items-center gap-2">
-      {task.category && <span className="text-xs text-slate-500">{task.category}</span>}
+  return <button type="button" onClick={() => onOpen(task.id)}
+    className={`relative grid w-full min-w-0 gap-1.5 overflow-hidden rounded-xl border border-line bg-white p-3 text-left transition hover:border-slate-300 hover:shadow-[0_2px_10px_rgba(21,23,26,.06)] ${late ? "pl-4" : ""}`}>
+    {late && <span className="absolute inset-y-0 left-0 w-1 bg-behind" aria-hidden="true"/>}
+    <span className="flex min-w-0 items-baseline gap-2">
+      <span className="shrink-0 text-xs tabular-nums text-slate-400">{task.original_code}</span>
+      <span className="min-w-0 flex-1 truncate text-sm text-slate-950">{task.title}</span>
+    </span>
+    <span className="flex flex-wrap items-center gap-1.5">
       <Pill tone={STATUS_TONE[task.lifecycle_status] || "gray"}>{task.lifecycle_status.replaceAll("_", " ")}</Pill>
       {late && <Pill tone="orange">{task.variance.days}d late</Pill>}
       {earlyDays > 0 && <Pill tone="blue">{earlyDays}d early</Pill>}
-    </div>
+      {task.category && <span className="truncate text-xs text-slate-500">{task.category}</span>}
+    </span>
   </button>;
 }
 
-function DayColumn({ label, tasks, expanded, onExpand, onOpen }) {
+function DayColumn({ label, tasks, expanded, onExpand, onOpen, isToday }) {
   const visible = expanded ? tasks : tasks.slice(0, VISIBLE_PER_COLUMN);
   const remaining = tasks.length - visible.length;
-  return <article className="grid min-w-0 gap-2 rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
-    <header className="text-center">
-      <div className="text-xs font-medium text-slate-500">{label.kind}</div>
-      <div className="text-xs font-bold text-slate-700">{label.formatted}</div>
+  return <article aria-label={`${label.kind}, ${label.formatted}`} className={`grid min-w-0 gap-2 rounded-[20px] border p-3 ${isToday ? "border-slate-950 bg-white" : "border-line bg-white/60"}`}>
+    <header className="flex items-baseline justify-between gap-2 px-1 pb-1">
+      <span className={`text-[15px] ${isToday ? "font-medium text-slate-950" : "text-slate-700"}`}>{label.kind}</span>
+      <span className="text-xs text-slate-500">{label.formatted} · {tasks.length} {tasks.length === 1 ? "task" : "tasks"}</span>
     </header>
     <div className="grid min-w-0 gap-2">
-      {visible.length ? visible.map(task => <TaskCard key={task.id} task={task} onOpen={onOpen}/>) : <p className="rounded-xl border border-dashed border-slate-200 bg-white p-3 text-center text-xs text-slate-400">No tasks</p>}
+      {visible.length ? visible.map(task => <TaskCard key={task.id} task={task} onOpen={onOpen}/>) : <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">No tasks</p>}
     </div>
-    {remaining > 0 && <Button size="sm" variant="ghost" onClick={onExpand}>View all ({tasks.length})</Button>}
+    {remaining > 0 && <Button size="sm" variant="ghost" onClick={onExpand}>Show all {tasks.length}</Button>}
   </article>;
 }
 
@@ -162,68 +164,56 @@ export function SupervisorOperationsBoard({ projectId, user }) {
     });
   }
 
-  if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-8"><LoadingSpinner label="Loading operations board..."/></div>;
-  if (error) return <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm font-bold text-rose-700">{error}</div>;
+  if (loading) return <div className="rounded-[20px] border border-line bg-white p-8"><LoadingSpinner label="Loading operations board..."/></div>;
+  if (error) return <div className="rounded-[20px] border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">{error}</div>;
   if (!tasks.length) return <EmptyState icon={<CalendarClock size={21}/>} title="No execution tasks yet" description="This project's baseline has no tasks to execute."/>;
 
-  {/* TaskDetailDrawer is a fixed-position overlay now, not a split column -
-      no grid-cols split needed to host it. */}
-  return <div className="grid gap-4">
-    <div className="grid min-w-0 gap-4">
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="m-0 flex items-center gap-2 font-serif text-lg text-slate-950"><CalendarClock size={18}/> 3-Day Operations Board</h3>
-        <span className="text-xs font-bold text-slate-500">Today: {new Date(`${todayIso()}T00:00:00Z`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })}</span>
-      </header>
+  const flagged = attentionCounts.filter(item => item.count > 0);
+  const todayLabel = new Date(`${todayIso()}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
-      <div className="flex flex-wrap items-center gap-2">
+  return <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
+    <header className="flex flex-wrap items-end justify-between gap-3">
+      <div className="min-w-0">
+        <h3 className="text-[17px] font-medium text-slate-950">3-Day Operations Board</h3>
+        <p className="mt-0.5 text-sm text-slate-500">{todayLabel} · {windowTasks.length} {windowTasks.length === 1 ? "task" : "tasks"} from yesterday to tomorrow</p>
+      </div>
+    </header>
+
+    <div className="flex flex-wrap items-center gap-2 rounded-[20px] border border-line bg-white p-2">
       <label className="relative min-w-[200px] flex-1">
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-        <input value={search} onChange={event => setSearch(event.target.value)} className="min-h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10" placeholder="Search task code, title, phase or category"/>
+        <span className="sr-only">Search tasks</span>
+        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/>
+        <input value={search} onChange={event => setSearch(event.target.value)} autoComplete="off" placeholder="Search code, title, phase or trade"
+          className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:border-blue-600 focus:bg-white"/>
       </label>
-      <Select value={typeFilter} onChange={event => setTypeFilter(event.target.value)} aria-label="Filter by task type" className="min-h-10 w-auto min-w-[150px]">
+      <select value={typeFilter} onChange={event => setTypeFilter(event.target.value)} aria-label="Filter by task type"
+        className={`h-9 rounded-lg border bg-white px-2.5 text-sm outline-none focus:border-blue-600 ${typeFilter !== "all" ? "border-slate-950 text-slate-950" : "border-slate-200 text-slate-700"}`}>
         {TASK_TYPE_FILTERS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-      </Select>
-      </div>
-
-      {/* items-start: without it, a CSS Grid row stretches every column to
-          match its tallest sibling by default. Each DayColumn is itself a
-          2-row grid (header, task list) with no fixed row heights, so once
-          "View all" made the columns' real task counts diverge, the leftover
-          stretch height landed as an uneven gap between a shorter column's
-          header and its first card instead of just trailing empty space
-          below it. Before expansion this was invisible - all columns are
-          capped at VISIBLE_PER_COLUMN and stay nearly the same height. */}
-      <div className="grid items-start gap-3 sm:grid-cols-3">
-        {visibleColumns.map(column => <DayColumn
-          key={column.key}
-          label={column.label}
-          tasks={column.tasks}
-          expanded={expandedColumns.has(column.key)}
-          onExpand={() => toggleExpand(column.key)}
-          onOpen={setSelectedTaskId}
-        />)}
-      </div>
-
-      <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4" aria-label="Attention required">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 className="text-xs font-medium text-amber-800">Attention Required</h4>
-          {attentionFilter && <button type="button" onClick={() => setAttentionFilter(null)} className="text-xs font-bold text-blue-700 hover:underline">Clear filter</button>}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {attentionCounts.map(({ key, label, Icon, count }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setAttentionFilter(attentionFilter === key ? null : key)}
-              aria-pressed={attentionFilter === key}
-              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition ${attentionFilter === key ? "border-amber-600 bg-amber-600 text-white" : "border-amber-200 bg-white text-amber-800 hover:bg-amber-100"}`}
-            >
-              <Icon size={13}/> {count} {label}
-            </button>
-          ))}
-          {attentionCounts.every(item => item.count === 0) && <span className="text-xs font-bold text-emerald-700">Nothing needs attention right now.</span>}
-        </div>
+      </select>
+      <section aria-label="Attention required" className="flex flex-wrap items-center gap-1.5">
+        {flagged.length === 0
+          ? <span className="px-1 text-sm text-ok">Nothing needs attention</span>
+          : attentionCounts.filter(item => item.count > 0 || attentionFilter === item.key).map(({ key, label, Icon, count }) => <button key={key} type="button"
+              onClick={() => setAttentionFilter(attentionFilter === key ? null : key)} aria-pressed={attentionFilter === key}
+              className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] transition ${attentionFilter === key ? "bg-slate-950 text-white" : "bg-orange-50 text-orange-800 hover:bg-orange-100"}`}>
+              <Icon size={14} aria-hidden="true"/> {count} {label}
+            </button>)}
+        {attentionFilter && <button type="button" onClick={() => setAttentionFilter(null)} className="px-1 text-sm text-blue-700 hover:underline">Clear</button>}
       </section>
+    </div>
+
+    {/* items-start: a grid row would otherwise stretch every column to the
+        tallest one, leaving uneven gaps once "Show all" makes them differ. */}
+    <div className="grid items-start gap-3 md:grid-cols-3">
+      {visibleColumns.map(column => <DayColumn
+        key={column.key}
+        label={column.label}
+        tasks={column.tasks}
+        isToday={column.key === "today"}
+        expanded={expandedColumns.has(column.key)}
+        onExpand={() => toggleExpand(column.key)}
+        onOpen={setSelectedTaskId}
+      />)}
     </div>
 
     {selectedTask && <TaskDetailDrawer

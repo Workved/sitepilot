@@ -1,6 +1,6 @@
 import {
-  AlertTriangle, ArrowRight, CheckCircle2, ClipboardCheck, ClipboardList, Edit3, Paperclip,
-  Repeat, RotateCcw, Search, Send, ShieldAlert, ShieldCheck, UserCog, UserPlus, UserX, X,
+  AlertTriangle, ArrowRight, ClipboardCheck, ClipboardList, Edit3, Paperclip,
+  Repeat, RotateCcw, Search, Send, ShieldAlert, ShieldCheck, UserPlus, X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { projectsApi } from "../../../api/projectsApi";
@@ -127,7 +127,7 @@ const WORKFLOW_STEPS = [
 ];
 
 function EmployeeAvatar({ name, className = "" }) {
-  return <span className={`grid size-7 shrink-0 place-items-center rounded-full bg-blue-100 text-[11px] font-black text-blue-700 ${className}`}>{initials(name)}</span>;
+  return <span className={`grid size-7 shrink-0 place-items-center rounded-full bg-blue-100 text-xs font-medium text-blue-700 ${className}`}>{initials(name)}</span>;
 }
 
 function triggerDownload(blob, filename) {
@@ -143,30 +143,36 @@ function triggerDownload(blob, filename) {
 
 // ---- workflow strip -------------------------------------------------------
 
+// The four-step process, folded away: useful the first time, noise after.
 function WorkflowStrip() {
-  return <div className="flex flex-wrap items-stretch gap-2 rounded-2xl border border-slate-200 bg-white p-4">
-    {WORKFLOW_STEPS.map(({ title, desc, Icon }, index) => <div key={title} className="flex flex-1 items-stretch gap-2">
-      <article className="flex min-w-[190px] flex-1 flex-col gap-2 rounded-xl bg-slate-50 p-3">
-        <div className="flex items-center gap-2">
-          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-blue-100 text-blue-700"><Icon size={16}/></span>
-          <span className="text-xs font-medium text-slate-500">Step {index + 1}</span>
-        </div>
-        <h4 className="text-sm font-black text-slate-950">{title}</h4>
-        <p className="text-xs leading-5 text-slate-500">{desc}</p>
-      </article>
-      {index < WORKFLOW_STEPS.length - 1 && <span className="hidden shrink-0 place-items-center text-slate-300 sm:grid"><ArrowRight size={18}/></span>}
-    </div>)}
-  </div>;
+  return <details className="group rounded-[20px] border border-line bg-white">
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 text-sm text-slate-700">
+      How external approvals work
+      <ArrowRight size={15} className="text-slate-400 transition group-open:rotate-90" aria-hidden="true"/>
+    </summary>
+    <ol className="grid gap-3 border-t border-line p-5 sm:grid-cols-2 lg:grid-cols-4">
+      {WORKFLOW_STEPS.map(({ title, desc }, index) => <li key={title} className="flex gap-3">
+        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-slate-100 text-xs tabular-nums text-slate-600">{index + 1}</span>
+        <span className="min-w-0">
+          <span className="block text-sm text-slate-950">{title}</span>
+          <span className="mt-0.5 block text-xs leading-5 text-slate-500">{desc}</span>
+        </span>
+      </li>)}
+    </ol>
+  </details>;
 }
 
 // ---- KPI cards --------------------------------------------------------
 
-function KpiCard({ icon: Icon, tone, label, value, helper }) {
-  return <article className="rounded-2xl border border-slate-200 bg-white p-4">
-    <span className={`grid size-9 place-items-center rounded-xl ${tone}`}><Icon size={17}/></span>
-    <strong className="mt-3 block font-serif text-2xl text-slate-950">{value ?? "—"}</strong>
-    <p className="mt-0.5 text-xs font-medium text-slate-500">{label}</p>
-    <p className="mt-1 text-[11px] text-slate-400">{helper}</p>
+const KPI_EDGE = { blue: "var(--color-blue-600)", gray: "var(--color-slate-300)", orange: "var(--color-behind)", red: "#d9483b", green: "var(--color-ok)" };
+
+// Coloured edge, label and a big light number - the same tile as StatStrip.
+// A zero greys out so the eye goes to what is actually non-zero.
+function KpiCard({ tone, label, value, helper }) {
+  return <article title={helper} className="flex items-center gap-3 rounded-2xl border border-line bg-white px-4 py-3.5">
+    <span className="h-8 w-1.5 shrink-0 rounded" style={{ background: value ? KPI_EDGE[tone] : "var(--color-slate-200)" }} aria-hidden="true"/>
+    <p className="min-w-0 flex-1 truncate text-sm text-slate-950">{label}</p>
+    <strong className={`text-2xl font-light tabular-nums leading-none ${value ? "text-slate-950" : "text-slate-400"}`}>{value ?? "—"}</strong>
   </article>;
 }
 
@@ -181,40 +187,45 @@ function KpiCards({ approvals }) {
   }), [approvals]);
 
   const cards = [
-    ["total", "Total Approvals", ClipboardList, "bg-blue-50 text-blue-700", "All external approvals on this project", counts.total],
-    ["unassigned", "Unassigned", UserX, "bg-slate-100 text-slate-600", "Not yet given to an employee", counts.unassigned],
-    ["assigned", "Assigned / In Progress", UserCog, "bg-blue-50 text-blue-700", "With an internal employee", counts.assigned],
-    ["submitted", "Submitted for Review", Send, "bg-amber-50 text-amber-700", "Waiting on Admin", counts.submitted],
-    ["blocking", "Blocking", ShieldAlert, "bg-rose-50 text-rose-700", "Still holding up covered tasks", counts.blocking],
-    ["approved", "Approved", CheckCircle2, "bg-emerald-50 text-emerald-700", "Granted by Admin", counts.approved],
+    ["total", "Total Approvals", "blue", "All external approvals on this project", counts.total],
+    ["unassigned", "Unassigned", "gray", "Not yet given to an employee", counts.unassigned],
+    ["assigned", "Assigned / In Progress", "blue", "With an internal employee", counts.assigned],
+    ["submitted", "Submitted for Review", "orange", "Waiting on Admin", counts.submitted],
+    ["blocking", "Blocking", "red", "Still holding up covered tasks", counts.blocking],
+    ["approved", "Approved", "green", "Granted by Admin", counts.approved],
   ];
 
-  return <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" role="group" aria-label="External approvals summary">
-    {cards.map(([key, label, Icon, tone, helper, value]) => <KpiCard key={key} icon={Icon} tone={tone} label={label} helper={helper} value={value}/>)}
+  return <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" role="group" aria-label="External approvals summary">
+    {cards.map(([key, label, tone, helper, value]) => <KpiCard key={key} tone={tone} label={label} helper={helper} value={value}/>)}
   </div>;
 }
 
 // ---- filter bar -------------------------------------------------------
 
+const SELECT_CLASS = "h-9 rounded-lg border bg-white px-2.5 text-sm outline-none focus:border-blue-600";
+const selectTone = active => active ? "border-slate-950 text-slate-950" : "border-slate-200 text-slate-700";
+
 function FilterBar({ search, setSearch, statusFilter, setStatusFilter, employeeFilter, setEmployeeFilter, coverageFilter, setCoverageFilter, employees, showEmployeeFilter, onReset, filtersActive }) {
-  return <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+  return <div className="flex flex-wrap items-center gap-2 rounded-[20px] border border-line bg-white p-2">
     <label className="relative min-w-[220px] flex-1">
-      <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-      <input value={search} onChange={event => setSearch(event.target.value)} className="min-h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10" placeholder="Search by approval code or title"/>
+      <span className="sr-only">Search approvals</span>
+      <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/>
+      <input value={search} onChange={event => setSearch(event.target.value)} autoComplete="off" placeholder="Search by approval code or title"
+        className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:border-blue-600 focus:bg-white"/>
     </label>
-    <Select value={statusFilter} onChange={event => setStatusFilter(event.target.value)} aria-label="Filter by status" className="min-h-10 w-auto min-w-[170px]">
+    <select value={statusFilter} onChange={event => setStatusFilter(event.target.value)} aria-label="Filter by status" className={`${SELECT_CLASS} ${selectTone(statusFilter !== "all")}`}>
       {STATUS_FILTERS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-    </Select>
-    {showEmployeeFilter && <Select value={employeeFilter} onChange={event => setEmployeeFilter(event.target.value)} aria-label="Filter by internal employee" className="min-h-10 w-auto min-w-[170px]">
+    </select>
+    {showEmployeeFilter && <select value={employeeFilter} onChange={event => setEmployeeFilter(event.target.value)} aria-label="Filter by internal employee" className={`${SELECT_CLASS} ${selectTone(employeeFilter !== "all")}`}>
       <option value="all">All employees</option>
       {employees.map(candidate => <option key={candidate.user_id} value={candidate.user_id}>{candidate.name}</option>)}
-    </Select>}
-    <Select value={coverageFilter} onChange={event => setCoverageFilter(event.target.value)} aria-label="Filter by coverage" className="min-h-10 w-auto min-w-[170px]">
+    </select>}
+    <select value={coverageFilter} onChange={event => setCoverageFilter(event.target.value)} aria-label="Filter by coverage" className={`${SELECT_CLASS} ${selectTone(coverageFilter !== "all")}`}>
       {COVERAGE_FILTERS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-    </Select>
-    <button type="button" onClick={onReset} disabled={!filtersActive} className="flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
+    </select>
+    {filtersActive && <button type="button" onClick={onReset} className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-950">
       <RotateCcw size={14}/> Reset
-    </button>
+    </button>}
   </div>;
 }
 
@@ -224,7 +235,7 @@ function CoverageCell({ approval }) {
   if (approval.coverage_state === "unresolved") {
     return <div className="grid gap-1">
       <Pill tone="violet"><AlertTriangle size={12}/> Coverage unresolved</Pill>
-      {approval.coverage_text && <p className="max-w-[220px] truncate text-[11px] text-slate-400" title={approval.coverage_text}>{approval.coverage_text}</p>}
+      {approval.coverage_text && <p className="max-w-[220px] truncate text-xs text-slate-400" title={approval.coverage_text}>{approval.coverage_text}</p>}
     </div>;
   }
   const count = approval.covered_task_ids.length;
@@ -250,7 +261,7 @@ function actionFor(approval, { mayManage, mine }) {
 function ApprovalsTable({ approvals, mayManage, user, selectedId, onSelect, onAssign, hasMore, canShowLess, onLoadMore, onShowLess }) {
   if (!approvals.length) return <EmptyState icon={<ClipboardList size={21}/>} title="No approvals match" description="Try a different search or filter."/>;
 
-  return <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+  return <div className="overflow-hidden rounded-[20px] border border-line bg-white shadow-sm">
     <div className="overflow-x-auto">
       <table className="w-full min-w-[760px] border-collapse text-left text-sm">
         <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-medium text-slate-500">
@@ -275,7 +286,7 @@ function ApprovalsTable({ approvals, mayManage, user, selectedId, onSelect, onAs
               className={`cursor-pointer transition ${active ? "bg-blue-50/70" : "hover:bg-slate-50"}`}
             >
               <td className="px-4 py-3 align-top">
-                <span className="font-mono text-xs font-black text-blue-700">{approval.gate_code}</span>
+                <span className="tabular-nums text-xs font-medium text-slate-600">{approval.gate_code}</span>
                 <div className="mt-0.5 max-w-[260px] truncate text-sm font-bold text-slate-900">{approval.gate_name}</div>
               </td>
               <td className="px-4 py-3 align-top">
@@ -482,7 +493,7 @@ function DecisionModal({ approval, decision, onConfirm, onClose }) {
       {stillBlocking(approval) && !rejecting && <p className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">
         This approval blocks {approval.covered_task_ids.length} task{approval.covered_task_ids.length === 1 ? "" : "s"}. Approving it releases them.
       </p>}
-      {rejecting && <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+      {rejecting && <p className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-bold text-orange-900">
         This sends the approval back to {approval.assigned_to_name || "the assignee"} to fix and resubmit - it is not a permanent close.
       </p>}
       <Field label={rejecting ? "Reason for rejection (required)" : "Remarks (optional)"}>
@@ -517,7 +528,7 @@ function CoveredTasks({ approval, tasksById }) {
   return <div className="grid gap-1.5">
     <p className="text-sm font-bold text-slate-700">{approval.covered_task_ids.length} task{approval.covered_task_ids.length === 1 ? "" : "s"} covered</p>
     {resolved.length > 0 && <div className="flex flex-wrap gap-1.5">
-      {resolved.map(task => <span key={task.code} title={task.title} className="rounded-md bg-slate-100 px-2 py-1 font-mono text-[11px] font-black text-slate-600">{task.code}</span>)}
+      {resolved.map(task => <span key={task.code} title={task.title} className="rounded-md bg-slate-100 px-2 py-1 tabular-nums text-xs font-medium text-slate-600">{task.code}</span>)}
     </div>}
   </div>;
 }
@@ -568,8 +579,8 @@ function ReviewPanel({ projectId, approval, mayManage, user, candidates, tasksBy
     >
       <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-6 py-5">
         <div className="min-w-0">
-          <span className="font-mono text-xs font-black text-blue-700">{approval.gate_code}</span>
-          <h2 className="mt-0.5 text-lg font-black leading-snug text-slate-950">{approval.gate_name}</h2>
+          <span className="tabular-nums text-xs font-medium text-slate-600">{approval.gate_code}</span>
+          <h2 className="mt-0.5 text-lg font-medium leading-snug text-slate-950">{approval.gate_name}</h2>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Pill tone={meta.tone}>{meta.label}</Pill>
             {stillBlocking(approval) && <Pill tone="red"><ShieldAlert size={12}/> Blocking</Pill>}
@@ -640,7 +651,7 @@ function ReviewPanel({ projectId, approval, mayManage, user, candidates, tasksBy
           {label}
         </label>)}
       </div>
-      <p className="text-[11px] text-slate-400">For your own review only - not saved to the system.</p>
+      <p className="text-xs text-slate-400">For your own review only - not saved to the system.</p>
     </section>}
 
     {/* D. Admin Decision Actions - Approve / Reject (which is also the only
@@ -763,7 +774,7 @@ export function ExternalApprovalsPanel({ projectId, project, user }) {
     await load();
   }
 
-  if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-8"><LoadingSpinner label="Loading external approvals..."/></div>;
+  if (loading) return <div className="rounded-[20px] border border-line bg-white p-8"><LoadingSpinner label="Loading external approvals..."/></div>;
 
   const filtered = sortApprovals(approvals).filter(approval => {
     const statusMatch = STATUS_FILTERS.find(([key]) => key === statusFilter)?.[2] ?? (() => true);
@@ -787,8 +798,8 @@ export function ExternalApprovalsPanel({ projectId, project, user }) {
 
   return <div className="grid gap-4">
     <header>
-      <h2 className="font-serif text-xl text-slate-950">External Approvals Control</h2>
-      <p className="mt-1 max-w-2xl text-sm text-slate-500">
+      <h2 className="text-[17px] font-medium text-slate-950">External Approvals Control</h2>
+      <p className="mt-0.5 max-w-2xl text-sm text-slate-500">
         {mayManage
           ? "Assign approvals to internal employees, track submissions, and complete admin review."
           : employeeViewer
@@ -804,9 +815,9 @@ export function ExternalApprovalsPanel({ projectId, project, user }) {
     {/* Shown whenever gates are still undecided, not only when the list is
         empty: a project can have three approvals here and twenty more nobody
         has ruled on, and the three would otherwise read as the whole set. */}
-    {awaitingReview > 0 && <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-      <ClipboardCheck size={16} className="mt-0.5 shrink-0 text-amber-700"/>
-      <p className="text-sm font-bold leading-6 text-amber-900">
+    {awaitingReview > 0 && <div className="flex items-start gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
+      <ClipboardCheck size={16} className="mt-0.5 shrink-0 text-orange-700"/>
+      <p className="text-sm font-bold leading-6 text-orange-900">
         {awaitingReview} external approval{awaitingReview === 1 ? " is" : "s are"} awaiting applicability review.
         <span className="block font-medium">
           {awaitingReview === 1 ? "It becomes" : "They become"} assignable here once someone decides, in this project's setup, whether {awaitingReview === 1 ? "it applies" : "they apply"} to this project. Until then {awaitingReview === 1 ? "it holds" : "they hold"} nothing up.

@@ -32,6 +32,20 @@ export function readRoute() {
   };
 }
 
+// One-time sign-in parameters (PKCE `code`, OAuth errors, recovery `view`)
+// must not linger in the address bar after auth has consumed them - but the
+// workspace route next to them must survive, or every refresh, bookmark and
+// shared link would land on the home tab.
+const AUTH_PARAMS = ["code", "state", "error", "error_code", "error_description", "type", "token_hash", "view"];
+
+export function stripAuthParams() {
+  const params = new URLSearchParams(window.location.search);
+  AUTH_PARAMS.forEach(key => params.delete(key));
+  const query = params.toString();
+  const url = `${window.location.pathname}${query ? `?${query}` : ""}`;
+  if (url !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState({}, "", url);
+}
+
 function currentUrl() {
   return `${window.location.pathname}${window.location.search}`;
 }

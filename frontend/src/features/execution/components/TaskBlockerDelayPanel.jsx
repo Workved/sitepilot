@@ -57,7 +57,7 @@ function BlockerForm({ projectId, task, onDone, onChanged }) {
     }
   }
 
-  return <form className="mt-2 grid gap-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3 sm:grid-cols-[160px_1fr_auto]" onSubmit={submit}>
+  return <form className="mt-2 grid gap-2 rounded-lg border border-orange-200 bg-orange-50/60 p-3 sm:grid-cols-[160px_1fr_auto]" onSubmit={submit}>
     <Field label="Type"><Input value={type} onChange={event => setType(event.target.value)} placeholder="e.g. material" required/></Field>
     <Field label="Description"><Input value={description} onChange={event => setDescription(event.target.value)} placeholder="Describe the blocker" required/></Field>
     <div className="flex items-end gap-2">
@@ -152,9 +152,9 @@ export function TaskBlockerDelayPanel({ projectId, task, onChanged, autoOpen, ca
   useEffect(() => { if (autoOpen) setOpenForm(autoOpen); }, [autoOpen]);
   const openBlockers = task.blockers.filter(b => !b.resolved_at).length;
 
-  return <section className="rounded-xl border border-slate-200 bg-white p-4">
+  return <section className="rounded-[20px] border border-line bg-white p-5">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h4 className="text-xs font-medium text-slate-500">Blockers &amp; delays</h4>
+      <h4 className="text-[15px] font-medium text-slate-950">Blockers &amp; delays</h4>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant={openForm === "blocker" ? "primary" : "secondary"} onClick={() => setOpenForm(openForm === "blocker" ? null : "blocker")}>
           {openForm === "blocker" ? <X size={13}/> : <AlertTriangle size={13}/>} Report blocker
@@ -166,7 +166,7 @@ export function TaskBlockerDelayPanel({ projectId, task, onChanged, autoOpen, ca
     </div>
 
     <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-bold text-slate-500">
-      <span>{openBlockers > 0 ? <span className="text-amber-700">{openBlockers} open blocker{openBlockers === 1 ? "" : "s"}</span> : "No open blockers"}</span>
+      <span>{openBlockers > 0 ? <span className="text-orange-700">{openBlockers} open blocker{openBlockers === 1 ? "" : "s"}</span> : "No open blockers"}</span>
       <span aria-hidden="true">&middot;</span>
       <span>{task.delays.length > 0 ? `${task.delays.length} delay${task.delays.length === 1 ? "" : "s"} logged` : "No delays logged"}</span>
     </div>

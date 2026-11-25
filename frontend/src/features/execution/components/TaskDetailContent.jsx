@@ -1,11 +1,11 @@
 import { AlertTriangle, CalendarClock, GitBranch, History, ShieldAlert, ShieldCheck, User, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { taskExecutionApi } from "../../../api/taskExecutionApi";
-import { Button, DetailGrid, Field, LoadingSpinner, Modal, Textarea } from "../../../components/ui";
+import { Button, Field, LoadingSpinner, Modal, Textarea } from "../../../components/ui";
 import { formatDateShort, todayIso } from "../../../utils/format";
 import { TaskApprovalSummary } from "./TaskApprovalSummary";
 import { TaskBlockerDelayPanel } from "./TaskBlockerDelayPanel";
-import { TaskDecisionModal } from "./TaskDecisionModal";
+import { reviewStateFor, TaskDecisionModal } from "./TaskDecisionModal";
 import { TaskLifecycleStepper } from "./TaskLifecycleStepper";
 import { TaskProgressForm } from "./TaskProgressForm";
 import { TaskSupportAssignmentPanel } from "./TaskSupportAssignmentPanel";
@@ -405,7 +405,7 @@ function EarlyStartModal({ task, onConfirm, onClose }) {
     className="sm:max-w-xl"
   >
     <form className="grid gap-4" onSubmit={submit}>
-      <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+      <p className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-bold text-orange-800">
         This task is planned to start on {formatDateShort(task.planned_start_date)}. Starting it now is ahead of the baseline, so it needs a reason for the record.
       </p>
       <Field label="Reason for starting early (required)">
@@ -425,11 +425,21 @@ function EarlyStartModal({ task, onConfirm, onClose }) {
   </Modal>;
 }
 
-function Card({ title, icon: Icon, children, className = "" }) {
-  return <section className={`rounded-2xl border border-slate-200 bg-white p-4 ${className}`}>
-    {title && <h4 className="mb-3 flex items-center gap-1.5 text-xs font-medium text-slate-500">{Icon && <Icon size={14}/>} {title}</h4>}
+function Card({ title, children, className = "" }) {
+  return <section className={`rounded-[20px] border border-line bg-white p-5 ${className}`}>
+    {title && <h4 className="mb-3 text-[15px] font-medium text-slate-950">{title}</h4>}
     {children}
   </section>;
+}
+
+// Label above value, two per row: denser than DetailGrid's one-per-row list.
+function Facts({ items }) {
+  return <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+    {items.map(item => <div key={item.label} className="min-w-0">
+      <dt className="text-xs text-slate-500">{item.label}</dt>
+      <dd className="mt-0.5 truncate text-sm text-slate-950">{item.value}</dd>
+    </div>)}
+  </dl>;
 }
 
 // --- Overview: read-only / summary. ---
@@ -454,14 +464,14 @@ function OverviewPane({ task, detail, project, candidates, externalApprovals, on
     <TaskLifecycleStepper status={detail.lifecycle_status} approvalRequired={detail.approval?.approval_required}/>
 
     <div className="grid gap-4 lg:grid-cols-2">
-      <Card title="Task Details"><DetailGrid items={taskDetailItems} className="!border-0 !bg-transparent !p-0 sm:!grid-cols-1"/></Card>
+      <Card title="Task Details"><Facts items={taskDetailItems}/></Card>
 
       <Card title="Instructions">
         <p className="text-sm leading-6 text-slate-600">{detail.description || "No specific instructions added."}</p>
         {detail.added_after_start && <p className="mt-3 flex items-start gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-800">
           <CalendarClock size={13} className="mt-0.5 shrink-0"/> Added after the project started{detail.added_by_name ? ` by ${detail.added_by_name}` : ""}{detail.added_reason ? `: ${detail.added_reason}` : ""}
         </p>}
-        {detail.early_start_reason && <p className="mt-3 flex items-start gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+        {detail.early_start_reason && <p className="mt-3 flex items-start gap-1.5 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-bold text-orange-800">
           <CalendarClock size={13} className="mt-0.5 shrink-0"/> Started early: {detail.early_start_reason}
         </p>}
         <ReferenceMaterial className="mt-4 border-t border-slate-100 pt-4" instructions={detail.evidence_instructions} files={detail.reference_files} onDownload={onDownloadReference}
@@ -486,7 +496,7 @@ function OverviewPane({ task, detail, project, candidates, externalApprovals, on
               {supervisor ? <>
                 <strong className="block text-sm text-slate-900">{supervisor.name}</strong>
                 <span className="text-xs text-slate-500">Role: Site Supervisor</span>
-              </> : <span className="mt-0.5 flex items-center gap-1 text-sm font-bold text-amber-700"><AlertTriangle size={13}/> Supervisor not assigned</span>}
+              </> : <span className="mt-0.5 flex items-center gap-1 text-sm font-bold text-orange-700"><AlertTriangle size={13}/> Supervisor not assigned</span>}
             </div>
           </div>
           <div className="flex items-start gap-2">
@@ -508,9 +518,8 @@ function OverviewPane({ task, detail, project, candidates, externalApprovals, on
         </div>
       </Card>
 
-      <Card title="Status & Readiness">
-        <DetailGrid
-          className="!border-0 !bg-transparent !p-0 sm:!grid-cols-1"
+      <Card title="Status and readiness">
+        <Facts
           items={[
             { label: "Lifecycle status", value: humanizeStatus(detail.lifecycle_status) },
             { label: "Readiness", value: humanizeStatus(detail.readiness?.state) },
@@ -519,7 +528,7 @@ function OverviewPane({ task, detail, project, candidates, externalApprovals, on
           ]}
         />
         {blockingItems.length > 0 && <div className="mt-3 border-t border-slate-100 pt-3">
-          <p className="text-xs font-black text-rose-700">Task is blocked by {blockingItems.length} item{blockingItems.length === 1 ? "" : "s"}</p>
+          <p className="text-xs font-medium text-rose-700">Task is blocked by {blockingItems.length} item{blockingItems.length === 1 ? "" : "s"}</p>
           <ol className="mt-2 grid gap-2">
             {blockingItems.map((item, index) => <li key={item.key} className="rounded-xl border border-rose-100 bg-rose-50/60 p-3 text-sm">
               <div className="flex items-center gap-1.5 font-bold text-slate-900">
@@ -540,7 +549,7 @@ function OverviewPane({ task, detail, project, candidates, externalApprovals, on
 
 // --- Action Forms: everything editable. ---
 
-function ActionFormsPane({ projectId, project, task, detail, user, roles, candidates, autoOpenBlockerDelay, forwardTargets, showCancel, blocker, earlyStart, transitioning, onTransition, onStartEarly, earlyStartOpen, setEarlyStartOpen, refreshAll, downloadEvidence, isTerminal }) {
+function ActionFormsPane({ projectId, project, task, detail, user, roles, candidates, autoOpenBlockerDelay, forwardTargets, showCancel, blocker, earlyStart, transitioning, onTransition, setEarlyStartOpen, refreshAll, downloadEvidence, isTerminal }) {
   if (isTerminal) {
     return <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-500">
       No actions available - this task is {detail.lifecycle_status}.
@@ -548,8 +557,6 @@ function ActionFormsPane({ projectId, project, task, detail, user, roles, candid
   }
 
   return <div className="grid gap-4">
-    {earlyStartOpen && <EarlyStartModal task={detail} onConfirm={onStartEarly} onClose={() => setEarlyStartOpen(false)}/>}
-
     <div id="action-status" className="grid gap-4">
       {(forwardTargets.length > 0 || showCancel) && <Card title="Status Action">
         <div className="flex flex-wrap items-center gap-2">
@@ -568,7 +575,7 @@ function ActionFormsPane({ projectId, project, task, detail, user, roles, candid
         {detail.readiness?.state === "blocked" && forwardTargets.includes("ready") && <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-rose-700">
           <AlertTriangle size={13}/> Cannot mark ready yet. Resolve dependencies/approvals first.
         </p>}
-        {forwardTargets.includes("in_progress") && earlyStart && <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-amber-700">
+        {forwardTargets.includes("in_progress") && earlyStart && <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-orange-700">
           <CalendarClock size={13}/> Planned to start {formatDateShort(detail.planned_start_date)} - starting now needs a reason.
         </p>}
         {forwardTargets.includes("submitted") && blocker && <p className="mt-2 text-xs font-bold text-blue-800">{SUBMIT_BLOCKER_MESSAGE[blocker]}</p>}
@@ -581,9 +588,9 @@ function ActionFormsPane({ projectId, project, task, detail, user, roles, candid
     <div id="action-progress" className="grid gap-4">
       {detail.lifecycle_status === "in_progress" && canExecute(detail, user, roles) && <TaskProgressForm projectId={projectId} task={detail} onSubmitted={refreshAll}/>}
 
-      {detail.progress_updates.length > 0 && <Card title="Progress & Evidence History">
-        <div className="grid gap-2">{detail.progress_updates.map(update => <article key={update.id} className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-bold text-slate-800">{update.note || "Evidence submitted."}</span><time className="text-xs text-slate-400">{new Date(update.created_at).toLocaleString("en-GB")}</time></div>
+      {detail.progress_updates.length > 0 && <Card title="Progress and evidence">
+        <div className="grid gap-2">{detail.progress_updates.map(update => <article key={update.id} className="rounded-xl bg-canvas p-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-slate-900">{update.note || "Evidence submitted."}</span><span className="text-xs text-slate-500">{resolveActorName(project, update.submitted_by) || "Team member"}</span><time className="text-xs text-slate-400">{new Date(update.created_at).toLocaleString("en-GB")}</time></div>
           {update.evidence.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{update.evidence.map(file => <button key={file.id} type="button" onClick={() => downloadEvidence(file.file_id)} className="rounded-md bg-blue-100 px-2 py-1 text-xs font-bold text-blue-700 hover:bg-blue-200">{file.original_filename}</button>)}</div>}
         </article>)}</div>
       </Card>}
@@ -595,11 +602,11 @@ function ActionFormsPane({ projectId, project, task, detail, user, roles, candid
         one. */}
     <div id="action-blockers-delays"><TaskBlockerDelayPanel projectId={projectId} task={detail} onChanged={refreshAll} autoOpen={autoOpenBlockerDelay} canResolve={canResolveBlockers(user, roles)}/></div>
 
-    <Card title="Support Assignment" icon={Users}>
+    <Card title="Support assignment">
       <TaskSupportAssignmentPanel projectId={projectId} task={detail} candidates={candidates} canAssign={canAssignSupport(detail, user, roles)} onChanged={refreshAll}/>
     </Card>
 
-    <div className="[&>section]:rounded-2xl [&>section]:border [&>section]:border-slate-200 [&>section]:bg-white [&>section]:p-4">
+    <div className="[&>section]:rounded-[20px] [&>section]:border [&>section]:border-line [&>section]:bg-white [&>section]:p-5">
       <TaskVendorDelegationForm projectId={projectId} task={detail} user={user} onChanged={refreshAll}/>
     </div>
   </div>;
@@ -613,8 +620,8 @@ function ActivityLogPane({ detail, project }) {
 
   return <ol className="grid gap-3">
     {entries.map(entry => <li key={entry.id} className="flex gap-3">
-      <div className="mt-1 grid size-7 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-400"><History size={13}/></div>
-      <div className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white p-3">
+      <div className="mt-1 grid size-7 shrink-0 place-items-center rounded-full bg-white text-slate-400 ring-1 ring-line"><History size={13}/></div>
+      <div className="min-w-0 flex-1 rounded-2xl border border-line bg-white p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm font-bold text-slate-900">{entry.action}</span>
           <time className="text-xs font-bold text-slate-400">{new Date(entry.at).toLocaleString("en-GB")}</time>
@@ -638,7 +645,7 @@ function ActivityLogPane({ detail, project }) {
 // changes, so the caller (TaskDetailDrawer) can render its own footer chrome
 // around the SAME transition handler this component already owns, without a
 // second copy of the transition logic.
-export function TaskDetailContent({ projectId, project, task, user, roles, candidates, onChanged, autoOpenBlockerDelay, onDetailLoaded, onFooterState, activeTab = "overview" }) {
+export function TaskDetailContent({ projectId, project, task, user, roles, candidates, onChanged, autoOpenBlockerDelay, onDetailLoaded, onFooterState, onRequestReview, activeTab = "overview" }) {
   const [detail, setDetail] = useState(null);
   const [externalApprovals, setExternalApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -744,13 +751,29 @@ export function TaskDetailContent({ projectId, project, task, user, roles, candi
       onFooterState({ helpText: "This task can be marked ready.", tone: "blue", primary: { label: "Mark Ready", onClick: () => transition("ready"), loading: transitioning === "ready" }, secondary: null });
       return;
     }
+    const review = reviewStateFor(detail, user, project);
+    if (review.action && review.canAct) {
+      onFooterState({
+        helpText: review.action === "verify" ? "Submitted and ready for your review." : "Verified and waiting for your approval.", tone: "blue",
+        primary: onRequestReview ? { label: review.action === "verify" ? "Review work" : "Review for approval", onClick: onRequestReview } : null,
+        secondary: null,
+      });
+      return;
+    }
+    if (review.action) {
+      onFooterState({
+        helpText: review.selfSubmitted ? `Submitted by you. Waiting for ${review.waitingOn} to verify.` : `Waiting for ${review.waitingOn} to ${review.action === "verify" ? "verify" : "approve"}.`,
+        tone: "amber", primary: null, secondary: null,
+      });
+      return;
+    }
     if (["submitted", "verified", "approval_pending"].includes(detail.lifecycle_status)) {
       onFooterState({ helpText: "Awaiting review.", tone: "amber", primary: null, secondary: null });
       return;
     }
     onFooterState({ helpText: "No action available for your role right now.", tone: "gray", primary: null, secondary: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detail, user, roles, transitioning]);
+  }, [detail, user, roles, transitioning, project]);
 
   if (loading) return <div className="grid min-h-32 place-items-center"><LoadingSpinner label="Loading task detail..."/></div>;
   if (!detail) return <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">{error || "Task detail unavailable."}</div>;
@@ -766,7 +789,10 @@ export function TaskDetailContent({ projectId, project, task, user, roles, candi
   const isTerminal = detail.lifecycle_status === "completed" || detail.lifecycle_status === "cancelled";
 
   return <div className="grid gap-4">
-    {error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div>}
+    {error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
+    {/* Lives here, not inside the Action Forms pane: the drawer footer can
+        ask for an early start from any tab. */}
+    {earlyStartOpen && <EarlyStartModal task={detail} onConfirm={startEarly} onClose={() => setEarlyStartOpen(false)}/>}
 
     {activeTab === "overview" && <OverviewPane task={task} detail={detail} project={project} candidates={candidates} externalApprovals={externalApprovals} onDownloadReference={file => taskExecutionApi.downloadTaskReference(projectId, task.id, file.id)}
       projectId={projectId} canManageReferences={canAddTasks(user) && !["completed", "cancelled"].includes(detail.lifecycle_status)} onReferencesChanged={load}/>}
@@ -774,8 +800,7 @@ export function TaskDetailContent({ projectId, project, task, user, roles, candi
     {activeTab === "actions" && <ActionFormsPane
       projectId={projectId} project={project} task={task} detail={detail} user={user} roles={roles} candidates={candidates}
       autoOpenBlockerDelay={autoOpenBlockerDelay} forwardTargets={forwardTargets} showCancel={showCancel} blocker={blocker}
-      earlyStart={earlyStart} transitioning={transitioning} onTransition={transition} onStartEarly={startEarly}
-      earlyStartOpen={earlyStartOpen} setEarlyStartOpen={setEarlyStartOpen} refreshAll={refreshAll} downloadEvidence={downloadEvidence}
+      earlyStart={earlyStart} transitioning={transitioning} onTransition={transition} setEarlyStartOpen={setEarlyStartOpen} refreshAll={refreshAll} downloadEvidence={downloadEvidence}
       isTerminal={isTerminal}
     />}
 

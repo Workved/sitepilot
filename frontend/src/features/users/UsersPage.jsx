@@ -1,18 +1,18 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BadgeCheck,
   BriefcaseBusiness,
+  Check,
   ChevronRight,
   CircleUserRound,
-  Mail,
   Pencil,
-  Phone,
   Search,
   ShieldCheck,
   UserPlus,
   UsersRound,
 } from "lucide-react";
 import { Button, Input, Pill, RefreshButton } from "../../components/ui";
+import { projectsApi } from "../../api/projectsApi";
 import { usersApi } from "../../api/usersApi";
 import { roles } from "../../utils/constants";
 import { initials } from "../../utils/format";
@@ -36,11 +36,11 @@ function Metric({ icon, label, value, tone = "blue" }) {
     green: "bg-emerald-50 text-emerald-700",
     violet: "bg-violet-50 text-violet-700",
   };
-  return <article className="rounded-[22px] border border-slate-200 bg-white p-4 sm:p-5"><span className={`grid size-10 place-items-center rounded-2xl ${tones[tone]}`}>{icon}</span><strong className="mt-5 block text-3xl font-normal tracking-[-.04em] text-slate-950">{value}</strong><span className="mt-1 block text-sm font-semibold text-slate-500">{label}</span></article>;
+  return <article className="rounded-[20px] border border-line bg-white p-4 sm:p-5"><span className={`grid size-10 place-items-center rounded-2xl ${tones[tone]}`}>{icon}</span><strong className="mt-5 block text-3xl font-normal tracking-[-.04em] text-slate-950">{value}</strong><span className="mt-1 block text-sm font-semibold text-slate-500">{label}</span></article>;
 }
 
 function EmptyState() {
-  return <div className="grid place-items-center px-5 py-16 text-center"><span className="grid size-14 place-items-center rounded-[20px] bg-slate-100 text-slate-400"><UsersRound size={25}/></span><h3 className="mt-4 font-black text-slate-900">No matching identities</h3><p className="mt-1 max-w-xs text-sm leading-6 text-slate-500">Try a different name, email, or role filter.</p></div>;
+  return <div className="grid place-items-center px-5 py-16 text-center"><span className="grid size-14 place-items-center rounded-[20px] bg-slate-100 text-slate-400"><UsersRound size={25}/></span><h3 className="mt-4 font-medium text-slate-900">No matching identities</h3><p className="mt-1 max-w-xs text-sm leading-6 text-slate-500">Try a different name, email, or role filter.</p></div>;
 }
 
 function AccessDirectory({ data, user, action, onRefresh }) {
@@ -98,35 +98,103 @@ function AccessDirectory({ data, user, action, onRefresh }) {
       </>}
     </section>
 
-    <section className="grid gap-3 lg:grid-cols-3">{catalog.map(item => <article key={item.role} className="rounded-[22px] border border-slate-200 bg-white p-5"><div className="flex items-start justify-between gap-3"><span className="grid size-10 place-items-center rounded-2xl bg-blue-50 text-blue-700"><ShieldCheck size={19}/></span><Pill tone={manageableRoles.includes(item.role) ? "blue" : "gray"}>{manageableRoles.includes(item.role) ? "Manageable" : "Fixed"}</Pill></div><h3 className="mt-4 font-black text-slate-950">{item.label}</h3><p className="mt-1 text-sm leading-6 text-slate-500">{item.summary}</p></article>)}</section>
+    <section className="grid gap-3 lg:grid-cols-3">{catalog.map(item => <article key={item.role} className="rounded-[20px] border border-line bg-white p-5"><div className="flex items-start justify-between gap-3"><span className="grid size-10 place-items-center rounded-2xl bg-blue-50 text-blue-700"><ShieldCheck size={19}/></span><Pill tone={manageableRoles.includes(item.role) ? "blue" : "gray"}>{manageableRoles.includes(item.role) ? "Manageable" : "Fixed"}</Pill></div><h3 className="mt-4 font-medium text-slate-950">{item.label}</h3><p className="mt-1 text-sm leading-6 text-slate-500">{item.summary}</p></article>)}</section>
 
     {selected && <UserModal selectedUser={selected} actor={user} catalog={catalog} manageableRoles={manageableRoles} onClose={() => setSelected(null)} action={action}/>}
     {inviting && <CreateUserModal create={invite} catalog={catalog} manageableRoles={manageableRoles} onClose={() => setInviting(false)}/>}
   </div>;
 }
 
-function PersonalProfile({ data, user, action }) {
+const PROJECT_ROLE_LABEL = { project_manager: "Project manager", site_supervisor: "Site supervisor", internal_employee: "Support employee" };
+const PROJECT_STATUS_TONE = { active: "green", draft: "gray", on_hold: "orange", completed: "blue", archived: "gray" };
+
+// The projects this person is a current member of, with their role on each.
+function MyProjects({ user, onOpenProject }) {
+  const [state, setState] = useState({ loading: true, items: [] });
+  useEffect(() => {
+    let alive = true;
+    projectsApi.list().then(list => {
+      if (!alive) return;
+      const items = list.map(project => ({
+        project,
+        role: (project.memberships || []).find(m => m.user_id === user.id && !m.ends_at)?.project_role,
+      })).filter(item => item.role);
+      setState({ loading: false, items });
+    }).catch(() => alive && setState({ loading: false, items: [] }));
+    return () => { alive = false; };
+  }, [user.id]);
+
+  return <section aria-label="Your projects" className="rounded-[20px] border border-line bg-white">
+    <header className="flex items-baseline justify-between gap-3 border-b border-line px-5 py-4">
+      <h3 className="text-[15px] font-medium text-slate-950">Your projects</h3>
+      {!state.loading && <span className="text-sm text-slate-500">{state.items.length}</span>}
+    </header>
+    {state.loading
+      ? <p className="px-5 py-6 text-sm text-slate-500">Loading projects…</p>
+      : !state.items.length
+        ? <p className="px-5 py-6 text-sm text-slate-500">You aren't on any project yet. An admin adds you when a project is set up.</p>
+        : <ul className="divide-y divide-line">{state.items.map(({ project, role }) => <li key={project.id}>
+            <button type="button" onClick={() => onOpenProject?.(project.code)} className="flex w-full items-center gap-3 px-5 py-3 text-left transition hover:bg-slate-50">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm text-slate-950">{project.name}</span>
+                <span className="block truncate text-xs text-slate-500">{PROJECT_ROLE_LABEL[role] || role} · {project.code}</span>
+              </span>
+              <Pill tone={PROJECT_STATUS_TONE[project.status] || "gray"}>{String(project.status).replaceAll("_", " ")}</Pill>
+              <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden="true"/>
+            </button>
+          </li>)}</ul>}
+  </section>;
+}
+
+function PersonalProfile({ data, user, action, onOpenProject }) {
   const [editing, setEditing] = useState(false);
   const definition = (data.access_catalog || []).find(item => item.role === user.role) || { label: roles[user.role] || user.role, summary: "Role-based SiteOps access.", capabilities: [] };
   const profile = user.employee_profile || {};
-  const detailRows = [
-    ["Email login", user.email, <Mail size={17}/>],
-    ["Mobile number", user.phone || "Not provided", <Phone size={17}/>],
-    ["Employee code", profile.employee_code || "Not assigned", <BadgeCheck size={17}/>],
-    ["Designation", profile.designation || definition.label, <BriefcaseBusiness size={17}/>],
+  const details = [
+    ["Email login", user.email],
+    ["Mobile number", user.phone || null],
+    ["Employee code", profile.employee_code || "Not assigned"],
+    ["Designation", profile.designation || definition.label],
+    ["Department", profile.department || "Not set"],
   ];
 
-  return <div className="grid gap-5 sm:gap-6">
-    <section className="rounded-[22px] border border-line bg-white p-5 sm:p-7">
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-center"><Avatar name={user.name} large/><div className="min-w-0 flex-1"><p className="text-xs font-medium text-slate-500">My profile</p><h2 className="mt-1 truncate text-[28px] font-normal tracking-[-0.02em] text-slate-950">{user.name}</h2><div className="mt-2 flex flex-wrap items-center gap-2"><Pill>{definition.label}</Pill><AccountStatus person={user}/></div></div><div className="flex flex-wrap gap-2"><Button onClick={() => setEditing(true)}><Pencil size={17}/>Edit profile</Button></div></div>
-    </section>
+  return <div className="grid gap-4">
+    <header className="flex flex-wrap items-center gap-4">
+      <Avatar name={user.name} large/>
+      <div className="min-w-0 flex-1 basis-[12rem]">
+        <h2 className="text-2xl font-light tracking-[-0.01em] text-slate-950">{user.name}</h2>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2"><Pill>{definition.label}</Pill><AccountStatus person={user}/></div>
+      </div>
+      <Button variant="secondary" onClick={() => setEditing(true)}><Pencil size={16}/> Edit contact details</Button>
+    </header>
 
-    <section className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
-      <article className="rounded-[26px] border border-slate-200 bg-white p-5 sm:p-6"><p className="text-xs font-medium text-slate-500">Employee identity</p><div className="mt-5 grid gap-3 sm:grid-cols-2">{detailRows.map(([label, value, icon]) => <div key={label} className="rounded-[20px] bg-slate-50 p-4"><span className="flex items-center gap-2 text-xs font-medium text-slate-500">{icon}{label}</span><strong className="mt-3 block break-words text-sm text-slate-900">{value}</strong></div>)}</div></article>
-      <article className="rounded-[26px] border border-blue-100 bg-blue-50/70 p-5 sm:p-6"><span className="grid size-11 place-items-center rounded-2xl bg-blue-600 text-white"><ShieldCheck size={21}/></span><p className="mt-5 text-xs font-medium text-slate-500">Your access boundary</p><h2 className="mt-1 text-xl font-black text-slate-950">{definition.label}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{definition.summary}</p><div className="mt-5 grid gap-2">{definition.capabilities.map(item => <span key={item} className="rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm">{item}</span>)}</div></article>
-    </section>
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+      <div className="grid content-start gap-4">
+        <section aria-label="Contact and identity" className="rounded-[20px] border border-line bg-white">
+          <h3 className="border-b border-line px-5 py-4 text-[15px] font-medium text-slate-950">Contact and identity</h3>
+          <dl className="divide-y divide-line">
+            {details.map(([label, value]) => <div key={label} className="flex items-center justify-between gap-4 px-5 py-3">
+              <dt className="text-sm text-slate-500">{label}</dt>
+              <dd className="min-w-0 truncate text-right text-sm text-slate-950">
+                {value ?? <button type="button" onClick={() => setEditing(true)} className="text-blue-700 hover:underline">Add mobile number</button>}
+              </dd>
+            </div>)}
+          </dl>
+          <p className="flex items-start gap-2 border-t border-line px-5 py-3 text-xs leading-5 text-slate-500"><CircleUserRound size={14} className="mt-0.5 shrink-0" aria-hidden="true"/>You can change your name and mobile number. Role, employee code, designation and department are set by an admin.</p>
+        </section>
+        <MyProjects user={user} onOpenProject={onOpenProject}/>
+      </div>
 
-    <section className="flex items-start gap-3 rounded-[22px] border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600 sm:p-5"><CircleUserRound className="mt-0.5 shrink-0 text-blue-600" size={20}/><p>You can update personal contact details here. Role, employee code, designation, department, and account status are controlled by authorized administrators.</p></section>
+      <section aria-label="What you can do" className="h-fit rounded-[20px] border border-line bg-white p-5">
+        <h3 className="text-[15px] font-medium text-slate-950">What you can do as {definition.label}</h3>
+        <p className="mt-1 text-sm leading-6 text-slate-500">{definition.summary}</p>
+        <ul className="mt-4 grid gap-2.5">
+          {definition.capabilities.map(item => <li key={item} className="flex items-start gap-2.5 text-sm text-slate-800">
+            <Check size={16} className="mt-0.5 shrink-0 text-ok" aria-hidden="true"/>{item}
+          </li>)}
+        </ul>
+      </section>
+    </div>
     {editing && <EditMyProfileModal user={user} action={action} onClose={() => setEditing(false)}/>}
   </div>;
 }

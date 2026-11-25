@@ -79,7 +79,9 @@ export function Dashboard({ initialUser, onLogout }) {
       notice={notice}
       onClearNotice={() => setNotice(null)}
     >
-      <DashboardTab tab={tab} loading={loading} data={data} user={user} tabs={tabs} action={action} onOpenProject={openProject} onTabChange={changeTab} onRefresh={refresh} />
+      {/* A tab this role cannot open (e.g. an old link) waits for the redirect
+          above instead of mounting and firing requests the server refuses. */}
+      <DashboardTab tab={tab} loading={loading || !tabs.some(([key]) => key === tab)} data={data} user={user} tabs={tabs} action={action} onOpenProject={openProject} onTabChange={changeTab} onRefresh={refresh} />
     </AppLayout>
   );
 }

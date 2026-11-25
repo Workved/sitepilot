@@ -1,11 +1,11 @@
 import {
-  ArrowLeftRight, CalendarRange, CheckCircle2, Eye, GitBranch, GitCommitHorizontal,
-  MoreHorizontal, RotateCcw, Search, ShieldAlert, ShieldQuestion, Workflow, X,
+  CheckCircle2, Eye, GitBranch, 
+  RotateCcw, Search, ShieldAlert, ShieldQuestion, X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { projectsApi } from "../../../api/projectsApi";
 import { taskExecutionApi } from "../../../api/taskExecutionApi";
-import { Button, EmptyState, LoadingSpinner, Pill, Select } from "../../../components/ui";
+import { Button, EmptyState, LoadingSpinner, Pill } from "../../../components/ui";
 import { formatDateShort } from "../../../utils/format";
 import { DEPENDENCY_TYPE_LABEL, STATUS_TONE } from "./TaskDetailContent";
 import { TaskDetailDrawer } from "./TaskDetailDrawer";
@@ -58,22 +58,12 @@ function TaskStatusChip({ task }) {
 
 function TaskRef({ code, title, task }) {
   return <div className="min-w-0">
-    <span className="font-mono text-xs font-black text-blue-700">{code}</span>
+    <span className="tabular-nums text-xs font-medium text-slate-600">{code}</span>
     <div className="truncate text-sm font-bold text-slate-900">{title}</div>
     {task && <div className="truncate text-xs text-slate-400">{[task.phase, task.category].filter(Boolean).join(" / ") || "Unphased"}</div>}
   </div>;
 }
 
-function KpiCard({ icon: Icon, tone, value, label }) {
-  return <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_10px_28px_rgba(27,47,76,0.065)]">
-    <span className={`grid size-9 place-items-center rounded-xl ${tone}`}><Icon size={17}/></span>
-    <strong className="mt-3 block font-serif text-3xl text-slate-950">{value}</strong>
-    <p className="m-0 mt-1 text-xs font-bold text-slate-500">{label}</p>
-  </article>;
-}
-
-const STATUS_FILTERS = [["all", "All"], ["blocking", "Blocking"], ["satisfied", "Satisfied"]];
-const TYPE_FILTERS = [["all", "All"], ["finish_to_start", "Finish-to-Start"], ["start_to_start", "Start-to-Start"]];
 
 const PAGE_SIZE = 6;
 
@@ -101,7 +91,7 @@ function DependencyDetailDrawer({ dependency, onClose, onOpenTask }) {
       <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-6 py-5">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs font-medium text-slate-500"><GitBranch size={14}/> Dependency Detail</div>
-          <h2 className="mt-1 text-lg font-black leading-snug text-slate-950">{dependency.predecessor_code} &rarr; {dependency.successor_code}</h2>
+          <h2 className="mt-1 text-lg font-medium leading-snug text-slate-950">{dependency.predecessor_code} &rarr; {dependency.successor_code}</h2>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <Pill tone={chip.tone}><chip.Icon size={11}/> {chip.label}</Pill>
             <Pill tone={TYPE_CHIP_TONE[dependency.dependency_type] || "gray"}>{DEPENDENCY_TYPE_LABEL[dependency.dependency_type] || humanizeStatus(dependency.dependency_type)}</Pill>
@@ -267,84 +257,74 @@ export function DependencyControlView({ projectId, project, user, dependencies }
     setPhaseFilter("all");
   }
 
-  if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-8"><LoadingSpinner label="Loading dependencies..."/></div>;
+  if (loading) return <div className="rounded-[20px] border border-line bg-white p-8"><LoadingSpinner label="Loading dependencies..."/></div>;
   if (error) return <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm font-bold text-rose-700">{error}</div>;
 
+  const quickFilters = [
+    ["all", "All", enriched.length, () => { setStatusFilter("all"); setTypeFilter("all"); }, statusFilter === "all" && typeFilter === "all"],
+    ["blocking", "Blocking", counts.blocking, () => setStatusFilter(statusFilter === "blocking" ? "all" : "blocking"), statusFilter === "blocking"],
+    ["satisfied", "Satisfied", counts.satisfied, () => setStatusFilter(statusFilter === "satisfied" ? "all" : "satisfied"), statusFilter === "satisfied"],
+    ["fs", "Finish-to-Start", counts.finishToStart, () => setTypeFilter(typeFilter === "finish_to_start" ? "all" : "finish_to_start"), typeFilter === "finish_to_start"],
+    ["ss", "Start-to-Start", counts.startToStart, () => setTypeFilter(typeFilter === "start_to_start" ? "all" : "start_to_start"), typeFilter === "start_to_start"],
+  ];
+
   return <div className="grid gap-4">
-    <div className="flex flex-wrap items-end justify-between gap-2">
-      <div>
-        <h2 className="font-serif text-xl text-slate-950">Task Dependencies</h2>
-        <p className="mt-0.5 max-w-2xl text-sm text-slate-500">Understand how tasks are related and which dependencies are blocking execution.</p>
+    <header className="min-w-0">
+      <h2 className="text-[17px] font-medium text-slate-950">Task Dependencies</h2>
+      <p className="mt-0.5 max-w-2xl text-sm text-slate-500">
+        {counts.total ? `${counts.total} links between tasks${counts.blocking ? `, ${counts.blocking} holding work back right now` : ", none holding work back"}.` : "Which tasks wait on others, and which links are holding work back."}
+      </p>
+    </header>
+
+    <div className="grid gap-2 rounded-[20px] border border-line bg-white p-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="relative min-w-[220px] flex-1">
+          <span className="sr-only">Search dependencies</span>
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/>
+          <input value={search} onChange={e => setSearch(e.target.value)} autoComplete="off" placeholder="Search by task code or title"
+            className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:border-blue-600 focus:bg-white"/>
+        </label>
+        <select value={phaseFilter} onChange={e => setPhaseFilter(e.target.value)} aria-label="Filter by phase"
+          className={`h-9 rounded-lg border bg-white px-2.5 text-sm outline-none focus:border-blue-600 ${phaseFilter !== "all" ? "border-slate-950 text-slate-950" : "border-slate-200 text-slate-700"}`}>
+          <option value="all">All phases</option>
+          {phases.map(phase => <option key={phase} value={phase}>{phase}</option>)}
+        </select>
+        {filtersActive && <button type="button" onClick={resetFilters} className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-950">
+          <RotateCcw size={14}/> Reset filters
+        </button>}
       </div>
-      <div className="flex items-center gap-1.5">
-        <button type="button" aria-label="Calendar view" title="Open the Execution Calendar for date context" className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50"><CalendarRange size={16}/></button>
-        <button type="button" aria-label="More options" className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50"><MoreHorizontal size={16}/></button>
+      {/* One row is both the summary and the filter: each chip carries its count. */}
+      <div className="flex flex-wrap gap-1 px-0.5 pb-0.5" role="group" aria-label="Dependency summary">
+        {quickFilters.map(([key, label, count, onClick, active]) => (
+          <button key={key} type="button" onClick={onClick} aria-pressed={active}
+            className={`h-8 rounded-full px-3 text-[13px] transition ${active ? "bg-slate-950 text-white" : key === "blocking" && count ? "bg-rose-50 text-rose-800 hover:bg-rose-100" : "bg-slate-100 text-slate-600 hover:text-slate-950"}`}>
+            {label} (<span className="tabular-nums">{count}</span>)
+          </button>
+        ))}
       </div>
-    </div>
-
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" role="group" aria-label="Dependency summary">
-      <KpiCard icon={Workflow} tone="bg-blue-50 text-blue-700" value={counts.total} label="Total Dependencies"/>
-      <KpiCard icon={ArrowLeftRight} tone="bg-blue-50 text-blue-700" value={counts.finishToStart} label="Finish-to-Start"/>
-      <KpiCard icon={GitCommitHorizontal} tone="bg-violet-50 text-violet-700" value={counts.startToStart} label="Start-to-Start"/>
-      <KpiCard icon={ShieldAlert} tone="bg-rose-50 text-rose-700" value={counts.blocking} label="Blocking"/>
-      <KpiCard icon={CheckCircle2} tone="bg-emerald-50 text-emerald-700" value={counts.satisfied} label="Satisfied"/>
-    </div>
-
-    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-      <label className="relative min-w-[220px] flex-1">
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-        <input value={search} onChange={e => setSearch(e.target.value)} className="min-h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10" placeholder="Search by task code or title"/>
-      </label>
-      <Select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} aria-label="Filter by dependency type" className="min-h-10 w-auto min-w-[160px]">
-        {TYPE_FILTERS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-      </Select>
-      <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by dependency status" className="min-h-10 w-auto min-w-[140px]">
-        {STATUS_FILTERS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-      </Select>
-      <Select value={phaseFilter} onChange={e => setPhaseFilter(e.target.value)} aria-label="Filter by phase" className="min-h-10 w-auto min-w-[140px]">
-        <option value="all">All phases</option>
-        {phases.map(phase => <option key={phase} value={phase}>{phase}</option>)}
-      </Select>
-      <button type="button" onClick={resetFilters} disabled={!filtersActive} className="flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">
-        <RotateCcw size={14}/> Reset Filters
-      </button>
-    </div>
-
-    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quick dependency filters">
-      {[
-        ["all", "All", enriched.length, () => { setStatusFilter("all"); setTypeFilter("all"); }, statusFilter === "all" && typeFilter === "all"],
-        ["blocking", "Blocking", counts.blocking, () => setStatusFilter(statusFilter === "blocking" ? "all" : "blocking"), statusFilter === "blocking"],
-        ["satisfied", "Satisfied", counts.satisfied, () => setStatusFilter(statusFilter === "satisfied" ? "all" : "satisfied"), statusFilter === "satisfied"],
-        ["fs", "Finish-to-Start", counts.finishToStart, () => setTypeFilter(typeFilter === "finish_to_start" ? "all" : "finish_to_start"), typeFilter === "finish_to_start"],
-        ["ss", "Start-to-Start", counts.startToStart, () => setTypeFilter(typeFilter === "start_to_start" ? "all" : "start_to_start"), typeFilter === "start_to_start"],
-      ].map(([key, label, count, onClick, active]) => (
-        <button key={key} type="button" onClick={onClick} aria-pressed={active} className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-          {label} ({count})
-        </button>
-      ))}
     </div>
 
     {!filtered.length ? (
       <EmptyState icon={<GitBranch size={21}/>} title={items.length ? "No dependencies match" : "No dependencies were generated for this project"} description={items.length ? "Try a different search or filter." : undefined}/>
     ) : (
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-[20px] border border-line bg-white">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-xs font-medium text-slate-500">
-                <th className="px-4 py-3 font-black">Predecessor Task</th>
-                <th className="px-4 py-3 font-black">Dependency Type</th>
-                <th className="px-4 py-3 font-black">Successor Task</th>
-                <th className="px-4 py-3 font-black">Predecessor Status</th>
-                <th className="px-4 py-3 font-black">Dependency Status</th>
-                <th className="px-4 py-3 font-black">Impact</th>
-                <th className="px-4 py-3 font-black">Action</th>
+                <th className="px-4 py-3 font-medium">Predecessor Task</th>
+                <th className="px-4 py-3 font-medium">Dependency Type</th>
+                <th className="px-4 py-3 font-medium">Successor Task</th>
+                <th className="px-4 py-3 font-medium">Predecessor Status</th>
+                <th className="px-4 py-3 font-medium">Dependency Status</th>
+                <th className="px-4 py-3 font-medium">Impact</th>
+                <th className="px-4 py-3 font-medium">Action</th>
               </tr>
             </thead>
             <tbody>
               {visibleItems.map(dep => {
                 const chip = STATUS_CHIP[dep.status];
-                return <tr key={dep.id} onClick={() => setSelectedId(dep.id)} className={`cursor-pointer border-b border-slate-50 transition last:border-0 hover:bg-blue-50/40 ${selectedId === dep.id ? "bg-blue-50/70" : ""}`}>
+                return <tr key={dep.id} onClick={() => setSelectedId(dep.id)} className={`cursor-pointer border-b border-slate-50 transition last:border-0 hover:bg-slate-50 ${selectedId === dep.id ? "bg-slate-100" : ""}`}>
                   <td className="px-4 py-3 align-top"><TaskRef code={dep.predecessor_code} title={dep.predecessor_title} task={dep.predecessorTask}/></td>
                   <td className="px-4 py-3 align-top"><Pill tone={TYPE_CHIP_TONE[dep.dependency_type] || "gray"}>{DEPENDENCY_TYPE_LABEL[dep.dependency_type] || humanizeStatus(dep.dependency_type)}</Pill></td>
                   <td className="px-4 py-3 align-top"><TaskRef code={dep.successor_code} title={dep.successor_title} task={dep.successorTask}/></td>
