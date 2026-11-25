@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRight, ChevronDown, Search, X } from "lucide-react";
+import { ArrowRight, ChevronDown, Search, Star, X } from "lucide-react";
+import { communicationApi } from "../../api/communicationApi";
 import { projectsApi } from "../../api/projectsApi";
 import { Alert, EmptyState, LoadingSpinner } from "../../components/ui";
 import { cn } from "../../utils/cn";
@@ -207,7 +208,7 @@ function Ring({ value, total }) {
 const SEVERITY_DOT = { critical: "bg-rose-600", warning: "bg-behind", decision: "bg-gate" };
 const SEVERITY_ORDER = { critical: 0, warning: 1, decision: 2 };
 
-function TodayPanel({ user, rows, attention, tabs, onOpenProject, onTabChange }) {
+function TodayPanel({ user, rows, attention, tabs, onOpenProject, onTabChange, pendingFeedback = [], onOpenVendor }) {
   const onTrack = rows.filter(row => row.standing === "on_track").length;
   const late = rows.filter(row => row.standing === "delayed");
   const atRisk = rows.filter(row => row.standing === "at_risk");
@@ -221,6 +222,7 @@ function TodayPanel({ user, rows, attention, tabs, onOpenProject, onTabChange })
   if (late.length) sentences.push(`${late.length} ${late.length === 1 ? "project is" : "projects are"} running late${late.length <= 2 ? `: ${late.map(row => row.name).join(" and ")}` : ""}.`);
   if (atRisk.length) sentences.push(`${atRisk.length} ${atRisk.length === 1 ? "project is" : "projects are"} at risk${atRisk.length <= 2 ? `: ${atRisk.map(row => row.name).join(" and ")}` : ""}.`);
   if (decisions.length) sentences.push(`${decisions.length} ${decisions.length === 1 ? "decision is" : "decisions are"} waiting on you.`);
+  if (pendingFeedback.length) sentences.push(`${pendingFeedback.length} ${pendingFeedback.length === 1 ? "vendor from a finished project is" : "vendors from finished projects are"} waiting for your feedback.`);
   if (!sentences.length) sentences.push(rows.length ? "Every running project is moving to plan and nothing is waiting on you." : "No running projects yet. Activated projects and their alerts show up here.");
 
   return <aside aria-labelledby="ov-today" className="ov-today flex min-w-0 flex-col gap-4 rounded-[22px] border border-line bg-slate-50 p-5 sm:p-6">
@@ -243,6 +245,20 @@ function TodayPanel({ user, rows, attention, tabs, onOpenProject, onTabChange })
         </li>)}
       </ul>}
     </div>
+
+    {pendingFeedback.length > 0 && <section aria-label="Rate your vendors" className="grid gap-2 rounded-2xl border border-line bg-white p-4">
+      <h3 className="flex items-center gap-1.5 text-sm font-medium text-slate-950"><Star size={14} className="fill-amber-400 text-amber-400" aria-hidden="true"/> Rate your vendors</h3>
+      <p className="text-[13px] leading-relaxed text-slate-600">Say how they worked, so the next team can pick well.</p>
+      <ul className="grid gap-0.5">
+        {pendingFeedback.slice(0, 3).map(item => <li key={`${item.vendor_id}:${item.project_id}`}>
+          <button type="button" onClick={() => onOpenVendor?.(item.vendor_id)} className="flex w-full items-center justify-between gap-2 rounded-xl px-1.5 py-1.5 text-left text-[13px] hover:bg-slate-50">
+            <span className="min-w-0"><span className="block truncate text-slate-950">{item.vendor_name}</span><span className="block truncate text-slate-500">{item.project_name}</span></span>
+            <span className="shrink-0 text-blue-700">Rate</span>
+          </button>
+        </li>)}
+      </ul>
+      {pendingFeedback.length > 3 && <p className="text-xs text-slate-500">{pendingFeedback.length - 3} more in Vendor Hub</p>}
+    </section>}
 
     <div className="grid grid-cols-2 gap-2.5">
       <div className="rounded-2xl border border-line bg-white p-3.5">
@@ -425,11 +441,23 @@ function Handovers({ rows, onOpenProject, onTabChange, tabs }) {
   </section>;
 }
 
-export function OverviewPage({ user, tabs, onOpenProject, onTabChange }) {
+export function OverviewPage({ user, tabs, onOpenProject, onOpenVendor, onTabChange }) {
   const [timeline, setTimeline] = useState([]);
   const [attention, setAttention] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [pendingFeedback, setPendingFeedback] = useState([]);
+  const canRateVendors = ["project_manager", "supervisor"].includes(user?.role) && tabs?.some(([key]) => key === "communication");
+
+  // PMs and supervisors are nudged to rate vendors once their work is over.
+  useEffect(() => {
+    if (!canRateVendors) return undefined;
+    let alive = true;
+    communicationApi.pendingFeedback()
+      .then(items => { if (alive) setPendingFeedback(Array.isArray(items) ? items : []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [canRateVendors]);
 
   useEffect(() => {
     let alive = true;
@@ -464,7 +492,8 @@ export function OverviewPage({ user, tabs, onOpenProject, onTabChange }) {
     {error && <Alert tone="warning">{error}</Alert>}
     <div className="ov-grid">
       <ProgressChart rows={running} onOpenProject={onOpenProject} />
-      <TodayPanel user={user} rows={running} attention={attention} tabs={tabs} onOpenProject={onOpenProject} onTabChange={onTabChange} />
+      <TodayPanel user={user} rows={running} attention={attention} tabs={tabs} onOpenProject={onOpenProject} onTabChange={onTabChange}
+        pendingFeedback={pendingFeedback} onOpenVendor={onOpenVendor} />
       <SiteHealth rows={running} />
       <OpenWork rows={running} onOpenProject={onOpenProject} />
       <Handovers rows={rows} onOpenProject={onOpenProject} onTabChange={onTabChange} tabs={tabs} />

@@ -5,10 +5,11 @@ import { vendorAssignmentApi } from "../../api/vendorAssignmentApi";
 import { vendorsApi } from "../../api/vendorsApi";
 import { Button, ConfirmModal, EmptyState, LoadingSpinner, Modal } from "../../components/ui";
 import { useRoute } from "../../lib/route";
+import { groupFeedbackByVendor, summarizeFeedback } from "./vendorFeedback";
 import { cn } from "../../utils/cn";
 import { paginationItems } from "../../utils/pagination";
 
-const emptyHub = { vendors: [], contacts: [], categories: [], projects: [], project_vendors: [], relationships: [], past_projects: [], project_history: [], contact_projects: [], contact_tasks: [] };
+const emptyHub = { vendor_feedback: [], vendors: [], contacts: [], categories: [], projects: [], project_vendors: [], relationships: [], past_projects: [], project_history: [], contact_projects: [], contact_tasks: [] };
 import { CompanyModal, ProfileModal, VENDOR_COLUMNS, VendorRow } from "./components/CommunicationDirectory";
 import { VendorProfile } from "./components/VendorProfile";
 import { BlacklistModal, canBlacklist, canUnblacklist, isBlocked } from "./components/VendorBlacklist";
@@ -145,6 +146,16 @@ export function CommunicationHubPage({ user, action }) {
       { inPanel: true },
     );
   }
+  function saveFeedback(vendorId, projectId, feedbackId, payload) {
+    return perform(
+      () => feedbackId ? communicationApi.updateFeedback(feedbackId, payload) : communicationApi.addFeedback(vendorId, projectId, payload),
+      feedbackId ? "Feedback updated" : "Feedback added",
+      { inPanel: true },
+    );
+  }
+  function deleteFeedback(feedbackId) {
+    return perform(() => communicationApi.deleteFeedback(feedbackId), "Feedback removed", { inPanel: true });
+  }
   function deletePastProject(pastProjectId) {
     return perform(() => communicationApi.deletePastProject(pastProjectId), "Past project removed", { inPanel: true });
   }
@@ -197,10 +208,20 @@ export function CommunicationHubPage({ user, action }) {
   );
   // Sorted, then sub-vendors pulled up under their main vendor when both are
   // listed, so the hierarchy reads top to bottom.
+  const feedbackByVendor = useMemo(() => groupFeedbackByVendor(hub.vendor_feedback || []), [hub.vendor_feedback]);
+  const ratingByVendor = useMemo(() => Object.fromEntries(Object.entries(feedbackByVendor).map(([id, items]) => [id, summarizeFeedback(items)])), [feedbackByVendor]);
   const sorted = useMemo(() => {
     const sign = sort.direction === "desc" ? -1 : 1;
+    // Unrated vendors sort after rated ones in either direction.
+    const ratingOf = vendor => ratingByVendor[vendor.id]?.average ?? null;
+    const byRating = (a, b) => {
+      const left = ratingOf(a), right = ratingOf(b);
+      if (left === null || right === null) return (left === null) - (right === null) || a.name.localeCompare(b.name);
+      return (left - right) * sign || a.name.localeCompare(b.name);
+    };
     const byKey = (a, b) => (sort.key === "projects"
       ? (projectsFor(a.id).length - projectsFor(b.id).length) * sign || a.name.localeCompare(b.name)
+      : sort.key === "rating" ? byRating(a, b)
       : a.name.localeCompare(b.name) * sign);
     const arr = [...filtered].sort(byKey);
     const listed = new Set(arr.map(vendor => vendor.id));
@@ -211,7 +232,7 @@ export function CommunicationHubPage({ user, action }) {
       arr.filter(child => nestedUnder(child) && child.parent_vendor_id === vendor.id).forEach(child => rows.push({ vendor: child, nested: true }));
     });
     return rows;
-  }, [filtered, sort, hub.project_vendors]);
+  }, [filtered, sort, hub.project_vendors, ratingByVendor]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const pageSafe = Math.min(page, totalPages);
@@ -231,7 +252,7 @@ export function CommunicationHubPage({ user, action }) {
   // Trades with vendors first, so the menu leads with what is useful.
   const tradeOptions = [...filterCategories].sort((a, b) => (b.vendor_count || 0) - (a.vendor_count || 0) || a.name.localeCompare(b.name));
   function toggleSort(key) {
-    setSort(current => current.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: key === "projects" ? "desc" : "asc" });
+    setSort(current => current.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: key === "projects" || key === "rating" ? "desc" : "asc" });
   }
 
   if (loading) return <div className="grid min-h-40 place-items-center"><LoadingSpinner label="Loading vendor hub..." /></div>;
@@ -248,6 +269,9 @@ export function CommunicationHubPage({ user, action }) {
       projectHistory={hub.project_history.filter(item => item.vendor_id === selectedVendor.id)}
       savePastProject={(pastProjectId, payload) => savePastProject(selectedVendor.id, pastProjectId, payload)}
       deletePastProject={deletePastProject}
+      feedback={feedbackByVendor[selectedVendor.id] || []}
+      saveFeedback={(projectId, feedbackId, payload) => saveFeedback(selectedVendor.id, projectId, feedbackId, payload)}
+      deleteFeedback={deleteFeedback}
       contactProjects={hub.contact_projects} contactTasks={hub.contact_tasks}/>;
 
   const SortButton = ({ column, label, className }) => {
@@ -306,11 +330,11 @@ export function CommunicationHubPage({ user, action }) {
         ? <EmptyState className="m-4" title={hub.vendors.length ? "No vendors match" : "No vendors yet"} description={hub.vendors.length ? "Try a different search term or clear your filters." : "Add your first main vendor to start assigning site work."}/>
         : <>
           <div className={cn("hidden gap-x-4 border-b border-line bg-slate-50 px-5 py-2.5 text-[13px] text-slate-500 md:grid", VENDOR_COLUMNS)}>
-            <SortButton column="name" label="Vendor"/><span>Trades</span><span>Primary contact</span><SortButton column="projects" label="Projects" className="justify-end"/><span className="sr-only">Status and actions</span>
+            <SortButton column="name" label="Vendor"/><span>Trades</span><span>Primary contact</span><SortButton column="rating" label="Rating"/><SortButton column="projects" label="Projects" className="justify-end"/><span className="sr-only">Status and actions</span>
           </div>
           <div className="divide-y divide-line">
             {pageRows.map(({ vendor, nested }) => <VendorRow key={vendor.id} vendor={vendor} nested={nested} parentName={vendorById[vendor.parent_vendor_id]?.name}
-              primary={primaryFor(vendor.id)} projectCount={projectsFor(vendor.id).length}
+              primary={primaryFor(vendor.id)} projectCount={projectsFor(vendor.id).length} rating={ratingByVendor[vendor.id]}
               selected={vendor.id === selected} onSelect={() => setSelected(vendor.id)}
               onEdit={canManage ? () => { setSelected(vendor.id); setForm("edit"); } : undefined} onDelete={canManage ? () => setConfirmDeleteVendor(vendor) : undefined}
               canBlacklist={canBlacklist(user)} canUnblacklist={canUnblacklist(user)}

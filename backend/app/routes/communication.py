@@ -38,8 +38,17 @@ from app.models import EmployeeProfile, User, UserRole
 from app.project_models import V2AuditEvent, V2Project, V2ProjectMembership
 from app.routes.project_vendors_v2 import _ensure_phase_categories
 from app.schemas.requests import ContractorProfileIn, ContractorRelationshipIn, VendorContactIn
-from app.schemas.vendor_history import VendorPastProjectIn
+from app.schemas.vendor_history import VendorFeedbackIn, VendorPastProjectIn
 from app.services.vendor_blacklist import BLACKLIST_ROLES, UNBLACKLIST_ROLES, VendorBlacklistService
+from app.services.vendor_feedback import (
+    ensure_can_review,
+    feedback_for_vendors,
+    feedback_response,
+    pending_reviews,
+    review_role_by_project,
+    reviewer_role,
+    work_history,
+)
 from app.vendor_models import (
     ProjectVendor,
     V2CapabilityCategory,
@@ -47,6 +56,7 @@ from app.vendor_models import (
     V2VendorCapability,
     V2VendorContact,
     V2VendorPastProject,
+    V2VendorProjectFeedback,
     TaskVendorAssignment,
     VendorContactProject,
 )
@@ -144,18 +154,6 @@ def get_hub(user: User = Depends(current_user), db: Session = Depends(get_db)):
         links_query = links_query.where(ProjectVendor.project_id.in_(project_ids)) if project_ids else links_query.where(False)
     project_links = db.execute(links_query).all()
 
-    # Work history, part 1: projects the vendor was on inside SiteOps and has
-    # since been removed from (soft-removed mappings keep their row). Same
-    # visibility rule as current mappings.
-    ended_query = (
-        select(ProjectVendor.id, ProjectVendor.vendor_id, ProjectVendor.project_id, ProjectVendor.created_at, ProjectVendor.ends_at, V2Project.name, V2Project.status)
-        .join(V2Project, V2Project.id == ProjectVendor.project_id)
-        .where(ProjectVendor.ends_at.is_not(None))
-        .order_by(ProjectVendor.ends_at.desc())
-    )
-    if user.role not in HISTORY_ADMIN_ROLES:
-        ended_query = ended_query.where(ProjectVendor.project_id.in_(project_ids)) if project_ids else ended_query.where(False)
-    ended_links = db.execute(ended_query).all()
 
     vendors = db.scalars(select(V2Vendor).order_by(V2Vendor.created_at.desc(), V2Vendor.name)).all()
     vendor_ids = {vendor.id for vendor in vendors}
@@ -200,6 +198,12 @@ def get_hub(user: User = Depends(current_user), db: Session = Depends(get_db)):
         contact_task_query = contact_task_query.where(TaskVendorAssignment.project_id.in_(visible))
     contact_projects = db.execute(contact_project_query).all() if contact_ids else []
     contact_tasks = db.execute(contact_task_query).all() if contact_ids else []
+
+    # Work history, part 1: SiteOps projects whose work is over (finished,
+    # or the vendor was removed). Visible to everyone who can see the vendor,
+    # like the feedback attached to them - see app/services/vendor_feedback.py.
+    finished_work = work_history(db, vendor_ids=vendor_ids)
+    review_roles = review_role_by_project(db, user) if user.role in (UserRole.project_manager, UserRole.supervisor) else {}
 
     # Work history, part 2: past projects entered by hand.
     past_projects = db.scalars(
@@ -261,10 +265,13 @@ def get_hub(user: User = Depends(current_user), db: Session = Depends(get_db)):
         "projects": [{"id": str(p.id), "name": p.name, "status": p.status} for p in projects],
         "project_vendors": [{"id": str(link.id), "project_id": str(link.project_id), "vendor_id": str(link.vendor_id)} for link in project_links],
         "project_history": [{
-            "id": str(link.id), "vendor_id": str(link.vendor_id), "project_id": str(link.project_id),
-            "project_name": link.name, "project_status": link.status,
-            "started_at": link.created_at.isoformat(), "ended_at": link.ends_at.isoformat(),
-        } for link in ended_links],
+            "id": str(entry.mapping_id), "vendor_id": str(entry.vendor_id), "project_id": str(entry.project.id),
+            "project_name": entry.project.name, "project_code": entry.project.code, "project_status": entry.project.status,
+            "started_at": entry.started_at.isoformat(), "ended_at": entry.ended_at.isoformat() if entry.ended_at else None,
+            "removed": entry.removed,
+            "can_review": bool(reviewer_role(db, user, entry.project.id, review_roles)),
+        } for entry in finished_work],
+        "vendor_feedback": feedback_for_vendors(db, vendor_ids),
         "past_projects": [serialize_past_project(item, category_by_id, author_names) for item in sort_past_projects(past_projects)],
         "contact_projects": [{
             "id": str(row.id), "contact_id": str(row.contact_id), "project_id": str(row.project_id), "project_name": project_name,
@@ -365,6 +372,67 @@ def delete_past_project(past_project_id: uuid.UUID, actor: User = Depends(requir
     db.delete(item)
     db.commit()
     return {"message": "Past project removed."}
+
+
+# ---- vendor feedback on finished projects --------------------------------
+# Rules live in app/services/vendor_feedback.py.
+
+@router.get("/feedback/pending")
+def get_pending_feedback(actor: User = Depends(current_user), db: Session = Depends(get_db)):
+    return pending_reviews(db, actor)
+
+
+@router.post("/vendors/{vendor_id}/projects/{project_id}/feedback")
+def create_feedback(vendor_id: uuid.UUID, project_id: uuid.UUID, payload: VendorFeedbackIn, actor: User = Depends(current_user), db: Session = Depends(get_db)):
+    role = ensure_can_review(db, actor, vendor_id, project_id)
+    existing = db.scalar(select(V2VendorProjectFeedback).where(
+        V2VendorProjectFeedback.vendor_id == vendor_id, V2VendorProjectFeedback.project_id == project_id,
+        V2VendorProjectFeedback.author_user_id == actor.id,
+    ))
+    if existing:
+        raise HTTPException(409, "You have already reviewed this vendor for this project. Edit your review instead.")
+    item = V2VendorProjectFeedback(vendor_id=vendor_id, project_id=project_id, author_user_id=actor.id, author_role=role, **payload.model_dump())
+    db.add(item)
+    db.flush()
+    vendor = db.get(V2Vendor, vendor_id)
+    record_vendor_audit(db, actor, vendor, "vendor_feedback_added", "Feedback added for a finished project", None,
+                        {"feedback_id": str(item.id), "project_id": str(project_id), "rating": item.rating, "would_rehire": item.would_rehire})
+    db.commit()
+    db.refresh(item)
+    return feedback_response(db, item)
+
+
+@router.put("/feedback/{feedback_id}")
+def update_feedback(feedback_id: uuid.UUID, payload: VendorFeedbackIn, actor: User = Depends(current_user), db: Session = Depends(get_db)):
+    item = db.get(V2VendorProjectFeedback, feedback_id)
+    if not item:
+        raise HTTPException(404, "Feedback not found.")
+    if item.author_user_id != actor.id:
+        raise HTTPException(403, "Only the person who wrote this feedback can edit it.")
+    before = {"rating": item.rating, "would_rehire": item.would_rehire}
+    for key, value in payload.model_dump().items():
+        setattr(item, key, value)
+    vendor = db.get(V2Vendor, item.vendor_id)
+    record_vendor_audit(db, actor, vendor, "vendor_feedback_updated", "Feedback updated", before,
+                        {"feedback_id": str(item.id), "rating": item.rating, "would_rehire": item.would_rehire})
+    db.commit()
+    db.refresh(item)
+    return feedback_response(db, item)
+
+
+@router.delete("/feedback/{feedback_id}")
+def delete_feedback(feedback_id: uuid.UUID, actor: User = Depends(current_user), db: Session = Depends(get_db)):
+    item = db.get(V2VendorProjectFeedback, feedback_id)
+    if not item:
+        raise HTTPException(404, "Feedback not found.")
+    if item.author_user_id != actor.id and actor.role not in HISTORY_ADMIN_ROLES:
+        raise HTTPException(403, "Only the author or an admin can remove this feedback.")
+    vendor = db.get(V2Vendor, item.vendor_id)
+    record_vendor_audit(db, actor, vendor, "vendor_feedback_deleted", "Feedback removed",
+                        {"feedback_id": str(item.id), "project_id": str(item.project_id), "rating": item.rating}, None)
+    db.delete(item)
+    db.commit()
+    return {"message": "Feedback removed."}
 
 
 @router.post("/vendors/{vendor_id}/blacklist")

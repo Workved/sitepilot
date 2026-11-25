@@ -19,6 +19,7 @@ from app.routes.communication import router as hub_router
 from app.vendor_models import (
     TaskVendorAssignment,
     V2VendorPastProject,
+    V2VendorProjectFeedback,
     V2CapabilityCategory,
     V2Vendor,
     V2VendorContact,
@@ -37,6 +38,7 @@ EMPLOYEE_ID = uuid.UUID("eeeeeeee-eeee-4eee-8eee-eeeeeeeeee77")
 class VendorContactAssignmentTests(base.TaskVendorAssignmentApiTests):
     def _seed(self):
         V2VendorPastProject.__table__.create(self.engine)  # read by the Vendor Hub endpoint
+        V2VendorProjectFeedback.__table__.create(self.engine)  # read by the Vendor Hub endpoint
         super()._seed()
         with self.Session.begin() as session:
             session.add_all([

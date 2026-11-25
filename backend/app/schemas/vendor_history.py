@@ -5,7 +5,9 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
-from pydantic import BaseModel, field_validator, model_validator
+from typing import Literal
+
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 _MONTH = re.compile(r"^(\d{4})-(\d{2})(?:-\d{2})?$")
 
@@ -70,4 +72,30 @@ class VendorPastProjectIn(BaseModel):
     def _end_after_start(self):
         if self.start_month and self.end_month and self.end_month < self.start_month:
             raise ValueError("End month cannot be before the start month.")
+        return self
+
+
+class VendorFeedbackIn(BaseModel):
+    """One reviewer's view of a vendor's work on a finished SiteOps project."""
+
+    rating: int = Field(ge=1, le=5)
+    quality: int | None = Field(default=None, ge=1, le=5)
+    timeliness: int | None = Field(default=None, ge=1, le=5)
+    conduct: int | None = Field(default=None, ge=1, le=5)
+    would_rehire: Literal["yes", "conditional", "no"]
+    comment: str | None = None
+
+    @field_validator("comment", mode="before")
+    @classmethod
+    def _blank_comment(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            return value or None
+        return value
+
+    @model_validator(mode="after")
+    def _low_score_needs_reason(self):
+        # A poor review is only useful to the next person with the reason.
+        if (self.rating <= 2 or self.would_rehire == "no") and not self.comment:
+            raise ValueError("Add a comment explaining a low rating or a 'would not hire again'.")
         return self

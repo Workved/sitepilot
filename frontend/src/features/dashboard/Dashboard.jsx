@@ -19,6 +19,10 @@ export function Dashboard({ initialUser, onLogout }) {
     setRoute({ tab: next, project: "", pane: "", vendor: "", broadcast: "" });
   }
 
+  function openVendor(vendorId) {
+    setRoute({ tab: "communication", project: "", pane: "", vendor: vendorId, broadcast: "" });
+  }
+
   function openProject(code, pane = "overview") {
     setRoute({ tab: "projects", project: code, pane, vendor: "", broadcast: "" });
   }
@@ -81,7 +85,7 @@ export function Dashboard({ initialUser, onLogout }) {
     >
       {/* A tab this role cannot open (e.g. an old link) waits for the redirect
           above instead of mounting and firing requests the server refuses. */}
-      <DashboardTab tab={tab} loading={loading || !tabs.some(([key]) => key === tab)} data={data} user={user} tabs={tabs} action={action} onOpenProject={openProject} onTabChange={changeTab} onRefresh={refresh} />
+      <DashboardTab tab={tab} loading={loading || !tabs.some(([key]) => key === tab)} data={data} user={user} tabs={tabs} action={action} onOpenProject={openProject} onOpenVendor={openVendor} onTabChange={changeTab} onRefresh={refresh} />
     </AppLayout>
   );
 }
