@@ -17,14 +17,14 @@ export function ExecutionMetric({ icon, label, value, helper, tone, progress }) 
 
 export function DayColumn({ day, tasks, canManage, add, select }) {
   return <article className="min-w-0 border-r border-slate-200 last:border-0 max-[720px]:rounded-2xl max-[720px]:border">
-    <header className="grid place-items-center p-3 text-center"><small className="font-black text-slate-600">Day {day.day_no}</small><strong className="text-xs">{new Date(day.scheduled_date + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</strong></header>
+    <header className="grid place-items-center p-3 text-center"><small className="font-medium text-slate-600">Day {day.day_no}</small><strong className="text-xs">{new Date(day.scheduled_date + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</strong></header>
     <div className="grid gap-2 px-2 pb-3">
       {tasks.map(task => <button type="button" className={`grid min-h-16 grid-cols-[8px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-slate-900 ${task.is_overdue ? "!border-rose-300 !bg-rose-50" : task.rescheduled_date ? "!border-amber-300 !bg-amber-50" : ""}`} key={task.id} onClick={() => select(task)}>
         <span className={`size-1.5 rounded-full ${task.is_overdue || task.priority === "high" ? "bg-rose-500" : task.priority === "low" ? "bg-emerald-500" : "bg-blue-500"}`} />
-        <div className="grid min-w-0 gap-1"><strong className="truncate text-xs">{task.title}</strong><small className="truncate text-[10px] text-slate-500">{task.subcontractor_name || task.contractor_name || "Internal task"}</small>{task.rescheduled_date && <small className="truncate text-[10px] font-bold text-amber-700">Revised · {new Date(task.rescheduled_date + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</small>}</div>
+        <div className="grid min-w-0 gap-1"><strong className="truncate text-xs">{task.title}</strong><small className="truncate text-xs text-slate-500">{task.subcontractor_name || task.contractor_name || "Internal task"}</small>{task.rescheduled_date && <small className="truncate text-xs font-bold text-orange-700">Revised · {new Date(task.rescheduled_date + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}</small>}</div>
         <Pill tone={task.is_overdue ? "red" : task.status === "completed" ? "green" : task.priority === "high" ? "orange" : "blue"}>{task.is_overdue ? `Overdue ${task.overdue_days}d` : prettyStatus(task.status)}</Pill>
       </button>)}
-      {canManage && <button type="button" className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 bg-white font-black text-blue-700" onClick={add}><Plus /> Add task</button>}
+      {canManage && <button type="button" className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 bg-white font-medium text-blue-700" onClick={add}><Plus /> Add task</button>}
       {!tasks.length && !canManage && <EmptySmall text="No tasks planned" />}
     </div>
   </article>;

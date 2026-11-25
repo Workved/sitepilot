@@ -4,6 +4,7 @@ import { api } from "./api/client";
 import { authApi } from "./api/authApi";
 import { LoginPage } from "./features/auth/LoginPage";
 import { Dashboard } from "./features/dashboard/Dashboard";
+import { stripAuthParams } from "./lib/route";
 import "./styles.css";
 
 function initialAuthError() {
@@ -51,7 +52,7 @@ function App() {
         const { data: { session } } = await authApi.getSession();
         if (!active) return;
         await loadPortalIdentity(session);
-        if (session) window.history.replaceState({}, "", window.location.pathname);
+        if (session) stripAuthParams();
       } catch (caught) {
         if (!active) return;
         setError(caught.message);

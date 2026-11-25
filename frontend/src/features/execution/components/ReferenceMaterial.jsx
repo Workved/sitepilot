@@ -51,12 +51,12 @@ export function ReferenceMaterial({ instructions, files = [], onDownload, onRemo
             <span className="min-w-0">
               <span className="block truncate text-sm font-bold text-blue-700">{file.filename}</span>
               {file.description && <span className="block text-xs font-semibold text-slate-600">{file.description}</span>}
-              <span className="block text-[11px] font-semibold text-slate-400">{sizeLabel(file.size_bytes)}{file.source === "project" ? " · added on this project" : ""}</span>
+              <span className="block text-xs font-semibold text-slate-400">{sizeLabel(file.size_bytes)}{file.source === "project" ? " · added on this project" : ""}</span>
             </span>
           </button>
           {/* Only files added on the project can be removed; template files stay as published. */}
           {onRemove && file.source === "project" && <button type="button" aria-label={`Remove ${file.filename}`} onClick={() => onRemove(file)}
-            className="min-h-10 shrink-0 rounded-xl border border-slate-200 px-3 text-xs font-black text-rose-700 hover:bg-rose-50">Remove</button>}
+            className="min-h-10 shrink-0 rounded-xl border border-slate-200 px-3 text-xs font-medium text-rose-700 hover:bg-rose-50">Remove</button>}
         </li>)}
       </ul>
     </div>}

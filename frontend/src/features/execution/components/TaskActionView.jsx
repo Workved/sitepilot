@@ -56,21 +56,21 @@ export function TaskActionView({ projectId, project, task, user, candidates, onB
   }
 
   return <div className="grid gap-4">
-    <header className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+    <header className="flex flex-wrap items-center gap-3 rounded-[20px] border border-line bg-white p-4">
       <button type="button" onClick={onBack} aria-label="Back to my assigned work" className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100">
         <ArrowLeft size={18}/>
       </button>
       <div className="min-w-0 flex-1">
-        <span className="font-mono text-xs font-black text-blue-700">{task.original_code}</span>
-        <h2 className="truncate text-lg font-black text-slate-950">{task.title}</h2>
+        <span className="tabular-nums text-xs font-medium text-slate-600">{task.original_code}</span>
+        <h2 className="truncate text-lg font-medium text-slate-950">{task.title}</h2>
         <span className="text-xs text-slate-500">{[task.phase, task.category].filter(Boolean).join(" / ")}</span>
       </div>
       <Pill tone={STATUS_TONE[task.lifecycle_status] || "gray"}>{task.lifecycle_status.replaceAll("_", " ")}</Pill>
     </header>
 
-    {showActionCenter && <section className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
-      <h3 className="flex items-center gap-2 text-sm font-black text-amber-900"><AlertTriangle size={16}/> Action Center</h3>
-      <p className="mt-1 text-sm text-amber-800">{reason}</p>
+    {showActionCenter && <section className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+      <h3 className="flex items-center gap-2 text-sm font-medium text-orange-900"><AlertTriangle size={16}/> Action Center</h3>
+      <p className="mt-1 text-sm text-orange-800">{reason}</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {showUpdateProgress && <Button size="sm" onClick={() => goToActionForms("action-progress")}><ClipboardEdit size={14}/> Update Progress</Button>}
         {showSubmit && <Button size="sm" onClick={() => goToActionForms("action-status")}><ShieldCheck size={14}/> Submit For Review</Button>}
@@ -82,12 +82,12 @@ export function TaskActionView({ projectId, project, task, user, candidates, onB
         own Overview tab (shared across every view, not duplicated here) -
         Approvals Pending is the one Quick Info stat that tab doesn't carry,
         so it's the one kept here. */}
-    {detail && <section className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+    {detail && <section className="flex items-center gap-3 rounded-[20px] border border-line bg-white p-4">
       <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500"><ShieldCheck size={12}/> Approvals Pending</span>
       <strong className="text-xl text-slate-950">{detail.readiness?.reasons?.filter(item => item.kind === "approval").length || 0}</strong>
     </section>}
 
-    <nav className="flex gap-1 rounded-2xl border border-slate-200 bg-white p-1" aria-label="Task detail tabs">
+    <nav className="flex gap-1 rounded-[20px] border border-line bg-white p-1" aria-label="Task detail tabs">
       {TABS.map(([key, label, Icon]) => (
         <button
           key={key}

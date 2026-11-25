@@ -91,7 +91,7 @@ export function AddRunningTaskModal({ projectId, project, user, onClose, onAdded
       <div className="grid gap-4">
         <p className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-900"><CheckCircle2 size={18} className="mt-0.5 shrink-0"/>{result.code} · {result.title} was added to this project ({formatDate(result.planned_start_date)} - {formatDate(result.planned_end_date)}).</p>
         {files.length > 0 && !failedFiles.length && <p className="text-sm font-bold text-slate-600">{files.length} reference file{files.length === 1 ? "" : "s"} attached.</p>}
-        {failedFiles.length > 0 && <p role="alert" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-900"><TriangleAlert size={18} className="mt-0.5 shrink-0"/>These reference files weren't uploaded: {failedFiles.join(", ")}. Open the task to add them again.</p>}
+        {failedFiles.length > 0 && <p role="alert" className="flex items-start gap-2 rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm font-bold text-orange-900"><TriangleAlert size={18} className="mt-0.5 shrink-0"/>These reference files weren't uploaded: {failedFiles.join(", ")}. Open the task to add them again.</p>}
         {outcome && <p role={outcome.ok ? "status" : "alert"} className={`flex items-start gap-2 rounded-xl border p-4 text-sm font-bold ${outcome.ok ? "border-blue-200 bg-blue-50 text-blue-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>{outcome.ok ? <CheckCircle2 size={18} className="mt-0.5 shrink-0"/> : <TriangleAlert size={18} className="mt-0.5 shrink-0"/>}{outcome.text}</p>}
         <Button onClick={onClose}>Done</Button>
       </div>

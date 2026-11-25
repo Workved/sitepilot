@@ -39,8 +39,8 @@ function Row({ task, onOpen }) {
   const dueDate = task.planned_end_date || task.planned_start_date;
   return <button type="button" onClick={() => onOpen(task.id)} className="grid w-full gap-2 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-slate-50 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] sm:items-center sm:gap-4">
     <div className="min-w-0">
-      <span className="font-mono text-xs font-black text-blue-700">{task.original_code}</span>
-      <strong className="block truncate text-sm font-black text-slate-950">{task.title}</strong>
+      <span className="tabular-nums text-xs font-medium text-slate-600">{task.original_code}</span>
+      <strong className="block truncate text-sm font-medium text-slate-950">{task.title}</strong>
       <span className="text-xs text-slate-500">{[task.phase, task.category].filter(Boolean).join(" / ")}</span>
     </div>
     <span className="text-xs font-bold text-slate-500">{plannedDayLabel(task)}</span>
@@ -49,7 +49,7 @@ function Row({ task, onOpen }) {
       {late && <Pill tone="orange">{task.variance.days}d late</Pill>}
     </span>
     <span className="text-xs font-bold text-slate-500">{dueDate ? formatDateShort(dueDate) : "—"}</span>
-    <span className="text-xs font-black text-blue-700">{nextActionFor(task)}</span>
+    <span className="text-xs font-medium text-blue-700">{nextActionFor(task)}</span>
   </button>;
 }
 
@@ -94,19 +94,19 @@ export function MyAssignedWorkList({ projectId, onOpenTask, onTasksLoaded }) {
     return sortAsc ? left.localeCompare(right) : right.localeCompare(left);
   });
 
-  if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-8"><LoadingSpinner label="Loading your assigned work..."/></div>;
+  if (loading) return <div className="rounded-[20px] border border-line bg-white p-8"><LoadingSpinner label="Loading your assigned work..."/></div>;
   if (error) return <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm font-bold text-rose-700">{error}</div>;
   if (!tasks.length) return <EmptyState icon={<ClipboardList size={21}/>} title="No tasks assigned" description="No task is currently assigned to you on this project."/>;
 
   return <div className="grid gap-4">
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" role="group" aria-label="My work summary">
-      {TILES.map(([key, label, Icon, tone]) => <article key={key} className="rounded-2xl border border-slate-200 bg-white p-4">
+      {TILES.map(([key, label, Icon, tone]) => <article key={key} className="rounded-[20px] border border-line bg-white p-4">
         <div className="flex items-center gap-2 text-slate-500"><Icon size={16}/><small className="text-xs font-medium">{label}</small></div>
         <strong className="mt-2 block font-serif text-2xl text-slate-950">{counts[key]}</strong>
       </article>)}
     </div>
 
-    <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-3">
+    <div className="grid gap-2 rounded-[20px] border border-line bg-white p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <label className="relative min-w-[200px] flex-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
@@ -125,7 +125,7 @@ export function MyAssignedWorkList({ projectId, onOpenTask, onTasksLoaded }) {
       </div>
     </div>
 
-    {sorted.length ? <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+    {sorted.length ? <div className="overflow-hidden rounded-[20px] border border-line bg-white">
       {sorted.map(task => <Row key={task.id} task={task} onOpen={onOpenTask}/>)}
     </div> : <EmptyState icon={<ClipboardList size={21}/>} title={`No ${filter.replaceAll("_", " ")} tasks`} description="Try a different filter or search term."/>}
   </div>;

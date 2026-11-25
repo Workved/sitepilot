@@ -1,4 +1,4 @@
-import { Pencil, Truck, UserMinus, UserRound } from "lucide-react";
+import { Pencil, UserMinus, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { vendorAssignmentApi } from "../../../api/vendorAssignmentApi";
 import { Button, Field, Pill, Select, Textarea } from "../../../components/ui";
@@ -172,7 +172,7 @@ export function TaskVendorDelegationForm({ projectId, task, user, onChanged }) {
   if (loading) return <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">Loading vendor delegation...</div>;
 
   return <section className="rounded-xl border border-slate-200 bg-white p-4">
-    <h4 className="flex items-center gap-2 text-xs font-medium text-slate-500"><Truck size={14}/> Vendor delegation</h4>
+    <h4 className="text-[15px] font-medium text-slate-950">Vendor delegation</h4>
 
     {error && <p className="mt-2 text-xs font-bold text-rose-700">{error}</p>}
 

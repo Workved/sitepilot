@@ -145,7 +145,10 @@ export function ExecutionPage({ user }) {
       ];
 
   return (
-    <section className="grid gap-5">
+    // minmax(0,1fr): an unsized grid column grows to its widest child - here
+    // the project <select>, which sizes to its longest option - and pushes
+    // the page past a phone screen.
+    <section className="grid grid-cols-[minmax(0,1fr)] gap-5">
       {/* The project picker IS the title, so the name shows once; the
           section tabs live in the same card, like a project's workspace. */}
       <header className="rounded-[20px] border border-line bg-white px-4 pt-4 sm:px-6">

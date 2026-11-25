@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { taskExecutionApi } from "../../api/taskExecutionApi";
 import { actorProjectRoles, TaskDetailContent } from "./components/TaskDetailContent";
@@ -422,6 +422,16 @@ describe("TaskDetailContent - Action Forms tab", () => {
       renderDetail({ user: supervisor });
       await screen.findByText("Status Action", { exact: false });
     };
+
+    it("opens the early-start reason from the drawer footer while on the Overview tab", async () => {
+      taskExecutionApi.detail.mockResolvedValue(startable({ planned_start_date: isoOffsetDays(10) }));
+      const onFooterState = vi.fn();
+      const roles = actorProjectRoles(defaultProject, supervisor);
+      render(<TaskDetailContent projectId="p1" project={defaultProject} task={baseTask} user={supervisor} roles={roles} candidates={[]} onChanged={vi.fn()} activeTab="overview" onFooterState={onFooterState}/>);
+      await waitFor(() => expect(onFooterState.mock.calls.at(-1)?.[0]?.primary?.label).toBe("Start work early"));
+      act(() => onFooterState.mock.calls.at(-1)[0].primary.onClick());
+      expect(await screen.findByRole("dialog", { name: "Start this task early" })).toBeInTheDocument();
+    });
 
     it("relabels the start control and names the planned date when the start would be early", async () => {
       await openDetail({ planned_start_date: isoOffsetDays(10) });
