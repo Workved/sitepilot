@@ -44,7 +44,7 @@ function setup(role = "admin") {
 
 async function openForm(role = "admin") {
   setup(role);
-  await screen.findByText("Create the first controlled project");
+  await screen.findByText("No projects yet");
   fireEvent.click(screen.getByRole("button", { name: /new project/i }));
   return screen.findByRole("heading", { name: /create draft project/i });
 }
@@ -84,7 +84,7 @@ describe("Admin draft project creation", () => {
     render(<StrictMode><ProjectsPage user={{ role: "admin" }} action={vi.fn(async operation => {
       try { await operation(); return { ok: true }; } catch (error) { return { ok: false, error: error.message }; }
     })}/></StrictMode>);
-    await screen.findByText("Create the first controlled project");
+    await screen.findByText("No projects yet");
     expect(projectsApi.list).toHaveBeenCalledTimes(1);
     expect(projectsApi.references).toHaveBeenCalledTimes(1);
     expect(projectsApi.publishedTemplates).toHaveBeenCalledTimes(1);
@@ -250,5 +250,23 @@ describe("Editing a project that already has a template", () => {
     expect(payload.start_date).toBe("2026-08-10");
     expect(payload).not.toHaveProperty("target_handover_date");
     expect(payload).not.toHaveProperty("template_version_id");
+  });
+});
+
+describe("empty Projects page", () => {
+  it("offers one New project button, not a second full-width one", async () => {
+    setup();
+    await screen.findByText("No projects yet");
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /new project/i })).toHaveLength(1));
+  });
+
+  it("asks for a published template first, and links to Templates", async () => {
+    projectsApi.publishedTemplates.mockResolvedValue({ items: [] });
+    const onTabChange = vi.fn();
+    render(<ProjectsPage user={{ role: "super_admin" }} onTabChange={onTabChange} action={vi.fn()}/>);
+    expect(await screen.findByText("Publish a template first")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /new project/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /go to templates/i }));
+    expect(onTabChange).toHaveBeenCalledWith("templates");
   });
 });
