@@ -217,7 +217,7 @@ export function ProjectsPage({ user, action }) {
   const hasAttention = Boolean(attention?.length);
   const listActions = (canCreate || hasAttention) ? <>
     <AttentionMenu items={attention} onOpen={openFromAttention}/>
-    {canCreate && <Button size="sm" className="ml-auto whitespace-nowrap" onClick={() => { setFormError(""); setFormProject(null); }}>
+    {canCreate && <Button size="sm" className="w-full whitespace-nowrap" onClick={() => { setFormError(""); setFormProject(null); }}>
       <Plus size={16}/> New project
     </Button>}
   </> : null;

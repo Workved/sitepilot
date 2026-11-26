@@ -55,11 +55,12 @@ export function AttentionMenu({ items, onOpen }) {
       onClick={() => setOpen(value => !value)}
       aria-expanded={open}
       aria-haspopup="true"
-      className={`inline-flex min-h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-2.5 text-[13px] font-medium transition ${open ? "border-slate-300 bg-slate-50 text-slate-950" : "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50"}`}
+      aria-label={`Needs attention: ${items.length}`}
+      className={`inline-flex min-h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border px-2.5 text-[13px] font-medium transition ${open ? "border-slate-300 bg-slate-50 text-slate-950" : "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50"}`}
     >
       <Bell size={15} aria-hidden="true"/>
       <span className="grid h-5 min-w-5 place-items-center rounded-md bg-rose-600 px-1 text-xs text-white">{items.length}</span>
-      <span>Needs attention</span>
+      <span>Attention</span>
     </button>
 
     {open && <div

@@ -163,7 +163,8 @@ export function ProjectListPane({ projects, summaries, attentionByProject, filte
   }
 
   return <div className="flex min-h-0 min-w-0 flex-col border-b border-line bg-slate-50 lg:border-b-0 lg:border-r">
-    {actions && <div className="flex items-center justify-between gap-2 px-3 pt-3">{actions}</div>}
+    {/* The two actions share the row evenly so they always fit the 20rem column. */}
+    {actions && <div className="flex items-stretch gap-2 px-3 pt-3 [&>*]:min-w-0 [&>*]:flex-1">{actions}</div>}
 
     {/* Phone: the list folds behind the current project so the workspace
         gets the screen; desktop always shows it. */}
