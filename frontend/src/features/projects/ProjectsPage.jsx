@@ -141,9 +141,18 @@ export function ProjectsPage({ user, action }) {
   // clear the selection so the fallback effect above picks the next
   // visible project (or the true empty state) instead of leaving a ghost
   // detail pane for a project the list says doesn't exist.
+  //
+  // Except on arrival: a link (a snag, a vendor's project, a bookmark) to,
+  // say, a completed project must open it, so the first time the list loads
+  // the filter moves to that project's status instead of dropping it.
+  const arrivedViaLink = useRef(true);
   useEffect(() => {
-    if (loading || !selected) return;
+    if (loading) return;
+    const firstLoad = arrivedViaLink.current;
+    arrivedViaLink.current = false;
+    if (!selected) return;
     if (filtered.some(item => item.id === selected.id)) return;
+    if (firstLoad) { setFilter(selected.status); return; }
     setRoute({ project: "", pane: "" }, { replace: true });
   }, [loading, selected, filtered]);
 

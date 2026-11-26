@@ -279,6 +279,12 @@ TEMPLATE_REGISTRY: dict[str, TemplateSpec] = {
         "TBD_project_external_approval_declined", "en",
         ("approval_id", "project_id", "response", "note"),
     ),
+    # Snag list: the person a snag is tagged to. Only emitted when
+    # settings.snag_whatsapp_enabled is on (after Meta approves the template
+    # in WHATSAPP_TEMPLATES.md, #9).
+    "snag.assigned": TemplateSpec(
+        "snag_assigned", "en", ("tagged_by", "snag_title", "project_name", "area"),
+    ),
     "user.created": TemplateSpec(
         "TBD_user_created", "en", ("user_id", "name"),
     ),

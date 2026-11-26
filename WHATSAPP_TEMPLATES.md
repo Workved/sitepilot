@@ -173,6 +173,28 @@ SiteOps announcement for project {{1}}: {{2}}. {{3}} - Sent by your SiteOps admi
 
 ---
 
+## 9. `snag_assigned`
+
+Sent to the person a snag is tagged to (a small leftover job on a project).
+**Off by default**: set `SNAG_WHATSAPP_ENABLED=true` on the backend only after
+Meta approves this template. Until then people see their snags under
+"Tagged to you" in SiteOps.
+
+**Body**
+
+```
+SiteOps: {{1}} tagged you on a snag: {{2}} at project {{3}} (area: {{4}}). Open SiteOps to see the details and mark it done.
+```
+
+| Variable | Field | Sample |
+|---|---|---|
+| `{{1}}` | Who tagged them | Deepak S |
+| `{{2}}` | Snag title | Touch up paint near cabin 3 door |
+| `{{3}}` | Project name | Futurex Office |
+| `{{4}}` | Area (or `-`) | Cabin 3 |
+
+---
+
 ## Notes
 
 - **Replies (ACCEPT / GATEACCEPT)** only work once Meta's webhook reaches the

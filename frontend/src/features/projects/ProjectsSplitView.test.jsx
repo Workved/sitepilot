@@ -155,3 +155,15 @@ describe("Projects split view", () => {
     expect(screen.queryByRole("button", { name: /needs attention/i })).not.toBeInTheDocument();
   });
 });
+
+describe("links to projects outside the current filter", () => {
+  it("opens a completed project from a link instead of dropping it", async () => {
+    const completed = project({ id: "p-done", code: "PRJ-DONE", name: "Finished Fitout", status: "completed" });
+    projectsApi.list.mockResolvedValue([project(), completed]);
+    window.history.replaceState({}, "", "/?tab=projects&project=PRJ-DONE&pane=snags");
+    setup();
+    expect(await screen.findByTestId("workspace")).toHaveTextContent("p-done:snags");
+    expect(list().getByText("Finished Fitout")).toBeInTheDocument();
+    expect(window.location.search).toContain("project=PRJ-DONE");
+  });
+});

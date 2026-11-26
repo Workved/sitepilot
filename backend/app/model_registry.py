@@ -2,6 +2,7 @@
 
 from app import models as legacy_models  # noqa: F401
 from app import project_models as project_models  # noqa: F401
+from app import snag_models as snag_models  # noqa: F401
 from app import template_models as template_models  # noqa: F401
 
-__all__ = ["legacy_models", "project_models", "template_models"]
+__all__ = ["legacy_models", "project_models", "snag_models", "template_models"]

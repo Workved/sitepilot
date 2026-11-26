@@ -1,6 +1,8 @@
 import { CircleCheck, Lock, MapPin } from "lucide-react";
 import { planGap, scheduleWindow } from "../../../utils/schedule";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { snagsApi } from "../../../api/snagsApi";
+import { snagSummary } from "../../snags/snagHelpers";
 import { PhaseOverviewDrawer } from "./PhaseOverviewDrawer";
 
 export const VISIBLE_PHASE_COUNT = 5;
@@ -79,7 +81,7 @@ function Headline({ project, summary }) {
   </div>;
 }
 
-function Stat({ label, value, color, onOpen }) {
+function Stat({ label, value, color, onOpen, target = "the project dashboard" }) {
   const content = <>
     <span className="h-7 w-1.5 shrink-0 rounded" style={{ background: value ? color : "var(--color-slate-200)" }} aria-hidden="true"/>
     <span className={`min-w-0 flex-1 truncate text-sm ${value ? "text-slate-950" : "text-slate-500"}`}>{label}</span>
@@ -87,7 +89,7 @@ function Stat({ label, value, color, onOpen }) {
   </>;
   const className = "flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left";
   return <li>{onOpen
-    ? <button type="button" onClick={onOpen} aria-label={`${label}: ${value}. Open the project dashboard`} className={`${className} transition-colors hover:bg-slate-50`}>{content}</button>
+    ? <button type="button" onClick={onOpen} aria-label={`${label}: ${value}. Open ${target}`} className={`${className} transition-colors hover:bg-slate-50`}>{content}</button>
     : <div className={className}>{content}</div>}</li>;
 }
 
@@ -97,6 +99,21 @@ export function ProjectOverviewPane({ project, summary, attention = [], onOpenPa
   const phases = allPhases.length ? selectRelevantPhases(allPhases) : null;
   const hiddenPhaseCount = Math.max(allPhases.length - (phases?.length || 0), 0);
   const openDashboard = project.status === "draft" ? undefined : () => onOpenPane("dashboard");
+  const [snags, setSnags] = useState(null);
+
+  // The snag list is its own tab; here it only adds a count and, when
+  // something is urgent or overdue, a line in Needs attention.
+  useEffect(() => {
+    let alive = true;
+    snagsApi.list(project.id).then(data => alive && setSnags(snagSummary(data.items || []))).catch(() => {});
+    return () => { alive = false; };
+  }, [project.id]);
+  const pressing = snags ? snags.urgent + snags.overdue : 0;
+  const items = pressing ? [...attention, {
+    id: "snags", severity: "warning", pane: "snags",
+    title: [snags.urgent && `${snags.urgent} urgent ${snags.urgent === 1 ? "snag" : "snags"}`, snags.overdue && `${snags.overdue} overdue`].filter(Boolean).join(", "),
+    subtitle: `${snags.open} open on the snag list`,
+  }] : attention;
 
   return <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
     <div className="grid min-w-0 gap-4">
@@ -140,10 +157,10 @@ export function ProjectOverviewPane({ project, summary, attention = [], onOpenPa
     </div>
 
     <div className="grid min-w-0 gap-4">
-      <Card title={<h3 className="flex items-center gap-2 text-[15px] font-medium text-slate-950">Needs attention{attention.length > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-md bg-rose-600 px-1 text-xs font-normal text-white">{attention.length}</span>}</h3>}>
-        {attention.length
+      <Card title={<h3 className="flex items-center gap-2 text-[15px] font-medium text-slate-950">Needs attention{items.length > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-md bg-rose-600 px-1 text-xs font-normal text-white">{items.length}</span>}</h3>}>
+        {items.length
           ? <ul className="-mx-2 grid gap-0.5">
-              {attention.map(item => <li key={item.id}>
+              {items.map(item => <li key={item.id}>
                 <button type="button" onClick={() => onOpenPane(item.pane || "overview")} className="flex w-full items-start gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-slate-50">
                   <span className={`mt-1.5 size-2 shrink-0 rounded-full ${SEVERITY_DOT[item.severity] || "bg-slate-400"}`} aria-hidden="true"/>
                   <span className="min-w-0 flex-1">
@@ -160,6 +177,7 @@ export function ProjectOverviewPane({ project, summary, attention = [], onOpenPa
       {summary && <Card title={<h3 className="text-[15px] font-medium text-slate-950">Site health</h3>}>
         <ul className="-mx-2 grid">
           <Stat label="Overdue tasks" value={summary.overdue_count ?? 0} color="var(--color-behind)" onOpen={openDashboard}/>
+          {snags && <Stat label="Open snags" value={snags.open} color="var(--color-blue-600)" onOpen={() => onOpenPane("snags")} target="the snag list"/>}
           <Stat label="Blocked on site" value={summary.blocked_count ?? 0} color="#d9483b" onOpen={openDashboard}/>
           <Stat label="Delayed" value={summary.delayed_count ?? 0} color="#e8a33c" onOpen={openDashboard}/>
           <Stat label="Pending approvals" value={summary.pending_approvals ?? 0} color="var(--color-gate)" onOpen={openDashboard}/>
