@@ -21,6 +21,8 @@ export const taskExecutionApi = {
   // review; this one answers the runtime question the Execution tab asks -
   // has the approval been granted, does it still block, and which tasks does
   // it cover. Read access is any active project member; deciding is PM/Admin.
+  // Formal change to a task's planned dates; a reason is required and it is audited.
+  reschedule: (projectId, taskId, payload) => api(`/api/v2/projects/${projectId}/tasks/${taskId}/reschedule`, { method: "POST", body: JSON.stringify(payload) }),
   listExternalApprovals: projectId => api(`/api/v2/projects/${projectId}/external-approvals`),
   decideExternalApproval: (projectId, approvalId, payload) => api(`/api/v2/projects/${projectId}/external-approvals/${approvalId}/decision`, { method: "POST", body: JSON.stringify(payload) }),
   assignExternalApproval: (projectId, approvalId, payload) => api(`/api/v2/projects/${projectId}/external-approvals/${approvalId}/assign`, { method: "POST", body: JSON.stringify(payload) }),

@@ -3,6 +3,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import listPlugin from "@fullcalendar/list";
 import { useMemo } from "react";
 import { taskState } from "./calendarModel";
+import { TARGET_STYLE, targetLabel, taskSchedule } from "./scheduleModel";
 import { localDay, plusDays, todayLocal } from "./svarSetup";
 
 // Month view on FullCalendar (MIT standard plugins: day grid + list). Each
@@ -20,7 +21,7 @@ const EVENT_COLORS = {
   cancelled: { bg: "#f1f5f9", border: "#cbd5e1", text: "#94a3b8" },
 };
 
-export function toCalendarEvents(tasks, project, today) {
+export function toCalendarEvents(tasks, project, today, targets = []) {
   const events = [];
   for (const task of tasks) {
     const start = localDay(task.planned_start_date);
@@ -28,8 +29,12 @@ export function toCalendarEvents(tasks, project, today) {
     const end = plusDays(localDay(task.planned_end_date) || start, 1);
     const state = taskState(task, today);
     const color = EVENT_COLORS[state.late > 0 && state.tone !== "done" ? "blocked" : state.tone] || EVENT_COLORS.planned;
+    // The first schedule tag (early/late/moved) rides along in the title.
+    // The server's lateness wins; otherwise an early tag ("Done 3 days early").
+    const tag = taskSchedule(task, today).tags.find(item => item.tone === "early" || item.tone === "started");
+    const suffix = state.late > 0 ? ` · ${state.late}d late` : tag ? ` · ${tag.text}` : "";
     events.push({
-      id: task.id, title: `${task.title}${state.late > 0 ? ` · ${state.late}d late` : ""}`,
+      id: task.id, title: `${task.title}${suffix}`,
       start, end, allDay: true, backgroundColor: color.bg, borderColor: color.border, textColor: color.text,
       extendedProps: { taskId: task.id, label: state.label },
     });
@@ -38,12 +43,24 @@ export function toCalendarEvents(tasks, project, today) {
   const milestone = (id, title, value) => { const day = localDay(value); if (day) events.push({ id, title, start: day, allDay: true, display: "block", backgroundColor: "#f1f5f9", borderColor: "#0f172a", textColor: "#0f172a" }); };
   milestone("key:start", "⚑ Project start", project?.start_date);
   milestone("key:handover", "⚑ Handover", project?.target_handover_date);
+  const titleById = new Map(tasks.map(task => [task.id, task.title]));
+  for (const target of targets.filter(item => item.status === "active")) {
+    const day = localDay(target.target_date);
+    if (!day) continue;
+    const style = TARGET_STYLE[target.outcome?.state || "open"];
+    const name = target.kind === "project" ? target.title : titleById.get(target.task_id) || target.task_label;
+    events.push({
+      id: `target:${target.id}`, title: `◆ ${name}`, start: day, allDay: true, display: "block",
+      backgroundColor: "#ffffff", borderColor: style.color, textColor: "#0f172a",
+      extendedProps: { taskId: target.task_id || null, label: targetLabel(target) },
+    });
+  }
   return events;
 }
 
-export function MonthCalendar({ tasks, project, onOpenTask }) {
+export function MonthCalendar({ tasks, project, onOpenTask, targets = [] }) {
   const today = todayLocal();
-  const events = useMemo(() => toCalendarEvents(tasks, project, today), [tasks, project]); // eslint-disable-line react-hooks/exhaustive-deps
+  const events = useMemo(() => toCalendarEvents(tasks, project, today, targets), [tasks, project, targets]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return <div className="grid gap-3">
     <div className="siteops-calendar rounded-2xl border border-slate-200 bg-white p-3" data-testid="fullcalendar-month">
@@ -60,6 +77,6 @@ export function MonthCalendar({ tasks, project, onOpenTask }) {
         eventDidMount={info => { info.el.title = info.event.extendedProps.label ? `${info.event.title} - ${info.event.extendedProps.label}` : info.event.title; }}
       />
     </div>
-    <p className="text-xs font-semibold text-slate-500">Each task runs across its planned days · blue = in progress · green = done · violet = needs review · red = blocked or late · grey = not started · ⚑ = project start and handover</p>
+    <p className="text-xs font-semibold text-slate-500">Each task runs across its planned days · blue = in progress · green = done · violet = needs review · red = blocked or late · grey = not started · ⚑ = project start and handover · ◆ = target</p>
   </div>;
 }

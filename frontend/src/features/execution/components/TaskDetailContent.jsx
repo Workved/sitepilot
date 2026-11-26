@@ -15,6 +15,8 @@ import { TaskReferenceManager } from "./TaskReferenceManager";
 import { canAddTasks } from "../../projects/components/TaskScope";
 import { projectsApi } from "../../../api/projectsApi";
 import { TaskVendorDelegationForm } from "./TaskVendorDelegationForm";
+import { TaskScheduleCard } from "./TaskScheduleCard";
+import { targetsApi } from "../../../api/targetsApi";
 
 // This is the single source of truth for what a task's detail looks like and
 // which controls it offers, shared by every role-specific execution view
@@ -549,10 +551,12 @@ function OverviewPane({ task, detail, project, candidates, externalApprovals, on
 
 // --- Action Forms: everything editable. ---
 
-function ActionFormsPane({ projectId, project, task, detail, user, roles, candidates, autoOpenBlockerDelay, forwardTargets, showCancel, blocker, earlyStart, transitioning, onTransition, setEarlyStartOpen, refreshAll, downloadEvidence, isTerminal }) {
+function ActionFormsPane({ projectId, project, task, detail, user, roles, candidates, autoOpenBlockerDelay, forwardTargets, showCancel, blocker, earlyStart, transitioning, onTransition, setEarlyStartOpen, refreshAll, downloadEvidence, isTerminal, targets, change }) {
+  const schedule = <TaskScheduleCard projectId={projectId} detail={detail} user={user} roles={roles} targets={targets} change={change} onChanged={refreshAll}/>;
   if (isTerminal) {
-    return <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-500">
-      No actions available - this task is {detail.lifecycle_status}.
+    return <div className="grid gap-4">
+      <div className="rounded-2xl border border-line bg-white p-4 text-sm text-slate-500">No actions available - this task is {detail.lifecycle_status}.</div>
+      {schedule}
     </div>;
   }
 
@@ -584,6 +588,8 @@ function ActionFormsPane({ projectId, project, task, detail, user, roles, candid
 
       <TaskDecisionModal projectId={projectId} project={project} task={detail} user={user} onDecided={refreshAll}/>
     </div>
+
+    {schedule}
 
     <div id="action-progress" className="grid gap-4">
       {detail.lifecycle_status === "in_progress" && canExecute(detail, user, roles) && <TaskProgressForm projectId={projectId} task={detail} onSubmitted={refreshAll}/>}
@@ -648,6 +654,8 @@ function ActivityLogPane({ detail, project }) {
 export function TaskDetailContent({ projectId, project, task, user, roles, candidates, onChanged, autoOpenBlockerDelay, onDetailLoaded, onFooterState, onRequestReview, activeTab = "overview" }) {
   const [detail, setDetail] = useState(null);
   const [externalApprovals, setExternalApprovals] = useState([]);
+  const [targets, setTargets] = useState([]);
+  const [change, setChange] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [transitioning, setTransitioning] = useState("");
@@ -657,12 +665,16 @@ export function TaskDetailContent({ projectId, project, task, user, roles, candi
     setLoading(true);
     setError("");
     try {
-      const [data, approvals] = await Promise.all([
+      const [data, approvals, targetData, changes] = await Promise.all([
         taskExecutionApi.detail(projectId, task.id),
         taskExecutionApi.listExternalApprovals(projectId).catch(() => []),
+        targetsApi.list(projectId).catch(() => ({ items: [] })),
+        targetsApi.scheduleChanges(projectId).catch(() => []),
       ]);
       setDetail(data);
       setExternalApprovals(approvals);
+      setTargets(targetData?.items || []);
+      setChange((Array.isArray(changes) ? changes : []).find(item => item.task_id === task.id) || null);
       onDetailLoaded?.(data);
     } catch (caught) {
       setError(caught?.message || "This task's detail could not be loaded.");
@@ -801,7 +813,7 @@ export function TaskDetailContent({ projectId, project, task, user, roles, candi
       projectId={projectId} project={project} task={task} detail={detail} user={user} roles={roles} candidates={candidates}
       autoOpenBlockerDelay={autoOpenBlockerDelay} forwardTargets={forwardTargets} showCancel={showCancel} blocker={blocker}
       earlyStart={earlyStart} transitioning={transitioning} onTransition={transition} setEarlyStartOpen={setEarlyStartOpen} refreshAll={refreshAll} downloadEvidence={downloadEvidence}
-      isTerminal={isTerminal}
+      isTerminal={isTerminal} targets={targets} change={change}
     />}
 
     {activeTab === "activity" && <ActivityLogPane detail={detail} project={project}/>}

@@ -1,7 +1,9 @@
 import { CalendarClock, ClipboardCheck, Clock3, Rocket, Search, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { projectsApi } from "../../../api/projectsApi";
+import { targetsApi } from "../../../api/targetsApi";
 import { taskExecutionApi } from "../../../api/taskExecutionApi";
+import { TARGET_STYLE, targetLabel } from "./calendar/scheduleModel";
 import { Button, EmptyState, LoadingSpinner, Pill } from "../../../components/ui";
 import { todayIso } from "../../../utils/format";
 import { STATUS_TONE } from "./TaskDetailContent";
@@ -44,7 +46,7 @@ export function sortByAttention(tasks) {
   return [...tasks].sort((a, b) => attentionRank(a) - attentionRank(b));
 }
 
-function TaskCard({ task, onOpen }) {
+function TaskCard({ task, onOpen, target }) {
   const late = task.variance?.status === "late";
   const earlyDays = startedEarlyDays(task);
   return <button type="button" onClick={() => onOpen(task.id)}
@@ -60,10 +62,13 @@ function TaskCard({ task, onOpen }) {
       {earlyDays > 0 && <Pill tone="blue">{earlyDays}d early</Pill>}
       {task.category && <span className="truncate text-xs text-slate-500">{task.category}</span>}
     </span>
+    {target && <span className={`flex items-center gap-1.5 text-xs ${TARGET_STYLE[target.outcome?.state || "open"].text}`}>
+      <span className="size-2 rotate-45 rounded-[1px]" style={{ background: TARGET_STYLE[target.outcome?.state || "open"].color }} aria-hidden="true"/>{targetLabel(target)}
+    </span>}
   </button>;
 }
 
-function DayColumn({ label, tasks, expanded, onExpand, onOpen, isToday }) {
+function DayColumn({ label, tasks, expanded, onExpand, onOpen, isToday, targetByTask = new Map() }) {
   const visible = expanded ? tasks : tasks.slice(0, VISIBLE_PER_COLUMN);
   const remaining = tasks.length - visible.length;
   return <article aria-label={`${label.kind}, ${label.formatted}`} className={`grid min-w-0 gap-2 rounded-[20px] border p-3 ${isToday ? "border-slate-950 bg-white" : "border-line bg-white/60"}`}>
@@ -72,7 +77,7 @@ function DayColumn({ label, tasks, expanded, onExpand, onOpen, isToday }) {
       <span className="text-xs text-slate-500">{label.formatted} · {tasks.length} {tasks.length === 1 ? "task" : "tasks"}</span>
     </header>
     <div className="grid min-w-0 gap-2">
-      {visible.length ? visible.map(task => <TaskCard key={task.id} task={task} onOpen={onOpen}/>) : <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">No tasks</p>}
+      {visible.length ? visible.map(task => <TaskCard key={task.id} task={task} onOpen={onOpen} target={targetByTask.get(task.id)}/>) : <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">No tasks</p>}
     </div>
     {remaining > 0 && <Button size="sm" variant="ghost" onClick={onExpand}>Show all {tasks.length}</Button>}
   </article>;
@@ -91,6 +96,7 @@ export function SupervisorOperationsBoard({ projectId, user }) {
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [targets, setTargets] = useState([]);
 
   async function load() {
     setLoading(true);
@@ -106,6 +112,12 @@ export function SupervisorOperationsBoard({ projectId, user }) {
   }
 
   useEffect(() => { load(); }, [projectId]);
+  useEffect(() => {
+    let active = true;
+    targetsApi.list(projectId).then(data => { if (active) setTargets(data.items || []); }).catch(() => {});
+    return () => { active = false; };
+  }, [projectId]);
+  const targetByTask = useMemo(() => new Map(targets.filter(t => t.kind === "task" && t.status === "active").map(t => [t.task_id, t])), [targets]);
   useEffect(() => {
     let active = true;
     setProject(null);
@@ -134,9 +146,11 @@ export function SupervisorOperationsBoard({ projectId, user }) {
     ].map(({ key, day, kind }) => ({
       key,
       label: columnLabel(day, kind),
-      tasks: sortByAttention(searchedTasks.filter(task => taskOccupiesDay(task, day, today))),
+      // A task also shows on the day its target falls, even when its
+      // planned dates are elsewhere - "targeted for tomorrow" matters here.
+      tasks: sortByAttention(searchedTasks.filter(task => taskOccupiesDay(task, day, today) || targetByTask.get(task.id)?.target_date === day.toISOString().slice(0, 10))),
     }));
-  }, [searchedTasks, today]);
+  }, [searchedTasks, today, targetByTask]);
 
   // Attention Required is scoped to the same window the board shows - the
   // union of tasks appearing in any of the three columns, not the whole
@@ -210,6 +224,7 @@ export function SupervisorOperationsBoard({ projectId, user }) {
         label={column.label}
         tasks={column.tasks}
         isToday={column.key === "today"}
+        targetByTask={targetByTask}
         expanded={expandedColumns.has(column.key)}
         onExpand={() => toggleExpand(column.key)}
         onOpen={setSelectedTaskId}

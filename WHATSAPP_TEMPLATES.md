@@ -195,6 +195,29 @@ SiteOps: {{1}} tagged you on a snag: {{2}} at project {{3}} (area: {{4}}). Open 
 
 ---
 
+## 10. `target_set`
+
+Sent to a task's Site Supervisor and its assigned support staff when someone
+sets a target date on the task. **Off by default**: set
+`TARGET_WHATSAPP_ENABLED=true` on the backend only after Meta approves this
+template. Until then targets show in SiteOps (Execution calendar, 3-Day Board,
+project Overview).
+
+**Body**
+
+```
+SiteOps: {{1}} set a target for task {{2}} on project {{3}}: finish by {{4}}. Open SiteOps for the details.
+```
+
+| Variable | Field | Sample |
+|---|---|---|
+| `{{1}}` | Who set it | Prachi K |
+| `{{2}}` | Task code and name | T003 - Flooring |
+| `{{3}}` | Project name | Futurex Office |
+| `{{4}}` | Target date | 28 Nov 2026 |
+
+---
+
 ## Notes
 
 - **Replies (ACCEPT / GATEACCEPT)** only work once Meta's webhook reaches the
