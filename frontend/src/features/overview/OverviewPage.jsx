@@ -5,7 +5,7 @@ import { communicationApi } from "../../api/communicationApi";
 import { snagsApi } from "../../api/snagsApi";
 import { TaggedToYou } from "../snags/TaggedToYou";
 import { projectsApi } from "../../api/projectsApi";
-import { Alert, EmptyState, LoadingSpinner } from "../../components/ui";
+import { Alert, EmptyState, LoadingSpinner, Popover } from "../../components/ui";
 import { cn } from "../../utils/cn";
 import { formatDateShort, initials } from "../../utils/format";
 import { BEHIND_TOLERANCE, plannedPercent, standingOf } from "../../utils/schedule";
@@ -89,22 +89,14 @@ function ProgressRow({ row, onOpenProject }) {
 function SortMenu({ sort, onChange }) {
   const [open, setOpen] = useState(false);
   const holder = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDown = event => { if (!holder.current?.contains(event.target)) setOpen(false); };
-    const onKey = event => { if (event.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
-  }, [open]);
   const label = SORTS.find(([key]) => key === sort)?.[1];
   return <div ref={holder} className="relative">
     <button type="button" onClick={() => setOpen(value => !value)} aria-haspopup="true" aria-expanded={open} aria-label={`Sorted by ${label}. Change sort`} className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white pl-3 pr-2 text-[13px] text-slate-800 hover:border-slate-300">
       {label}<ChevronDown size={15} className="text-slate-500" aria-hidden="true" />
     </button>
-    {open && <div role="menu" className="absolute right-0 top-[calc(100%+6px)] z-30 w-48 rounded-xl border border-line bg-white p-1 shadow-[0_18px_50px_rgba(21,23,26,.12)]">
+    <Popover anchorRef={holder} open={open} onClose={() => setOpen(false)} role="menu" className="w-48 p-1">
       {SORTS.map(([key, text]) => <button key={key} type="button" role="menuitemradio" aria-checked={sort === key} onClick={() => { onChange(key); setOpen(false); }} className={cn("block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50", sort === key ? "text-slate-950" : "text-slate-600")}>{text}</button>)}
-    </div>}
+    </Popover>
   </div>;
 }
 

@@ -136,9 +136,10 @@ describe("TaskDetailDrawer", () => {
   it("closes when the backdrop is clicked and when the close button is clicked", async () => {
     taskExecutionApi.detail.mockResolvedValue(detail());
     const onClose = vi.fn();
-    const { container } = render(<TaskDetailDrawer projectId="p1" project={project} task={task()} user={admin} candidates={[]} onClose={onClose} onChanged={vi.fn()}/>);
+    render(<TaskDetailDrawer projectId="p1" project={project} task={task()} user={admin} candidates={[]} onClose={onClose} onChanged={vi.fn()}/>);
     await screen.findByText("T010");
-    fireEvent.click(container.querySelector("[aria-hidden='true']"));
+    // The drawer renders in <body> (above the whole page), not inside the page.
+    fireEvent.click(document.body.querySelector("div.fixed.inset-0[aria-hidden='true']"));
     expect(onClose).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: /close task detail/i }));
     expect(onClose).toHaveBeenCalledTimes(2);

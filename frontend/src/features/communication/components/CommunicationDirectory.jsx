@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Building2, MessageCircle, MoreVertical, Phone, ShieldCheck, Star, UserRound } from "lucide-react";
-import { Modal } from "../../../components/ui";
+import { Modal, Popover } from "../../../components/ui";
 import { cn } from "../../../utils/cn";
 import { CategorySelector } from "./CategorySelector";
 import { BlacklistPill } from "./VendorBlacklist";
@@ -20,20 +20,14 @@ function RowMenu({ items }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
-  useEffect(() => {
-    if (!open) return;
-    function onClickOutside(event) { if (ref.current && !ref.current.contains(event.target)) setOpen(false); }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
 
   return <div ref={ref} className="relative" onClick={event => event.stopPropagation()}>
     <button type="button" aria-label="Vendor row actions" onClick={() => setOpen(v => !v)}
       className="grid size-8 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"><MoreVertical size={16}/></button>
-    {open && <div className="absolute right-0 top-[calc(100%+4px)] z-20 grid w-48 gap-0.5 rounded-2xl border border-line bg-white p-1.5 shadow-[0_18px_50px_rgba(21,23,26,.12)]">
+    <Popover anchorRef={ref} open={open} onClose={() => setOpen(false)} offset={4} className="grid w-48 gap-0.5 p-1.5">
       {items.map(item => <button key={item.label} type="button" onClick={() => { setOpen(false); item.onClick(); }}
         className={cn("rounded-xl px-3 py-2 text-left text-sm transition", item.danger ? "text-rose-700 hover:bg-rose-50" : "text-slate-800 hover:bg-slate-50")}>{item.label}</button>)}
-    </div>}
+    </Popover>
   </div>;
 }
 

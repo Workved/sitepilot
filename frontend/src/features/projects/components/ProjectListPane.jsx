@@ -1,6 +1,6 @@
 import { Check, ChevronDown, ChevronsUpDown, Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Pill } from "../../../components/ui";
+import { useMemo, useRef, useState } from "react";
+import { Pill, Popover } from "../../../components/ui";
 import { initials, relativeAge } from "../../../utils/format";
 
 const statusTone = { draft: "gray", active: "green", on_hold: "orange", completed: "blue", archived: "gray" };
@@ -100,14 +100,6 @@ function ProjectRow({ project, summary, attentionCount, active, showStatus, onOp
 function ViewMenu({ filters, counts, filter, onFilterChange, sort, onSortChange }) {
   const [open, setOpen] = useState(false);
   const holder = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDown = event => { if (!holder.current?.contains(event.target)) setOpen(false); };
-    const onKey = event => { if (event.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
-  }, [open]);
   const current = filters.find(([key]) => key === filter)?.[1] || "All";
 
   return <div className="relative shrink-0" ref={holder}>
@@ -115,7 +107,7 @@ function ViewMenu({ filters, counts, filter, onFilterChange, sort, onSortChange 
       className="flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white pl-3 pr-2 text-[13px] text-slate-800 transition hover:border-slate-300">
       {current}<span className="tabular-nums text-slate-400">{counts[filter]}</span><ChevronDown size={15} className="text-slate-500" aria-hidden="true"/>
     </button>
-    {open && <div role="menu" aria-label="Filter and sort projects" className="absolute right-0 top-[calc(100%+6px)] z-30 w-60 rounded-2xl border border-line bg-white p-1.5 shadow-[0_18px_50px_rgba(21,23,26,.12)]">
+    <Popover anchorRef={holder} open={open} onClose={() => setOpen(false)} role="menu" aria-label="Filter and sort projects" className="w-60 p-1.5">
       <p className="px-2.5 pb-1 pt-1.5 text-xs text-slate-500">Status</p>
       {filters.map(([key, label]) => <button key={key} type="button" role="menuitemradio" aria-checked={filter === key}
         onClick={() => { onFilterChange(key); setOpen(false); }}
@@ -132,7 +124,7 @@ function ViewMenu({ filters, counts, filter, onFilterChange, sort, onSortChange 
         <span className="flex-1">{label}</span>
         <Check size={15} className={sort === key ? "text-slate-950" : "invisible"} aria-hidden="true"/>
       </button>)}
-    </div>}
+    </Popover>
   </div>;
 }
 

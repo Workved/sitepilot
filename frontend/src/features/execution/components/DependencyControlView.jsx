@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import {
   CheckCircle2, Eye, GitBranch, 
   RotateCcw, Search, ShieldAlert, ShieldQuestion, X,
@@ -82,7 +83,7 @@ function DependencyDetailDrawer({ dependency, onClose, onOpenTask }) {
 
   const chip = STATUS_CHIP[dependency.status];
 
-  return <>
+  return createPortal(<>
     <div className="fixed inset-0 z-40 bg-slate-950/40" onClick={onClose} aria-hidden="true"/>
     <aside
       className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[90vw] flex-col rounded-l-2xl bg-white shadow-[-16px_0_50px_rgba(15,23,42,.18)] sm:w-[820px]"
@@ -158,7 +159,7 @@ function DependencyDetailDrawer({ dependency, onClose, onOpenTask }) {
         <Button size="sm" variant="secondary" disabled={!dependency.successorTask} title={!dependency.successorTask ? "This task hasn't been instantiated for execution yet." : undefined} onClick={() => onOpenTask("successor")}>View Successor Task</Button>
       </footer>
     </aside>
-  </>;
+  </>, document.body);
 }
 
 // Admin/PM/Super Admin/Supervisor: the "Task Dependencies" control view that

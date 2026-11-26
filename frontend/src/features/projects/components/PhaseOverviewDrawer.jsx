@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { ChevronDown, ChevronRight, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { taskExecutionApi } from "../../../api/taskExecutionApi";
@@ -124,7 +125,7 @@ export function PhaseOverviewDrawer({ project, summary, onClose }) {
     }, {});
   }, [tasks]);
 
-  return <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label="Phase overview">
+  return createPortal(<div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label="Phase overview">
     <button type="button" aria-label="Close phase overview" className="absolute inset-0 bg-slate-950/30 backdrop-blur-[2px]" onClick={onClose}/>
     <section className="relative flex h-full w-[min(30rem,100vw)] flex-col border-l border-slate-200 bg-white shadow-2xl">
       <header className="border-b border-slate-200 px-4 py-3">
@@ -186,5 +187,5 @@ export function PhaseOverviewDrawer({ project, summary, onClose }) {
         Showing {visible.length} of {phases.length} phases
       </footer>
     </section>
-  </div>;
+  </div>, document.body);
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, Check, KeyRound, MessageCircle, MoreHorizontal, RotateCcw, Trash2, UserX, X } from "lucide-react";
 import { usersApi } from "../../../api/usersApi";
-import { Button, Field, Input, Pill, Select } from "../../../components/ui";
+import { Button, Field, Input, Pill, Popover, Select } from "../../../components/ui";
 import { cn } from "../../../utils/cn";
 import { roles } from "../../../utils/constants";
 import { initials, relativeAge } from "../../../utils/format";
@@ -29,22 +29,16 @@ export function lastActiveLabel(person) {
 function ActionsMenu({ items }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDown = event => { if (!ref.current?.contains(event.target)) setOpen(false); };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
   if (!items.length) return null;
   return <div ref={ref} className="relative">
     <button type="button" aria-label="More account actions" aria-expanded={open} onClick={() => setOpen(value => !value)}
       className="grid size-10 place-items-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-950"><MoreHorizontal size={18}/></button>
-    {open && <div role="menu" className="absolute right-0 top-[calc(100%+6px)] z-20 grid w-56 gap-0.5 rounded-2xl border border-line bg-white p-1.5 shadow-[0_18px_50px_rgba(21,23,26,.12)]">
+    <Popover anchorRef={ref} open={open} onClose={() => setOpen(false)} role="menu" className="grid w-56 gap-0.5 p-1.5">
       {items.map(item => <button key={item.label} type="button" role="menuitem" onClick={() => { setOpen(false); item.onClick(); }}
         className={cn("flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm", item.danger ? "text-rose-700 hover:bg-rose-50" : "text-slate-800 hover:bg-slate-50")}>
         <item.icon size={15} aria-hidden="true"/>{item.label}
       </button>)}
-    </div>}
+    </Popover>
   </div>;
 }
 

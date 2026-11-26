@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { projectsApi } from "../../../api/projectsApi";
 import { targetsApi } from "../../../api/targetsApi";
 import { taskExecutionApi } from "../../../api/taskExecutionApi";
-import { EmptyState, LoadingSpinner } from "../../../components/ui";
+import { EmptyState, LoadingSpinner, Popover } from "../../../components/ui";
 import { MonthCalendar } from "./calendar/MonthCalendar";
 import { ProjectGantt } from "./calendar/ProjectGantt";
 import { ProjectTargetModal, TargetsList, targetSummary } from "./calendar/TargetsPanel";
@@ -31,32 +31,24 @@ function rememberedView() {
 // five-button bar competing with the filters for attention.
 function ZoomMenu({ value, options, onChange }) {
   const current = options.find(([key]) => key === value)?.[1];
-  return <Popover label={current} icon={ZoomIn} ariaLabel={`Zoom: ${current}. Change zoom`} width="w-40">
+  return <ToolbarMenu label={current} icon={ZoomIn} ariaLabel={`Zoom: ${current}. Change zoom`} width="w-40">
     {close => <div role="group" aria-label="Zoom" className="grid gap-0.5">
       {options.map(([key, text]) => <button key={key} type="button" aria-pressed={value === key} onClick={() => { onChange(key); close(); }}
         className={`flex h-9 items-center justify-between rounded-lg px-2.5 text-left text-sm ${value === key ? "bg-slate-100 text-slate-950" : "text-slate-600 hover:bg-slate-50"}`}>{text}{value === key && <Check size={15} aria-hidden="true"/>}</button>)}
     </div>}
-  </Popover>;
+  </ToolbarMenu>;
 }
 
 // A small anchored panel that closes on outside click or Escape.
-function Popover({ label, icon: Icon, badge, children, align = "right", ariaLabel, iconOnly = false, width = "w-72" }) {
+function ToolbarMenu({ label, icon: Icon, badge, children, align = "right", ariaLabel, iconOnly = false, width = "w-72" }) {
   const [open, setOpen] = useState(false);
   const holder = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDown = event => { if (!holder.current?.contains(event.target)) setOpen(false); };
-    const onKey = event => { if (event.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
-  }, [open]);
   return <div ref={holder} className="relative">
     <button type="button" onClick={() => setOpen(value => !value)} aria-expanded={open} aria-haspopup="true" aria-label={ariaLabel} title={iconOnly ? label : undefined}
       className={`flex h-9 items-center gap-1.5 rounded-lg border text-[13px] transition-colors ${iconOnly ? "w-9 justify-center" : "px-3"} ${badge ? "border-slate-950 text-slate-950" : "border-slate-200 text-slate-700 hover:border-slate-300"} bg-white`}>
       <Icon size={15} aria-hidden="true"/>{!iconOnly && label}{badge ? <span className="grid h-5 min-w-5 place-items-center rounded-md bg-slate-950 px-1 text-xs text-white">{badge}</span> : null}
     </button>
-    {open && <div className={`absolute top-[calc(100%+6px)] z-30 rounded-2xl border border-line bg-white p-2 shadow-[0_18px_50px_rgba(21,23,26,.12)] ${width} ${align === "right" ? "right-0" : "left-0"}`}>{typeof children === "function" ? children(() => setOpen(false)) : children}</div>}
+    <Popover anchorRef={holder} open={open} onClose={() => setOpen(false)} align={align === "right" ? "end" : "start"} className={`p-2 ${width}`}>{typeof children === "function" ? children(() => setOpen(false)) : children}</Popover>
   </div>;
 }
 
@@ -174,23 +166,23 @@ export function ExecutionCalendarView({ projectId, user }) {
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/>
             <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search code, title, phase or vendor" className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none focus:border-blue-600 focus:bg-white"/>
           </label>
-          <Popover label="Filters" icon={SlidersHorizontal} badge={popoverFilters}>
+          <ToolbarMenu label="Filters" icon={SlidersHorizontal} badge={popoverFilters}>
             <div className="grid gap-3 p-1">
               <label className="grid gap-1 text-xs text-slate-500">Phase<select aria-label="Phase" value={phaseFilter} onChange={event => setPhaseFilter(event.target.value)} className={selectClass}><option value="all">All phases</option>{phases.map(phase => <option key={phase} value={phase}>{phase}</option>)}</select></label>
               <label className="grid gap-1 text-xs text-slate-500">Task type<select aria-label="Task type" value={typeFilter} onChange={event => setTypeFilter(event.target.value)} className={selectClass}>{TASK_TYPE_FILTERS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
               {vendors.length > 0 && <label className="grid gap-1 text-xs text-slate-500">Vendor<select aria-label="Vendor" value={vendorFilter} onChange={event => setVendorFilter(event.target.value)} className={selectClass}><option value="all">All vendors</option>{vendors.map(name => <option key={name} value={name}>{name}</option>)}</select></label>}
             </div>
-          </Popover>
-          <Popover label={summary.missed ? `Targets · ${summary.missed} missed` : summary.thisWeek ? `Targets · ${summary.thisWeek} this week` : "Targets"} icon={Diamond}
+          </ToolbarMenu>
+          <ToolbarMenu label={summary.missed ? `Targets · ${summary.missed} missed` : summary.thisWeek ? `Targets · ${summary.thisWeek} this week` : "Targets"} icon={Diamond}
             badge={onlyTargets ? summary.active : 0} ariaLabel={`Targets: ${summary.active} active, ${summary.thisWeek} due this week, ${summary.missed} missed`} width="w-80">
             {close => <TargetsList targets={targets} canAdd={canAddTargets} onlyTargets={onlyTargets} onToggleOnly={() => setOnlyTargets(value => !value)}
               onOpenTask={id => { close(); setSelectedTaskId(id); }} onAddProjectTarget={() => { close(); setAddingTarget(true); }}/>}
-          </Popover>
+          </ToolbarMenu>
           {filtersOn && <button type="button" onClick={resetFilters} className="flex h-9 items-center gap-1 rounded-lg px-2 text-[13px] text-slate-600 hover:bg-slate-100"><RotateCcw size={14}/> Reset</button>}
         </>}
         {view === "gantt" && <ZoomMenu value={ganttZoom} options={GANTT_ZOOM_LABELS} onChange={setGanttZoom}/>}
         {view !== "month" && <button type="button" onClick={() => setTodaySignal(n => n + 1)} title={`Scroll to today, ${today.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}`} className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 hover:border-slate-300"><Target size={14}/> Today</button>}
-        {view === "gantt" && <Popover label="Legend" ariaLabel="Legend" icon={Info} iconOnly>
+        {view === "gantt" && <ToolbarMenu label="Legend" ariaLabel="Legend" icon={Info} iconOnly>
           <ul className="grid gap-2 p-1 text-[13px] text-slate-700">
             {LEGEND.map(([color, label]) => <li key={label} className="flex items-center gap-2"><span className={`h-2 w-5 rounded-full ${color}`}/>{label}</li>)}
             <li className="flex items-center gap-2 border-t border-line pt-2"><span className="h-3 w-5 rounded-full border border-dashed border-slate-400"/>The plan</li>
@@ -200,7 +192,7 @@ export function ExecutionCalendarView({ projectId, user }) {
             <li className="text-slate-600">Tags say how early or late a task started or finished. Arrows mean a task waits for another; the red column is today.</li>
             <li className="text-slate-600">Hover a bar for details, click to open the task.</li>
           </ul>
-        </Popover>}
+        </ToolbarMenu>}
       </div>
     </div>
 

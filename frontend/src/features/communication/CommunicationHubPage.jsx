@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Plus, Searc
 import { communicationApi } from "../../api/communicationApi";
 import { vendorAssignmentApi } from "../../api/vendorAssignmentApi";
 import { vendorsApi } from "../../api/vendorsApi";
-import { Button, ConfirmModal, EmptyState, LoadingSpinner, Modal } from "../../components/ui";
+import { Button, ConfirmModal, EmptyState, LoadingSpinner, Modal, Popover } from "../../components/ui";
 import { useRoute } from "../../lib/route";
 import { groupFeedbackByVendor, summarizeFeedback } from "./vendorFeedback";
 import { cn } from "../../utils/cn";
@@ -58,14 +58,6 @@ export function CommunicationHubPage({ user, action }) {
     }
   }
   useEffect(() => { load().catch(() => {}); }, []);
-
-  useEffect(() => {
-    function onClickOutside(event) {
-      if (addMenuRef.current && !addMenuRef.current.contains(event.target)) setAddMenuOpen(false);
-    }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, []);
 
   useEffect(() => { setPage(1); }, [query, projectId, categoryId, kind, sort, pageSize]);
 
@@ -294,10 +286,10 @@ export function CommunicationHubPage({ user, action }) {
         {canManageCategories(user) && <Button variant="secondary" onClick={() => setCategoriesOpen(true)}><Tag size={16}/> Categories</Button>}
         {canManage && <div ref={addMenuRef} className="relative shrink-0">
           <Button onClick={() => setAddMenuOpen(v => !v)} aria-expanded={addMenuOpen}><Plus size={17}/> Add vendor <ChevronDown size={15}/></Button>
-          {addMenuOpen && <div className="absolute right-0 top-[calc(100%+6px)] z-20 grid w-52 gap-0.5 rounded-2xl border border-line bg-white p-1.5 shadow-[0_18px_50px_rgba(21,23,26,.12)]">
+          <Popover anchorRef={addMenuRef} open={addMenuOpen} onClose={() => setAddMenuOpen(false)} role="menu" className="grid w-52 gap-0.5 p-1.5">
             <button type="button" onClick={() => { setAddMenuOpen(false); setForm("main"); }} className="rounded-xl px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50">Add main vendor</button>
             <button type="button" onClick={() => { setAddMenuOpen(false); setForm("contact"); }} className="rounded-xl px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50">Add contact</button>
-          </div>}
+          </Popover>
         </div>}
       </div>
     </header>

@@ -14,3 +14,6 @@ export { Modal } from "./Modal";
 export { Pill } from "./Pill";
 export { RefreshButton } from "./RefreshButton";
 export { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./Table";
+export { LAYER } from "./layers";
+export { Popover } from "./Popover";
+export { Tooltip } from "./Tooltip";

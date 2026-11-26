@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { roles } from "../../utils/constants";
 import { initials } from "../../utils/format";
 import { getTabDefinition } from "../../config/tabs";
-import { Alert, IconButton } from "../ui";
+import { Alert, IconButton, LAYER, Tooltip } from "../ui";
 import { BrandMark } from "./BrandMark";
 
 export function tabHelp(tab) {
@@ -17,7 +17,8 @@ function TabIcon({ tab, size = 20 }) {
 }
 
 // Desktop navigation is an icon rail: the module name lives in the top bar
-// and in a hover/focus label beside each icon, so the rail stays 84px wide
+// and in a hover/focus Tooltip beside each icon (drawn in <body>, so the page
+// can't cover it), so the rail stays 84px wide
 // and the page gets the width back.
 function DesktopRail({ tabs, activeTab, onTabChange, onLogout }) {
   return <aside className="sticky top-3 hidden h-[calc(100dvh-1.5rem)] w-[84px] shrink-0 flex-col items-center gap-2 border-r border-line bg-slate-50 py-5 lg:flex">
@@ -25,15 +26,14 @@ function DesktopRail({ tabs, activeTab, onTabChange, onLogout }) {
     <nav aria-label="Primary navigation" className="so-scroll flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto overflow-x-visible px-2">
       {tabs.map(([key, label]) => {
         const active = activeTab === key;
-        return <button type="button" key={key} onClick={() => onTabChange(key)} aria-current={active ? "page" : undefined} aria-label={label} className={`group relative grid size-12 shrink-0 place-items-center rounded-[14px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${active ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-white hover:text-slate-950"}`}>
+        return <Tooltip key={key} label={label} className="shrink-0"><button type="button" onClick={() => onTabChange(key)} aria-current={active ? "page" : undefined} aria-label={label} className={`group relative grid size-12 shrink-0 place-items-center rounded-[14px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${active ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-white hover:text-slate-950"}`}>
           <TabIcon tab={key} />
-          <span role="tooltip" className="pointer-events-none fixed left-[92px] z-50 hidden whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1.5 text-xs font-medium text-white group-hover:block group-focus-visible:block">{label}</span>
-        </button>;
+        </button></Tooltip>;
       })}
     </nav>
-    <button type="button" onClick={onLogout} aria-label="Logout" title="Log out" className="grid size-12 shrink-0 place-items-center rounded-[14px] text-slate-500 transition-colors hover:bg-white hover:text-slate-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+    <Tooltip label="Log out" className="shrink-0"><button type="button" onClick={onLogout} aria-label="Logout" className="grid size-12 shrink-0 place-items-center rounded-[14px] text-slate-500 transition-colors hover:bg-white hover:text-slate-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
       <LogOut aria-hidden="true" size={20} strokeWidth={1.75} />
-    </button>
+    </button></Tooltip>
   </aside>;
 }
 
@@ -200,7 +200,7 @@ function MobileNavigation({ tabs, activeTab, onTabChange }) {
 function NoticeToast({ notice, onDismiss }) {
   if (!notice) return null;
   return createPortal(
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-center px-3 pt-3 sm:px-4">
+    <div className={`pointer-events-none fixed inset-x-0 top-0 ${LAYER.toast} flex justify-center px-3 pt-3 sm:px-4`}>
       <div className="pointer-events-auto w-full max-w-xl rounded-2xl shadow-[0_18px_50px_rgba(21,23,26,.16)]">
         <Alert tone={notice.tone} onDismiss={onDismiss}>{notice.message}</Alert>
       </div>

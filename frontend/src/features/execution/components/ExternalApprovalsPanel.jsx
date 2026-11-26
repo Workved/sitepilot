@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import {
   AlertTriangle, ArrowRight, ClipboardCheck, ClipboardList, Edit3, Paperclip,
   Repeat, RotateCcw, Search, Send, ShieldAlert, ShieldCheck, UserPlus, X,
@@ -571,7 +572,7 @@ function ReviewPanel({ projectId, approval, mayManage, user, candidates, tasksBy
     }
   }
 
-  return <>
+  return createPortal(<>
     <div className="fixed inset-0 z-40 bg-slate-950/40" onClick={onClose} aria-hidden="true"/>
     <aside
       className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[90vw] flex-col rounded-l-2xl bg-white shadow-[-16px_0_50px_rgba(15,23,42,.18)] sm:w-[820px]"
@@ -685,7 +686,7 @@ function ReviewPanel({ projectId, approval, mayManage, user, candidates, tasksBy
       onConfirm={reason => onDecide(approval, pendingDecision, reason).then(() => setPendingDecision(null))}
       onClose={() => setPendingDecision(null)}
     />}
-  </>;
+  </>, document.body);
 }
 
 // ---- root ------------------------------------------------------------
