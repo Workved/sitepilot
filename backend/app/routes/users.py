@@ -100,7 +100,11 @@ def set_login_password(db: Session, target: User, password: str) -> str | None:
 
 
 def ensure_manageable(actor: User, target: User | None) -> User:
-    if not target or target.role == UserRole.super_admin or target.role not in manageable_roles(actor.role):
+    """Nobody manages their own account here: their own details go through
+    PUT /me/profile, which can't change a role or block a login. That also
+    guarantees an organisation keeps at least one active Super Admin - the
+    actor demoting, offboarding or deleting another Super Admin is one."""
+    if not target or target.id == actor.id or target.role not in manageable_roles(actor.role):
         raise HTTPException(403, "You cannot manage this account.")
     return target
 
@@ -281,22 +285,36 @@ def set_user_password(user_id: uuid.UUID, payload: UserPasswordIn, actor: User =
 def update_my_profile(payload: MyProfileUpdateIn, actor: User = Depends(require_roles(*tuple(UserRole))), db: Session = Depends(get_db)):
     actor.name = clean_required(payload.name, "Full name")
     actor.phone = clean_phone(payload.phone)
-    if actor.role == UserRole.super_admin and not db.scalar(select(EmployeeProfile).where(EmployeeProfile.user_id == actor.id)):
-        # The bootstrap Super Admin is seeded without a profile, and every
-        # notification/inbound-reply lookup joins through EmployeeProfile -
-        # without one their phone is never used for WhatsApp.
-        db.add(EmployeeProfile(
-            user_id=actor.id,
-            employee_code=f"SUPERADMIN-{actor.id.hex[:8].upper()}",
-            designation="Super Admin",
-        ))
+    if actor.role == UserRole.super_admin:
+        # Nobody sits above a Super Admin to set their employee details, so
+        # they set their own. The bootstrap Super Admin is seeded without a
+        # profile, and every notification/inbound-reply lookup joins through
+        # EmployeeProfile - without one their phone is never used for WhatsApp.
+        profile = profile_for(db, actor.id)
+        if not profile:
+            profile = EmployeeProfile(
+                user_id=actor.id,
+                employee_code=f"SUPERADMIN-{actor.id.hex[:8].upper()}",
+                designation="Super Admin",
+            )
+            db.add(profile)
+        if payload.employee_code is not None:
+            profile.employee_code = clean_required(payload.employee_code, "Employee code").upper()
+        if payload.designation is not None:
+            profile.designation = clean_required(payload.designation, "Designation")
+        if payload.department is not None:
+            profile.department = payload.department.strip() or None
     if actor.supabase_user_id:
         try:
             admin_update_user(str(actor.supabase_user_id), {"user_metadata": {"name": actor.name, "siteops_role": actor.role.value}})
         except SupabaseAuthError as exc:
             raise HTTPException(exc.status_code, exc.public_message) from exc
-    add_event(db, actor, actor, "SELF_PROFILE_UPDATED", "Personal contact details updated.")
-    db.commit()
+    add_event(db, actor, actor, "SELF_PROFILE_UPDATED", "Personal profile details updated.")
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, "This employee code is already in use.") from exc
     return public_user(actor, db)
 
 

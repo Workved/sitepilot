@@ -30,6 +30,7 @@ const CATALOG = [
   { role: "internal_employee", label: "Internal Employee", summary: "Delegated support.", capabilities: [] },
 ];
 const ADMIN_MANAGES = ["project_manager", "supervisor", "internal_employee"];
+const SUPER_MANAGES = ["admin", ...ADMIN_MANAGES, "super_admin"];
 const okAction = () => vi.fn(async operation => { await operation(); return { ok: true }; });
 
 function renderPage({ actor = PEOPLE[1], manageable = ADMIN_MANAGES, action = okAction() } = {}) {
@@ -70,12 +71,63 @@ describe("Team directory", () => {
 
   it("opens a person in a side panel kept in the URL, read-only outside your authority", async () => {
     renderPage();
-    fireEvent.click(list().getByRole("button", { name: /Open Joy Admin/ }));
-    const panel = within(screen.getByRole("dialog", { name: "Person - Joy Admin" }));
-    expect(window.location.search).toContain("person=u-admin");
-    expect(panel.getByText("You")).toBeInTheDocument();
+    fireEvent.click(list().getByRole("button", { name: /Open Dev Super/ }));
+    const panel = within(screen.getByRole("dialog", { name: "Person - Dev Super" }));
+    expect(window.location.search).toContain("person=u-super");
     expect(panel.queryByRole("button", { name: "Save changes" })).toBeNull();
     expect(panel.queryByRole("button", { name: "More account actions" })).toBeNull();
+  });
+
+  it("lets an admin edit only their own name and mobile from My profile", async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "My profile" }));
+    const panel = within(screen.getByRole("dialog", { name: "Person - Joy Admin" }));
+    expect(panel.getByText("You")).toBeInTheDocument();
+    expect(panel.queryByLabelText("Employee code")).toBeNull();
+    expect(panel.queryByLabelText("Role")).toBeNull();
+    expect(panel.queryByRole("button", { name: "More account actions" })).toBeNull();
+    fireEvent.change(panel.getByLabelText(/Mobile number/), { target: { value: "+919822222222" } });
+    fireEvent.click(panel.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(usersApi.updateMe).toHaveBeenCalledWith({ name: "Joy Admin", phone: "+919822222222" }));
+    expect(usersApi.update).not.toHaveBeenCalled();
+  });
+
+  it("lets a super admin set their own employee details", async () => {
+    renderPage({ actor: PEOPLE[0], manageable: SUPER_MANAGES });
+    fireEvent.click(screen.getByRole("button", { name: "My profile" }));
+    const panel = within(screen.getByRole("dialog", { name: "Person - Dev Super" }));
+    fireEvent.change(panel.getByLabelText("Employee code"), { target: { value: "SA-1" } });
+    fireEvent.change(panel.getByLabelText("Designation"), { target: { value: "Founder" } });
+    fireEvent.change(panel.getByLabelText("Department"), { target: { value: "Leadership" } });
+    fireEvent.click(panel.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(usersApi.updateMe).toHaveBeenCalledWith(expect.objectContaining({ employee_code: "SA-1", designation: "Founder", department: "Leadership" })));
+  });
+
+  it("lets a super admin manage another super admin and warns when granting the role", async () => {
+    const other = person({ id: "u-super2", name: "Ria Super", email: "ria@x.com", role: "super_admin" });
+    render(<UsersPage user={PEOPLE[0]} action={okAction()} data={{ users: [...PEOPLE, other], access_catalog: CATALOG, manageable_roles: SUPER_MANAGES }}/>);
+    fireEvent.click(list().getByRole("button", { name: "Open Ria Super" }));
+    const panel = within(screen.getByRole("dialog", { name: "Person - Ria Super" }));
+    expect(panel.getByRole("button", { name: "More account actions" })).toBeInTheDocument();
+    expect(panel.getByRole("button", { name: "Save changes" })).toBeInTheDocument();
+    fireEvent.click(panel.getByRole("button", { name: "Close" }));
+
+    fireEvent.click(list().getByRole("button", { name: "Open Joy Admin" }));
+    const admin = within(screen.getByRole("dialog", { name: "Person - Joy Admin" }));
+    expect(admin.queryByRole("note")).toBeNull();
+    fireEvent.change(admin.getByLabelText("Role"), { target: { value: "super_admin" } });
+    expect(admin.getByRole("note")).toHaveTextContent(/full control of SiteOps/);
+  });
+
+  it("offers super admin last when adding a team member, with a warning", () => {
+    renderPage({ actor: PEOPLE[0], manageable: SUPER_MANAGES });
+    fireEvent.click(screen.getByRole("button", { name: /Add team member/ }));
+    const modal = within(screen.getByRole("dialog", { name: "Add team member" }));
+    const role = modal.getByRole("combobox", { name: "Role" });
+    expect(role).toHaveValue("admin");
+    expect(modal.queryByRole("note")).toBeNull();
+    fireEvent.change(role, { target: { value: "super_admin" } });
+    expect(modal.getByRole("note")).toHaveTextContent(/full control of SiteOps/);
   });
 
   it("saves a managed person's details without closing the panel", async () => {

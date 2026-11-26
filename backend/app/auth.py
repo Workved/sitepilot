@@ -106,8 +106,6 @@ def require_roles(*roles: UserRole):
 
 
 def can_create_role(actor_role: UserRole, target_role: UserRole) -> bool:
-    if actor_role == UserRole.super_admin:
-        return target_role in {UserRole.admin, UserRole.project_manager, UserRole.supervisor, UserRole.internal_employee}
-    if actor_role == UserRole.admin:
-        return target_role in {UserRole.project_manager, UserRole.supervisor, UserRole.internal_employee}
-    return False
+    from app.services.access_control import manageable_roles
+
+    return target_role in manageable_roles(actor_role)

@@ -7,7 +7,7 @@ import { cn } from "../../../utils/cn";
 import { roles } from "../../../utils/constants";
 import { initials, relativeAge } from "../../../utils/format";
 import { attentionFor } from "../teamHelpers";
-import { AccountStatus, LifecycleModal, roleDefinition } from "./UserModals";
+import { AccountStatus, LifecycleModal, roleDefinition, SuperAdminNote } from "./UserModals";
 
 const TABS = [["details", "Details"], ["access", "Access"], ["history", "History"]];
 
@@ -67,11 +67,49 @@ function Facts({ items }) {
   </dl>;
 }
 
+// Your own account, opened from the Team page. Name and mobile for
+// everyone; a Super Admin also sets their own employee details, since no
+// one sits above them to do it. Role, email and access stay with whoever
+// manages the account.
+function SelfDetailsForm({ person, action }) {
+  const [saving, setSaving] = useState(false);
+  const profile = person.employee_profile || {};
+  const ownsProfile = person.role === "super_admin";
+
+  async function save(event) {
+    event.preventDefault();
+    setSaving(true);
+    await action(() => usersApi.updateMe(Object.fromEntries(new FormData(event.currentTarget))), "Profile updated");
+    setSaving(false);
+  }
+
+  return <form id="my-details" onSubmit={save} className="grid gap-4">
+    <div className="grid items-start gap-4 sm:grid-cols-2">
+      <Field label="Full name"><Input name="name" defaultValue={person.name} required/></Field>
+      <Field label="Mobile number" hint="Needed for WhatsApp alerts."><Input name="phone" inputMode="tel" defaultValue={person.phone || ""} placeholder="+919876543210"/></Field>
+      {ownsProfile && <>
+        <Field label="Employee code"><Input name="employee_code" defaultValue={profile.employee_code || ""} required/></Field>
+        <Field label="Designation"><Input name="designation" defaultValue={profile.designation || ""} required/></Field>
+        <Field label="Department" className="sm:col-span-2"><Input name="department" defaultValue={profile.department || ""}/></Field>
+      </>}
+    </div>
+    <Facts items={ownsProfile
+      ? [["Email login", person.email], ["Role", roles[person.role] || person.role]]
+      : [["Email login", person.email], ["Role", roles[person.role] || person.role], ["Employee code", profile.employee_code], ["Designation", profile.designation], ["Department", profile.department]]}/>
+    <p className="text-sm leading-6 text-slate-500">{ownsProfile
+      ? "Your email, role and access can only be changed by another Super Admin."
+      : "Your role, email and employee details are set by a higher authority."}</p>
+    <div className="flex justify-end"><Button type="submit" loading={saving}>Save changes</Button></div>
+  </form>;
+}
+
 function DetailsTab({ person, canManage, isSelf, catalog, manageableRoles, action }) {
   const [role, setRole] = useState(person.role);
   const [saving, setSaving] = useState(false);
   const profile = person.employee_profile || {};
   const roleChanged = role !== person.role;
+
+  if (isSelf) return <SelfDetailsForm person={person} action={action}/>;
 
   if (!canManage) {
     return <div className="grid gap-4">
@@ -79,9 +117,7 @@ function DetailsTab({ person, canManage, isSelf, catalog, manageableRoles, actio
         ["Email login", person.email], ["Mobile number", person.phone], ["Employee code", profile.employee_code],
         ["Designation", profile.designation], ["Department", profile.department],
       ]}/>
-      <p className="text-sm leading-6 text-slate-500">{isSelf
-        ? "This is your own account. Your role and status are managed by a higher authority."
-        : "You can see this person for context, but their role is outside what you can manage."}</p>
+      <p className="text-sm leading-6 text-slate-500">You can see this person for context, but their role is outside what you can manage.</p>
     </div>;
   }
 
@@ -104,6 +140,7 @@ function DetailsTab({ person, canManage, isSelf, catalog, manageableRoles, actio
       {roleChanged && <Field className="sm:col-span-2" label="Reason for the role change" hint="Written to their account history."><Input name="reason" minLength={4} required placeholder="Why their responsibility is changing"/></Field>}
     </div>
     {roleChanged && <RoleSummary definition={roleDefinition(catalog, role)}/>}
+    {roleChanged && role === "super_admin" && <SuperAdminNote/>}
     <div className="flex justify-end"><Button type="submit" loading={saving}>Save changes</Button></div>
   </form>;
 }
