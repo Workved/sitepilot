@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Download, Flag, MapPin, Paperclip, Trash2, X } from "lucide-react";
 import { snagsApi } from "../../api/snagsApi";
-import { Button, ConfirmModal } from "../../components/ui";
+import { Button, ConfirmModal, Popover } from "../../components/ui";
 import { cn } from "../../utils/cn";
 import { initials } from "../../utils/format";
 import { dueLabel, dueState } from "./snagHelpers";
@@ -39,9 +39,7 @@ export function PersonPicker({ value, onChange, disabled }) {
   useEffect(() => {
     if (!open) return undefined;
     loadPeople().then(setPeople).catch(() => setError("Couldn't load people."));
-    const onDown = event => { if (!ref.current?.contains(event.target)) setOpen(false); };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    return undefined;
   }, [open]);
   const needle = query.trim().toLowerCase();
   const matches = people.filter(person => !needle || person.name.toLowerCase().includes(needle) || person.role_label.toLowerCase().includes(needle)).slice(0, 8);
@@ -55,7 +53,7 @@ export function PersonPicker({ value, onChange, disabled }) {
         : <span className="flex-1 text-slate-400">Tag someone</span>}
       {!disabled && <ChevronDown size={14} className="shrink-0 text-slate-400" aria-hidden="true"/>}
     </button>
-    {open && <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 rounded-2xl border border-line bg-white p-1.5 shadow-[0_18px_50px_rgba(21,23,26,.12)]">
+    <Popover anchorRef={ref} open={open} onClose={() => setOpen(false)} matchWidth offset={4} className="p-1.5">
       <input autoFocus value={query} onChange={event => setQuery(event.target.value)} placeholder="Search people" aria-label="Search people" autoComplete="off"
         className="mb-1 h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-sm outline-none focus:border-blue-600 focus:bg-white"/>
       <ul role="listbox" aria-label="People" className="so-scroll max-h-60 overflow-y-auto">
@@ -66,7 +64,7 @@ export function PersonPicker({ value, onChange, disabled }) {
         </button></li>)}
         {!matches.length && <li className="px-2.5 py-2 text-sm text-slate-500">{error || (people.length ? "No one matches." : "Loading…")}</li>}
       </ul>
-    </div>}
+    </Popover>
   </div>;
 }
 

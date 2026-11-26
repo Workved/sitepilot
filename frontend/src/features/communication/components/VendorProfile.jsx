@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Ban, ChevronRight, FolderKanban, Mail, MapPin, MessageCircle, MoreHorizontal, Pencil, Phone, Plus, ShieldAlert, ShieldCheck, ShieldOff, UsersRound } from "lucide-react";
-import { Button, ConfirmModal, Pill } from "../../../components/ui";
+import { Button, ConfirmModal, Pill, Popover } from "../../../components/ui";
 import { StatStrip } from "../../../components/layout/PaneKit";
 import { cn } from "../../../utils/cn";
 import { initials } from "../../../utils/format";
@@ -41,23 +41,15 @@ function ContactButtons({ contact, size = "md" }) {
 function ActionsMenu({ items }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDown = event => { if (!ref.current?.contains(event.target)) setOpen(false); };
-    const onKey = event => { if (event.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
-  }, [open]);
   if (!items.length) return null;
   return <div ref={ref} className="relative">
     <button type="button" aria-label="More vendor actions" aria-expanded={open} onClick={() => setOpen(value => !value)} className="grid size-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"><MoreHorizontal size={18}/></button>
-    {open && <div role="menu" className="absolute right-0 top-[calc(100%+6px)] z-20 grid w-52 gap-0.5 rounded-2xl border border-line bg-white p-1.5 shadow-[0_18px_50px_rgba(21,23,26,.12)]">
+    <Popover anchorRef={ref} open={open} onClose={() => setOpen(false)} role="menu" className="grid w-52 gap-0.5 p-1.5">
       {items.map(item => <button key={item.label} type="button" role="menuitem" onClick={() => { setOpen(false); item.onClick(); }}
         className={cn("flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm hover:bg-slate-50", item.danger ? "text-rose-700 hover:bg-rose-50" : "text-slate-800")}>
         {item.icon && <item.icon size={15} aria-hidden="true"/>}{item.label}
       </button>)}
-    </div>}
+    </Popover>
   </div>;
 }
 

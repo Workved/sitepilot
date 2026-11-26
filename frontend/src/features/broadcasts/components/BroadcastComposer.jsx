@@ -1,7 +1,7 @@
 import { AlertTriangle, CalendarClock, CalendarDays, ChevronDown, Clock, MapPin, Save, Send } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { broadcastApi } from "../../../api/broadcastApi";
-import { Button, Field, Input, Modal, Select, Textarea } from "../../../components/ui";
+import { Button, Field, Input, Modal, Popover, Select, Textarea } from "../../../components/ui";
 import { cn } from "../../../utils/cn";
 import { formatDateShort } from "../../../utils/format";
 import { plural } from "../broadcastFormat";
@@ -28,18 +28,12 @@ function Step({ title, children, actions }) {
 function TemplatePicker({ templates, onPick }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDown = event => { if (!ref.current?.contains(event.target)) setOpen(false); };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
   if (!templates.length) return null;
   return <div ref={ref} className="relative">
     <button type="button" aria-expanded={open} onClick={() => setOpen(value => !value)} className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">Use a template <ChevronDown size={14}/></button>
-    {open && <div role="menu" className="absolute right-0 top-[calc(100%+6px)] z-20 grid max-h-64 w-60 gap-0.5 overflow-y-auto rounded-2xl border border-line bg-white p-1.5 shadow-[0_18px_50px_rgba(21,23,26,.12)]">
+    <Popover anchorRef={ref} open={open} onClose={() => setOpen(false)} role="menu" className="grid max-h-64 w-60 gap-0.5 overflow-y-auto p-1.5">
       {templates.map(template => <button key={template.id} type="button" role="menuitem" onClick={() => { setOpen(false); onPick(template); }} className="rounded-xl px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50">{template.name}</button>)}
-    </div>}
+    </Popover>
   </div>;
 }
 

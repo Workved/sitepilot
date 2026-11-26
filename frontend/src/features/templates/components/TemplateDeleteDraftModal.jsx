@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { templatesApi } from "../../../api/templatesApi";
@@ -36,7 +37,7 @@ export function TemplateDeleteDraftModal({ version, onClose, onSuccess }) {
     } finally { setSubmitting(false); }
   }
 
-  return <div role="dialog" aria-modal="true" aria-labelledby="delete-draft-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4">
+  return createPortal(<div role="dialog" aria-modal="true" aria-labelledby="delete-draft-title" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4">
     <form onSubmit={submit} className="w-full max-w-xl rounded-[24px] bg-white p-5 shadow-2xl sm:p-6">
       <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-rose-100 text-rose-700"><Trash2 size={19}/></span><div><h2 id="delete-draft-title" className="text-xl font-medium text-slate-950">Delete unused draft</h2><p className="mt-1 text-sm text-slate-600">Version {version.version_no} and its draft tasks, dependencies and gates will be permanently removed.</p></div></div>
       <Alert tone="danger" className="mt-5"><AlertTriangle size={18}/><div><strong>This cannot be undone.</strong><span className="mt-1 block font-medium">Published and archived versions cannot be deleted through this action.</span></div></Alert>
@@ -47,5 +48,5 @@ export function TemplateDeleteDraftModal({ version, onClose, onSuccess }) {
       {error && <Alert tone="danger" className="mt-4">{error}</Alert>}
       <div className="mt-6 grid gap-2 sm:flex sm:justify-end"><Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>Cancel</Button><Button type="submit" disabled={!canSubmit} loading={submitting}><Trash2 size={17}/> Delete draft</Button></div>
     </form>
-  </div>;
+  </div>, document.body);
 }

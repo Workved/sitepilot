@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { AlertTriangle, ClipboardEdit, Paperclip, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button, Pill } from "../../../components/ui";
@@ -68,7 +69,7 @@ export function TaskDetailDrawer({ projectId, project, task, user, candidates, o
 
   const meta = [task.phase, task.category].filter(Boolean).join(" / ") || "Unphased";
 
-  return <>
+  return createPortal(<>
     <div className="fixed inset-0 z-40 bg-slate-950/30" onClick={onClose} aria-hidden="true"/>
     <aside
       className="fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-canvas shadow-[-16px_0_50px_rgba(21,23,26,.14)] sm:w-[820px] sm:max-w-[92vw] sm:rounded-l-[26px]"
@@ -136,5 +137,5 @@ export function TaskDetailDrawer({ projectId, project, task, user, candidates, o
         </div>
       </footer>}
     </aside>
-  </>;
+  </>, document.body);
 }

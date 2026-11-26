@@ -2,7 +2,7 @@ import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { broadcastApi } from "../../api/broadcastApi";
 import { projectsApi } from "../../api/projectsApi";
-import { Button, ConfirmModal } from "../../components/ui";
+import { Button, ConfirmModal, Popover } from "../../components/ui";
 import { useRoute } from "../../lib/route";
 import { cn } from "../../utils/cn";
 import { summaryLine } from "./broadcastFormat";
@@ -21,18 +21,12 @@ const EMPTY_SUMMARY = { messages_sent: 0, total_recipients: 0, delivery_success_
 function TemplateMenu({ template, onDelete }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDown = event => { if (!ref.current?.contains(event.target)) setOpen(false); };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
   return <div ref={ref} className="relative">
     <button type="button" aria-label={`More actions for ${template.name}`} aria-expanded={open} onClick={() => setOpen(value => !value)}
       className="grid size-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-950"><MoreHorizontal size={16}/></button>
-    {open && <div role="menu" className="absolute right-0 top-[calc(100%+4px)] z-20 w-44 rounded-2xl border border-line bg-white p-1.5 shadow-[0_18px_50px_rgba(21,23,26,.12)]">
+    <Popover anchorRef={ref} open={open} onClose={() => setOpen(false)} offset={4} role="menu" className="w-44 p-1.5">
       <button type="button" role="menuitem" onClick={() => { setOpen(false); onDelete(template); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"><Trash2 size={15}/> Delete template</button>
-    </div>}
+    </Popover>
   </div>;
 }
 

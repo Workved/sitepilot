@@ -1,5 +1,6 @@
 import { Bell, CircleAlert, Clock3, ShieldCheck } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { Popover } from "../../../components/ui";
 
 const severityStyle = {
   critical: { wrap: "bg-rose-50 text-rose-700", Icon: CircleAlert },
@@ -27,22 +28,6 @@ export function AttentionMenu({ items, onOpen }) {
   const [open, setOpen] = useState(false);
   const holder = useRef(null);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    function onDocument(event) {
-      if (!holder.current?.contains(event.target)) setOpen(false);
-    }
-    function onKey(event) {
-      if (event.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onDocument);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocument);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
   // The attention read model has not shipped yet, or genuinely returned
   // nothing. Either way there is no counter worth showing.
   if (!items?.length) return null;
@@ -63,9 +48,13 @@ export function AttentionMenu({ items, onOpen }) {
       <span>Attention</span>
     </button>
 
-    {open && <div
+    <Popover
+      anchorRef={holder}
+      open={open}
+      onClose={() => setOpen(false)}
+      align="start"
       role="menu"
-      className="absolute left-0 top-[calc(100%+6px)] z-40 max-h-96 w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-line bg-white p-2 shadow-[0_18px_50px_rgba(21,23,26,.12)]"
+      className="max-h-96 w-[min(24rem,calc(100vw-2rem))] p-2"
     >
       {groups.map(group => <div key={group}>
         <p className="flex items-center gap-2 px-2 pb-1 pt-2 text-xs text-slate-500">
@@ -77,6 +66,6 @@ export function AttentionMenu({ items, onOpen }) {
           onOpen={selected => { setOpen(false); onOpen(selected); }}
         />)}
       </div>)}
-    </div>}
+    </Popover>
   </div>;
 }
