@@ -1806,5 +1806,28 @@ class MessageDeliveryDispatchTests(unittest.TestCase):
         self.assertEqual([(d.recipient_employee_id, d.status) for d in deliveries], [(self.internal_employee_employee_id, "sent")])
 
 
+    def test_target_set_sends_the_target_set_template(self):
+        sent: list[tuple] = []
+
+        class _CapturingAdapter:
+            def send(self, recipient_phone, template, payload):
+                sent.append((template, payload))
+                return message_dispatch_module.ProviderSendResult(ok=True, provider_message_id="wamid-target")
+
+        with self.Session() as session:
+            self._create_event(
+                session, event_type="target.set", aggregate_type="user", aggregate_id=INTERNAL_EMPLOYEE_ID,
+                payload={"user_id": str(INTERNAL_EMPLOYEE_ID), "target_id": str(uuid.uuid4()), "set_by": "Prachi K",
+                         "task_label": "T003 - Flooring", "project_name": "Futurex Office", "target_date": "28 Nov 2026"},
+                key="test:target-set",
+            )
+            session.commit()
+        with self.Session() as session:
+            MessageDispatchService(session, adapter=_CapturingAdapter()).process_pending()
+        self.assertEqual([template for template, _ in sent], ["target_set"])
+        self.assertEqual([p["text"] for p in sent[0][1]["components"][0]["parameters"]],
+                         ["Prachi K", "T003 - Flooring", "Futurex Office", "28 Nov 2026"])
+
+
 if __name__ == "__main__":
     unittest.main()

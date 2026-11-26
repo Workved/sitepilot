@@ -48,6 +48,9 @@ services:
       # true in the Render dashboard.
       - key: SNAG_WHATSAPP_ENABLED
         sync: false
+      # Targets WhatsApp alert ("target_set", WHATSAPP_TEMPLATES.md #10).
+      - key: TARGET_WHATSAPP_ENABLED
+        sync: false
       - key: DOUBLETICK_API_KEY
         sync: false
       - key: DOUBLETICK_FROM_NUMBER

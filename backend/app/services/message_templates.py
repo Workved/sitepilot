@@ -285,6 +285,12 @@ TEMPLATE_REGISTRY: dict[str, TemplateSpec] = {
     "snag.assigned": TemplateSpec(
         "snag_assigned", "en", ("tagged_by", "snag_title", "project_name", "area"),
     ),
+    # Targets: the task's Supervisor and support staff when a target is set.
+    # Only emitted when settings.target_whatsapp_enabled is on (after Meta
+    # approves WHATSAPP_TEMPLATES.md #10).
+    "target.set": TemplateSpec(
+        "target_set", "en", ("set_by", "task_label", "project_name", "target_date"),
+    ),
     "user.created": TemplateSpec(
         "TBD_user_created", "en", ("user_id", "name"),
     ),

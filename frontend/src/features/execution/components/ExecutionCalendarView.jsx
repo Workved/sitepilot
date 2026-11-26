@@ -1,10 +1,12 @@
-import { BarChart3, CalendarDays, Check, Info, RotateCcw, Search, SlidersHorizontal, Target, ZoomIn } from "lucide-react";
+import { BarChart3, CalendarDays, Check, Diamond, Info, RotateCcw, Search, SlidersHorizontal, Target, ZoomIn } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { projectsApi } from "../../../api/projectsApi";
+import { targetsApi } from "../../../api/targetsApi";
 import { taskExecutionApi } from "../../../api/taskExecutionApi";
 import { EmptyState, LoadingSpinner } from "../../../components/ui";
 import { MonthCalendar } from "./calendar/MonthCalendar";
 import { ProjectGantt } from "./calendar/ProjectGantt";
+import { ProjectTargetModal, TargetsList, targetSummary } from "./calendar/TargetsPanel";
 import { TaskDetailDrawer } from "./TaskDetailDrawer";
 import { executionCounts, matchesStatusBucket, matchesTaskType, TASK_TYPE_FILTERS, todayAsDay } from "./executionViewHelpers";
 
@@ -59,11 +61,11 @@ function Popover({ label, icon: Icon, badge, children, align = "right", ariaLabe
 }
 
 const LEGEND = [
-  ["bg-blue-500", "In progress"],
+  ["bg-blue-600", "In progress"],
   ["bg-emerald-600", "Done"],
-  ["bg-violet-500", "Needs review"],
-  ["bg-rose-500", "Blocked"],
-  ["bg-slate-400", "Not started"],
+  ["bg-violet-600", "Needs review"],
+  ["bg-rose-600", "Blocked, or past the plan"],
+  ["bg-slate-500", "Started, not yet active"],
 ];
 
 const STAT_DOTS = { total: "bg-slate-400", ready: "bg-emerald-500", in_progress: "bg-blue-600", needs_review: "bg-violet-500", completed: "bg-emerald-600", delayed: "bg-orange-500", blocked: "bg-rose-600" };
@@ -83,6 +85,11 @@ export function ExecutionCalendarView({ projectId, user }) {
   const [ganttZoom, setGanttZoom] = useState("day");
   const [todaySignal, setTodaySignal] = useState(0);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [targets, setTargets] = useState([]);
+  const [canAddTargets, setCanAddTargets] = useState(false);
+  const [changes, setChanges] = useState([]);
+  const [onlyTargets, setOnlyTargets] = useState(false);
+  const [addingTarget, setAddingTarget] = useState(false);
   const today = useMemo(() => todayAsDay(), []);
 
   function chooseView(next) {
@@ -90,8 +97,16 @@ export function ExecutionCalendarView({ projectId, user }) {
     try { window.localStorage.setItem(VIEW_KEY, next); } catch { /* per-viewer convenience only */ }
   }
 
+  // Targets and reschedule history are extras: the calendar still works
+  // if either can't be loaded.
+  function loadExtras() {
+    targetsApi.list(projectId).then(data => { setTargets(data.items || []); setCanAddTargets(Boolean(data.can_add)); }).catch(() => setTargets([]));
+    targetsApi.scheduleChanges(projectId).then(data => setChanges(Array.isArray(data) ? data : [])).catch(() => setChanges([]));
+  }
+
   async function load() {
     setLoading(true); setError("");
+    loadExtras();
     try {
       setTasks(await taskExecutionApi.list(projectId));
     } catch (caught) {
@@ -112,7 +127,10 @@ export function ExecutionCalendarView({ projectId, user }) {
   const phases = useMemo(() => [...new Set(tasks.map(task => task.phase).filter(Boolean))], [tasks]);
   const vendors = useMemo(() => [...new Set(tasks.map(task => task.vendor_name).filter(Boolean))].sort(), [tasks]);
   const term = search.trim().toLowerCase();
+  const targetedTaskIds = new Set(targets.filter(target => target.status === "active" && target.task_id).map(target => target.task_id));
+  const summary = targetSummary(targets, today);
   const filtered = tasks.filter(task => {
+    if (onlyTargets && !targetedTaskIds.has(task.id)) return false;
     if (!matchesStatusBucket(task, statusFilter)) return false;
     if (phaseFilter !== "all" && task.phase !== phaseFilter) return false;
     if (!matchesTaskType(task, typeFilter)) return false;
@@ -120,9 +138,9 @@ export function ExecutionCalendarView({ projectId, user }) {
     if (!term) return true;
     return [task.original_code, task.title, task.category, task.phase, task.vendor_name].some(value => value && value.toLowerCase().includes(term));
   });
-  const filtersOn = term || phaseFilter !== "all" || statusFilter !== "all" || typeFilter !== "all" || vendorFilter !== "all";
+  const filtersOn = term || onlyTargets || phaseFilter !== "all" || statusFilter !== "all" || typeFilter !== "all" || vendorFilter !== "all";
   const popoverFilters = [phaseFilter, typeFilter, vendorFilter].filter(value => value !== "all").length;
-  function resetFilters() { setSearch(""); setPhaseFilter("all"); setStatusFilter("all"); setTypeFilter("all"); setVendorFilter("all"); }
+  function resetFilters() { setSearch(""); setOnlyTargets(false); setPhaseFilter("all"); setStatusFilter("all"); setTypeFilter("all"); setVendorFilter("all"); }
 
   const selectedTask = tasks.find(task => task.id === selectedTaskId) || null;
   const candidates = (project?.memberships || []).filter(m => m.project_role === "internal_employee");
@@ -163,6 +181,11 @@ export function ExecutionCalendarView({ projectId, user }) {
               {vendors.length > 0 && <label className="grid gap-1 text-xs text-slate-500">Vendor<select aria-label="Vendor" value={vendorFilter} onChange={event => setVendorFilter(event.target.value)} className={selectClass}><option value="all">All vendors</option>{vendors.map(name => <option key={name} value={name}>{name}</option>)}</select></label>}
             </div>
           </Popover>
+          <Popover label={summary.missed ? `Targets · ${summary.missed} missed` : summary.thisWeek ? `Targets · ${summary.thisWeek} this week` : "Targets"} icon={Diamond}
+            badge={onlyTargets ? summary.active : 0} ariaLabel={`Targets: ${summary.active} active, ${summary.thisWeek} due this week, ${summary.missed} missed`} width="w-80">
+            {close => <TargetsList targets={targets} canAdd={canAddTargets} onlyTargets={onlyTargets} onToggleOnly={() => setOnlyTargets(value => !value)}
+              onOpenTask={id => { close(); setSelectedTaskId(id); }} onAddProjectTarget={() => { close(); setAddingTarget(true); }}/>}
+          </Popover>
           {filtersOn && <button type="button" onClick={resetFilters} className="flex h-9 items-center gap-1 rounded-lg px-2 text-[13px] text-slate-600 hover:bg-slate-100"><RotateCcw size={14}/> Reset</button>}
         </>}
         {view === "gantt" && <ZoomMenu value={ganttZoom} options={GANTT_ZOOM_LABELS} onChange={setGanttZoom}/>}
@@ -170,7 +193,11 @@ export function ExecutionCalendarView({ projectId, user }) {
         {view === "gantt" && <Popover label="Legend" ariaLabel="Legend" icon={Info} iconOnly>
           <ul className="grid gap-2 p-1 text-[13px] text-slate-700">
             {LEGEND.map(([color, label]) => <li key={label} className="flex items-center gap-2"><span className={`h-2 w-5 rounded-full ${color}`}/>{label}</li>)}
-            <li className="border-t border-line pt-2 text-slate-600">A bar runs from a task's start to its end. +Nd means days late, arrows mean a task waits for another, and the red column is today.</li>
+            <li className="flex items-center gap-2 border-t border-line pt-2"><span className="h-3 w-5 rounded-full border border-dashed border-slate-400"/>The plan</li>
+            <li className="flex items-center gap-2"><span className="h-1.5 w-5 rounded-full bg-blue-600"/>What actually happened (to today if still running)</li>
+            <li className="flex items-center gap-2"><span className="h-3 w-5 rounded-full border border-dotted border-violet-300"/>Original plan, when a task was moved</li>
+            <li className="flex items-center gap-2"><span className="mx-1 size-2.5 rotate-45 rounded-[2px] bg-blue-600"/>Target: blue open, orange due soon, green met, red missed</li>
+            <li className="text-slate-600">Tags say how early or late a task started or finished. Arrows mean a task waits for another; the red column is today.</li>
             <li className="text-slate-600">Hover a bar for details, click to open the task.</li>
           </ul>
         </Popover>}
@@ -183,8 +210,10 @@ export function ExecutionCalendarView({ projectId, user }) {
       : !tasks.length ? <EmptyState icon={<CalendarDays size={21}/>} title="No execution tasks yet" description="This project's plan has no tasks to execute."/>
       : !filtered.length ? <EmptyState icon={<Search size={21}/>} title="No tasks match" description="Try a different search or filter."/>
       : view === "month"
-        ? <MonthCalendar tasks={filtered} project={project} today={today} todaySignal={todaySignal} onOpenTask={setSelectedTaskId}/>
-        : <ProjectGantt tasks={filtered} project={project} zoom={ganttZoom} today={today} todaySignal={todaySignal} onOpenTask={setSelectedTaskId}/>}
+        ? <MonthCalendar tasks={filtered} project={project} today={today} todaySignal={todaySignal} onOpenTask={setSelectedTaskId} targets={targets}/>
+        : <ProjectGantt tasks={filtered} project={project} zoom={ganttZoom} today={today} todaySignal={todaySignal} onOpenTask={setSelectedTaskId} targets={targets} changes={changes}/>}
+
+    {addingTarget && <ProjectTargetModal projectId={projectId} tasks={tasks} onClose={() => setAddingTarget(false)} onSaved={() => { setAddingTarget(false); loadExtras(); }}/>}
 
     {selectedTask && <TaskDetailDrawer key={selectedTask.id} projectId={projectId} project={project} task={selectedTask} user={user} candidates={candidates}
       onClose={() => setSelectedTaskId(null)} onChanged={load}/>}

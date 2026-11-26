@@ -112,8 +112,8 @@ describe("ExecutionCalendarView", () => {
     expect(screen.queryByTestId("gantt-row-key:today")).toBeNull();
     // Start and handover are in the page header; the toolbar keeps a Today jump.
     expect(screen.getByRole("button", { name: /today/i })).toBeInTheDocument();
-    expect(within(wiring).getByText("In progress · 2d late")).toBeInTheDocument();
-    expect(within(wiring).getByText("+2d")).toBeInTheDocument();
+    expect(within(wiring).getByText("In progress · +2d late")).toBeInTheDocument();
+    expect(within(wiring).getByText("+2d late")).toBeInTheDocument();
     expect(screen.getByTestId("gantt-stub")).toHaveAttribute("data-links", "1");
   });
 

@@ -162,8 +162,10 @@ describe("links to projects outside the current filter", () => {
     projectsApi.list.mockResolvedValue([project(), completed]);
     window.history.replaceState({}, "", "/?tab=projects&project=PRJ-DONE&pane=snags");
     setup();
-    expect(await screen.findByTestId("workspace")).toHaveTextContent("p-done:snags");
-    expect(list().getByText("Finished Fitout")).toBeInTheDocument();
+    // The filter switches after the list loads; wait for that, not a fixed time.
+    await waitFor(() => expect(screen.getByTestId("workspace")).toHaveTextContent("p-done:snags"), { timeout: 4000 });
+    // The filter moves to "completed" in an effect after that render.
+    expect(await within(await screen.findByRole("navigation", { name: "Project list" })).findByText("Finished Fitout", {}, { timeout: 4000 })).toBeInTheDocument();
     expect(window.location.search).toContain("project=PRJ-DONE");
   });
 });

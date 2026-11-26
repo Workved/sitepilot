@@ -106,9 +106,10 @@ body {
 /* SVAR Gantt (calendar): weekend and today shading, key-date milestones. */
 .siteops-gantt .wx-weekend { background: #f8fafc; }
 .siteops-gantt .siteops-today { background: #ffe4e6; }
-.siteops-gantt .wx-bar.wx-summary { background: #e2e8f0; border: 0; height: 8px !important; margin-top: 12px; border-radius: 999px; overflow: hidden; }
-.siteops-gantt .wx-bar.wx-summary .wx-progress-percent { background: #64748b; }
-.siteops-gantt .wx-bar.wx-summary .wx-content, .siteops-gantt .wx-bar.wx-summary .wx-text-out { display: none; }
+/* Phase rows draw their own plan vs actual tracks (ProjectGantt TaskBar), so
+   SVAR's own summary fill, progress and text are hidden. */
+.siteops-gantt .wx-bar.wx-summary { background: transparent; border: 0; overflow: visible; }
+.siteops-gantt .wx-bar.wx-summary .wx-progress-percent, .siteops-gantt .wx-bar.wx-summary .wx-text-out { display: none; }
 
 /* FullCalendar (month view) in the app's look. */
 .siteops-calendar {

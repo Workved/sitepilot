@@ -2,6 +2,7 @@ import { CircleCheck, Lock, MapPin } from "lucide-react";
 import { planGap, scheduleWindow } from "../../../utils/schedule";
 import { useEffect, useState } from "react";
 import { snagsApi } from "../../../api/snagsApi";
+import { targetsApi } from "../../../api/targetsApi";
 import { snagSummary } from "../../snags/snagHelpers";
 import { PhaseOverviewDrawer } from "./PhaseOverviewDrawer";
 
@@ -100,6 +101,12 @@ export function ProjectOverviewPane({ project, summary, attention = [], onOpenPa
   const hiddenPhaseCount = Math.max(allPhases.length - (phases?.length || 0), 0);
   const openDashboard = project.status === "draft" ? undefined : () => onOpenPane("dashboard");
   const [snags, setSnags] = useState(null);
+  const [targets, setTargets] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    targetsApi.list(project.id).then(data => alive && setTargets(data.items || [])).catch(() => {});
+    return () => { alive = false; };
+  }, [project.id]);
 
   // The snag list is its own tab; here it only adds a count and, when
   // something is urgent or overdue, a line in Needs attention.
@@ -109,11 +116,20 @@ export function ProjectOverviewPane({ project, summary, attention = [], onOpenPa
     return () => { alive = false; };
   }, [project.id]);
   const pressing = snags ? snags.urgent + snags.overdue : 0;
-  const items = pressing ? [...attention, {
+  const missedTargets = targets.filter(t => t.status === "active" && t.outcome?.state === "missed");
+  const dueTargets = targets.filter(t => t.status === "active" && t.outcome?.state === "due_soon");
+  const targetItems = [
+    missedTargets.length && { id: "targets-missed", severity: "critical", pane: "overview", title: `${missedTargets.length} ${missedTargets.length === 1 ? "target" : "targets"} missed`,
+      subtitle: missedTargets.slice(0, 2).map(t => t.kind === "project" ? t.title : t.task_label).join(", ") },
+    dueTargets.length && { id: "targets-due", severity: "warning", pane: "overview", title: `${dueTargets.length} ${dueTargets.length === 1 ? "target" : "targets"} due in the next 2 days`,
+      subtitle: dueTargets.slice(0, 2).map(t => t.kind === "project" ? t.title : t.task_label).join(", ") },
+  ].filter(Boolean);
+  const withTargets = [...attention, ...targetItems];
+  const items = pressing ? [...withTargets, {
     id: "snags", severity: "warning", pane: "snags",
     title: [snags.urgent && `${snags.urgent} urgent ${snags.urgent === 1 ? "snag" : "snags"}`, snags.overdue && `${snags.overdue} overdue`].filter(Boolean).join(", "),
     subtitle: `${snags.open} open on the snag list`,
-  }] : attention;
+  }] : withTargets;
 
   return <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
     <div className="grid min-w-0 gap-4">

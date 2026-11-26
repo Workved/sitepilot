@@ -146,15 +146,16 @@ export function ProjectsPage({ user, action }) {
   // say, a completed project must open it, so the first time the list loads
   // the filter moves to that project's status instead of dropping it.
   const arrivedViaLink = useRef(true);
+  // The one-time "arrived via a link" allowance is only spent once projects
+  // have actually loaded, so a render where loading has ended but the list
+  // is still empty can't use it up before the linked project is known.
   useEffect(() => {
     if (loading) return;
-    const firstLoad = arrivedViaLink.current;
-    arrivedViaLink.current = false;
-    if (!selected) return;
-    if (filtered.some(item => item.id === selected.id)) return;
-    if (firstLoad) { setFilter(selected.status); return; }
+    if (!selected) { if (projects.length) arrivedViaLink.current = false; return; }
+    if (filtered.some(item => item.id === selected.id)) { arrivedViaLink.current = false; return; }
+    if (arrivedViaLink.current) { arrivedViaLink.current = false; setFilter(selected.status); return; }
     setRoute({ project: "", pane: "" }, { replace: true });
-  }, [loading, selected, filtered]);
+  }, [loading, selected, filtered, projects.length]);
 
   const attentionByProject = useMemo(() => {
     if (!attention) return {};

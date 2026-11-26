@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     # `snag_assigned` template (WHATSAPP_TEMPLATES.md) is approved in Meta -
     # while off, no event is emitted at all; they still see it in the app.
     snag_whatsapp_enabled: bool = False
+    # Targets: WhatsApp the people responsible for a task when a target is set
+    # on it (`target_set` template, WHATSAPP_TEMPLATES.md #10). Off until Meta
+    # approves the template.
+    target_whatsapp_enabled: bool = False
     evidence_retention_months: int = 6
     # Once a day: this is housekeeping against a 6-month window, not a
     # time-sensitive path - polling more often than daily costs a query for
