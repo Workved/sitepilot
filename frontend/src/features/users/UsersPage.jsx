@@ -103,7 +103,10 @@ function TeamDirectory({ data, user, action }) {
         <h2 className="text-[17px] font-medium text-slate-950">Team</h2>
         <p className="mt-0.5 text-sm text-slate-500">{summaryLine(people)}</p>
       </div>
-      {manageableRoles.length > 0 && <Button onClick={() => setInviting(true)}><UserPlus size={17}/> Add team member</Button>}
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" onClick={() => openPerson(user.id)}><CircleUserRound size={17}/> My profile</Button>
+        {manageableRoles.length > 0 && <Button onClick={() => setInviting(true)}><UserPlus size={17}/> Add team member</Button>}
+      </div>
     </header>
 
     {attentionCounts.length > 0 && <section aria-label="Needs attention" className="flex flex-wrap items-center gap-1.5">

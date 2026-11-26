@@ -14,6 +14,14 @@ export function AccountStatus({ person }) {
   return <Pill tone="green">Active</Pill>;
 }
 
+// Shown wherever someone is about to be given Super Admin, the one role
+// nobody above can take back from them.
+export function SuperAdminNote() {
+  return <p role="note" className="rounded-xl bg-orange-50 px-3 py-2 text-[13px] leading-5 text-orange-900">
+    Super Admins have full control of SiteOps, including other Super Admins' accounts. Only give this role to people who run the platform.
+  </p>;
+}
+
 // Role first, because it decides everything else: what they can do is shown
 // right next to the picker, then their details, then how they sign in.
 export function CreateUserModal({ create, catalog, manageableRoles, onClose }) {
@@ -30,6 +38,7 @@ export function CreateUserModal({ create, catalog, manageableRoles, onClose }) {
             {definition.capabilities.map(item => <li key={item} className="flex items-start gap-2 text-[13px] text-slate-700"><Check size={14} className="mt-0.5 shrink-0 text-ok" aria-hidden="true"/>{item}</li>)}
           </ul>}
         </div>
+        {selectedRole === "super_admin" && <SuperAdminNote/>}
       </section>
 
       <section className="grid gap-3">

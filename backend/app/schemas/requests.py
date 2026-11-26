@@ -69,6 +69,11 @@ class UserDeleteIn(BaseModel):
 class MyProfileUpdateIn(BaseModel):
     name: str
     phone: str | None = None
+    # Only a Super Admin may set these on their own account; everyone
+    # else's employee details are set by the admin above them.
+    employee_code: str | None = None
+    designation: str | None = None
+    department: str | None = None
 
 
 class VendorIn(BaseModel):

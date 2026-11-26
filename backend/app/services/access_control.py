@@ -14,7 +14,7 @@ ROLE_DEFINITIONS = {
     UserRole.super_admin: {
         "label": "Super Admin",
         "summary": "Technical governance, security and administrator access.",
-        "capabilities": ["Manage all lower-role accounts", "Review technical access", "Inspect platform health"],
+        "capabilities": ["Manage every account, including other Super Admins", "Review technical access", "Inspect platform health"],
     },
     UserRole.admin: {
         "label": "Admin",
@@ -41,7 +41,10 @@ ROLE_DEFINITIONS = {
 
 def manageable_roles(role: UserRole) -> list[UserRole]:
     if role == UserRole.super_admin:
-        return [UserRole.admin, UserRole.project_manager, UserRole.supervisor, UserRole.internal_employee]
+        # Super Admin comes last so pickers don't default to the most
+        # powerful role. A Super Admin can manage other Super Admins but
+        # never their own account (see ensure_manageable in routes/users).
+        return [UserRole.admin, UserRole.project_manager, UserRole.supervisor, UserRole.internal_employee, UserRole.super_admin]
     if role == UserRole.admin:
         return [UserRole.project_manager, UserRole.supervisor, UserRole.internal_employee]
     return []
