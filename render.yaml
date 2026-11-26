@@ -43,6 +43,11 @@ services:
         sync: false
       - key: WHATSAPP_PROVIDER
         sync: false
+      # Snag list WhatsApp alert ("snag_assigned"). Leave unset/false until
+      # Meta approves the template in WHATSAPP_TEMPLATES.md #9, then set it to
+      # true in the Render dashboard.
+      - key: SNAG_WHATSAPP_ENABLED
+        sync: false
       - key: DOUBLETICK_API_KEY
         sync: false
       - key: DOUBLETICK_FROM_NUMBER

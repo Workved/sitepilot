@@ -1769,5 +1769,42 @@ class MessageDeliveryDispatchTests(unittest.TestCase):
             self.assertTrue(item["meta_template_name"].startswith("TBD_"))
 
 
+    # ---- snag list: snag.assigned reaches the tagged person -----------------
+
+    def test_snag_assigned_sends_the_snag_assigned_template_to_the_tagged_user(self):
+        sent: list[tuple] = []
+
+        class _CapturingAdapter:
+            def send(self, recipient_phone, template, payload):
+                sent.append((recipient_phone, template, payload))
+                return message_dispatch_module.ProviderSendResult(ok=True, provider_message_id="wamid-snag")
+
+        with self.Session() as session:
+            event_id = self._create_event(
+                session, event_type="snag.assigned", aggregate_type="user", aggregate_id=INTERNAL_EMPLOYEE_ID,
+                payload={
+                    "user_id": str(INTERNAL_EMPLOYEE_ID), "snag_id": str(uuid.uuid4()),
+                    "snag_title": "Touch up paint near cabin 3 door", "project_name": "Futurex Office",
+                    "tagged_by": "Deepak S", "area": "Cabin 3",
+                },
+                key="test:snag-assigned",
+            )
+            session.commit()
+        with self.Session() as session:
+            MessageDispatchService(session, adapter=_CapturingAdapter()).process_pending()
+
+        self.assertEqual(len(sent), 1)
+        phone, template, payload = sent[0]
+        self.assertTrue(phone)
+        self.assertEqual(template, "snag_assigned")
+        self.assertEqual(payload["language_code"], "en")
+        self.assertEqual(
+            [p["text"] for p in payload["components"][0]["parameters"]],
+            ["Deepak S", "Touch up paint near cabin 3 door", "Futurex Office", "Cabin 3"],
+        )
+        deliveries = self._deliveries_for(event_id)
+        self.assertEqual([(d.recipient_employee_id, d.status) for d in deliveries], [(self.internal_employee_employee_id, "sent")])
+
+
 if __name__ == "__main__":
     unittest.main()
