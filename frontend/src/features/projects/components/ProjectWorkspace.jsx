@@ -1,4 +1,4 @@
-import { Activity, CalendarCheck, Gauge, Layers3, Pencil, ShieldCheck, Truck, UsersRound } from "lucide-react";
+import { Activity, CalendarCheck, ClipboardList, Gauge, Layers3, Pencil, ShieldCheck, Truck, UsersRound } from "lucide-react";
 import { initials } from "../../../utils/format";
 import { planGap, scheduleWindow } from "../../../utils/schedule";
 import { useEffect, useState } from "react";
@@ -14,6 +14,7 @@ import { ProjectSetupPane } from "./ProjectSetupPane";
 import { ProjectTeamPane } from "./ProjectTeamPane";
 import { ProjectTemplateReview } from "./ProjectTemplateReview";
 import { ProjectVendorPanel } from "./ProjectVendorPanel";
+import { SnagList } from "../../snags/SnagList";
 
 const statusTone = { draft: "gray", active: "green", on_hold: "orange", completed: "blue", archived: "gray" };
 const longDate = value => (value
@@ -73,6 +74,7 @@ function panesFor(project, role) {
   return [
     first,
     ...(project.status === "draft" ? [] : [["dashboard", Gauge, "Dashboard", "look"]]),
+    ["snags", ClipboardList, "Snags", "look"],
     ...(["supervisor", "internal_employee"].includes(role) ? [] : planning),
     ["team", UsersRound, "Team", "people"],
     ["vendors", Truck, "Vendors", "people"],
@@ -142,6 +144,7 @@ export function ProjectWorkspace({ projectId, references, templates = [], user, 
           ? <ProjectSetupPane project={project} activity={activity} templates={templates} user={user} onChanged={changed} onOpenPane={onPaneChange}/>
           : <ProjectOverviewPane project={project} summary={summary} attention={attention} onOpenPane={onPaneChange}/>;
       case "dashboard": return <ProjectDashboard project={project}/>;
+      case "snags": return <SnagList projectId={project.id} user={user}/>;
       case "template-review": return <ProjectTemplateReview projectId={project.id} user={user} projectStatus={project.status}/>;
       case "dependencies": return <ProjectDependencies project={project} user={user}/>;
       case "external-gates": return <ProjectExternalGates project={project} user={user}/>;

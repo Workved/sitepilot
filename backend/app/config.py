@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     # The switch exists for an operator who needs to pause deletion without
     # redeploying (e.g. while validating the sweep against real data).
     evidence_retention_enabled: bool = True
+    # Snag list: WhatsApp the person a snag is tagged to. Off until the
+    # `snag_assigned` template (WHATSAPP_TEMPLATES.md) is approved in Meta -
+    # while off, no event is emitted at all; they still see it in the app.
+    snag_whatsapp_enabled: bool = False
     evidence_retention_months: int = 6
     # Once a day: this is housekeeping against a 6-month window, not a
     # time-sensitive path - polling more often than daily costs a query for

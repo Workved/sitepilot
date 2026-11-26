@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowRight, ChevronDown, Search, Star, X } from "lucide-react";
 import { communicationApi } from "../../api/communicationApi";
+import { snagsApi } from "../../api/snagsApi";
+import { TaggedToYou } from "../snags/TaggedToYou";
 import { projectsApi } from "../../api/projectsApi";
 import { Alert, EmptyState, LoadingSpinner } from "../../components/ui";
 import { cn } from "../../utils/cn";
@@ -208,7 +210,7 @@ function Ring({ value, total }) {
 const SEVERITY_DOT = { critical: "bg-rose-600", warning: "bg-behind", decision: "bg-gate" };
 const SEVERITY_ORDER = { critical: 0, warning: 1, decision: 2 };
 
-function TodayPanel({ user, rows, attention, tabs, onOpenProject, onTabChange, pendingFeedback = [], onOpenVendor }) {
+function TodayPanel({ user, rows, attention, tabs, onOpenProject, onTabChange, pendingFeedback = [], onOpenVendor, taggedSnags = [], onSnagChange }) {
   const onTrack = rows.filter(row => row.standing === "on_track").length;
   const late = rows.filter(row => row.standing === "delayed");
   const atRisk = rows.filter(row => row.standing === "at_risk");
@@ -222,6 +224,8 @@ function TodayPanel({ user, rows, attention, tabs, onOpenProject, onTabChange, p
   if (late.length) sentences.push(`${late.length} ${late.length === 1 ? "project is" : "projects are"} running late${late.length <= 2 ? `: ${late.map(row => row.name).join(" and ")}` : ""}.`);
   if (atRisk.length) sentences.push(`${atRisk.length} ${atRisk.length === 1 ? "project is" : "projects are"} at risk${atRisk.length <= 2 ? `: ${atRisk.map(row => row.name).join(" and ")}` : ""}.`);
   if (decisions.length) sentences.push(`${decisions.length} ${decisions.length === 1 ? "decision is" : "decisions are"} waiting on you.`);
+  const openSnags = taggedSnags.filter(item => item.status === "open").length;
+  if (openSnags) sentences.push(`${openSnags} ${openSnags === 1 ? "snag is" : "snags are"} tagged to you.`);
   if (pendingFeedback.length) sentences.push(`${pendingFeedback.length} ${pendingFeedback.length === 1 ? "vendor from a finished project is" : "vendors from finished projects are"} waiting for your feedback.`);
   if (!sentences.length) sentences.push(rows.length ? "Every running project is moving to plan and nothing is waiting on you." : "No running projects yet. Activated projects and their alerts show up here.");
 
@@ -245,6 +249,8 @@ function TodayPanel({ user, rows, attention, tabs, onOpenProject, onTabChange, p
         </li>)}
       </ul>}
     </div>
+
+    <TaggedToYou snags={taggedSnags} onChange={onSnagChange} onOpenProject={onOpenProject}/>
 
     {pendingFeedback.length > 0 && <section aria-label="Rate your vendors" className="grid gap-2 rounded-2xl border border-line bg-white p-4">
       <h3 className="flex items-center gap-1.5 text-sm font-medium text-slate-950"><Star size={14} className="fill-amber-400 text-amber-400" aria-hidden="true"/> Rate your vendors</h3>
@@ -447,6 +453,15 @@ export function OverviewPage({ user, tabs, onOpenProject, onOpenVendor, onTabCha
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pendingFeedback, setPendingFeedback] = useState([]);
+  const [taggedSnags, setTaggedSnags] = useState([]);
+
+  // Everyone: open snags tagged to them, across projects.
+  useEffect(() => {
+    let alive = true;
+    snagsApi.taggedToMe().then(items => { if (alive) setTaggedSnags(Array.isArray(items) ? items : []); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const onSnagChange = updated => setTaggedSnags(current => current.map(item => item.id === updated.id ? updated : item));
   const canRateVendors = ["project_manager", "supervisor"].includes(user?.role) && tabs?.some(([key]) => key === "communication");
 
   // PMs and supervisors are nudged to rate vendors once their work is over.
@@ -493,7 +508,7 @@ export function OverviewPage({ user, tabs, onOpenProject, onOpenVendor, onTabCha
     <div className="ov-grid">
       <ProgressChart rows={running} onOpenProject={onOpenProject} />
       <TodayPanel user={user} rows={running} attention={attention} tabs={tabs} onOpenProject={onOpenProject} onTabChange={onTabChange}
-        pendingFeedback={pendingFeedback} onOpenVendor={onOpenVendor} />
+        pendingFeedback={pendingFeedback} onOpenVendor={onOpenVendor} taggedSnags={taggedSnags} onSnagChange={onSnagChange} />
       <SiteHealth rows={running} />
       <OpenWork rows={running} onOpenProject={onOpenProject} />
       <Handovers rows={rows} onOpenProject={onOpenProject} onTabChange={onTabChange} tabs={tabs} />
