@@ -1,4 +1,4 @@
-import { FolderKanban, Plus } from "lucide-react";
+import { BookOpenCheck, FolderKanban, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { projectsApi } from "../../api/projectsApi";
 import { Button, EmptyState, LoadingSpinner } from "../../components/ui";
@@ -23,7 +23,7 @@ function readApiError(error) {
   return error?.message || "Unable to save project.";
 }
 
-export function ProjectsPage({ user, action }) {
+export function ProjectsPage({ user, action, onTabChange }) {
   const [projects, setProjects] = useState([]);
   const [references, setReferences] = useState({ project_managers: [], supervisors: [], internal_employees: [] });
   const [publishedTemplates, setPublishedTemplates] = useState([]);
@@ -231,19 +231,26 @@ export function ProjectsPage({ user, action }) {
     <h2 className="sr-only">Projects</h2>
 
     {projects.length === 0
-      ? <div className="grid gap-4">
-        {listActions && <div className="flex items-center justify-end gap-2">{listActions}</div>}
-        <EmptyState
-          icon={<FolderKanban size={21}/>}
-          title="Create the first controlled project"
-          description={CAN_CREATE.includes(user.role)
-            ? "Start with a draft, assign accountability, then attach the approved 45-day template."
-            : "Projects will appear when you receive an active project membership."}
-          action={CAN_CREATE.includes(user.role) && formProject === undefined
-            ? <Button onClick={() => { setFormError(""); setFormProject(null); }}><Plus size={17}/> Create draft</Button>
-            : null}
-        />
-        </div>
+      // One call to action, inside the empty state. (The list toolbar's
+      // buttons are sized for the 20rem list column, not a full-width row.)
+      ? (() => {
+          const canCreate = CAN_CREATE.includes(user.role);
+          const noTemplates = canCreate && !templatesLoading && !templatesError && publishedTemplates.length === 0;
+          const openForm = () => { setFormError(""); setFormProject(null); };
+          return <EmptyState
+            icon={<FolderKanban size={21}/>}
+            title={!canCreate ? "No projects yet" : noTemplates ? "Publish a template first" : "No projects yet"}
+            description={!canCreate
+              ? "Projects will appear here once you're added to one."
+              : noTemplates
+                ? "Every project is built from a published schedule template. Create one in Templates and publish it, then come back to create the first project."
+                : "Create a draft project, assign its PM and Supervisor, then activate it from a published template."}
+            action={!canCreate || formProject !== undefined ? null
+              : noTemplates
+                ? (onTabChange ? <Button onClick={() => onTabChange("templates")}><BookOpenCheck size={17}/> Go to Templates</Button> : null)
+                : <Button onClick={openForm}><Plus size={17}/> New project</Button>}
+          />;
+        })()
       : <div className="grid min-w-0 overflow-hidden rounded-[22px] border border-line bg-white lg:h-[calc(100dvh-9.75rem)] lg:min-h-[36rem] lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
           <ProjectListPane
             projects={projects}
